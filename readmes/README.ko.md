@@ -1,5 +1,9 @@
 # Hover Trans Port
 
+<p align="center">
+  <img src="../docs/assets/hover-trans-port-icon.svg" alt="Hover Trans Port icon" width="72" height="72">
+</p>
+
 언어: [English](../README.md) | 한국어
 
 > 이 한국어 README는 빠른 이해를 위한 요약입니다. 릴리스, 보안, 개인정보, Native Host 세부 기준은 영어 원문 문서를 우선합니다.

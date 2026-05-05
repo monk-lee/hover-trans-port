@@ -1,5 +1,9 @@
 # Hover Trans Port
 
+<p align="center">
+  <img src="docs/assets/hover-trans-port-icon.svg" alt="Hover Trans Port icon" width="72" height="72">
+</p>
+
 Language: English | [한국어](readmes/README.ko.md)
 
 ![Hover Trans Port inline translation preview](docs/assets/hover-trans-port-preview.png)

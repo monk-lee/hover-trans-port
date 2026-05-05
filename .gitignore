@@ -15,6 +15,7 @@ coverage/
 *.tsbuildinfo
 
 # Internal planning artifacts
+.codex/
 docs/DETAIL_PRD.md
 docs/superpowers/
 
