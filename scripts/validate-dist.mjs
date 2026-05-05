@@ -14,11 +14,31 @@ if (!existsSync(manifestPath)) {
 }
 
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+const requiredIconSizes = ["16", "32", "48", "128"];
+
+function collectIconFiles(iconMap, fieldName) {
+  if (!iconMap || typeof iconMap !== "object") {
+    fail(`manifest is missing ${fieldName}.`);
+  }
+
+  return requiredIconSizes.map((size) => {
+    const relativePath = iconMap[size];
+
+    if (typeof relativePath !== "string" || relativePath.length === 0) {
+      fail(`manifest is missing ${fieldName}.${size}.`);
+    }
+
+    return relativePath;
+  });
+}
+
 const requiredFiles = [
   manifest.action?.default_popup,
   manifest.options_page,
   manifest.background?.service_worker,
-  ...(manifest.content_scripts ?? []).flatMap((script) => script.js ?? [])
+  ...(manifest.content_scripts ?? []).flatMap((script) => script.js ?? []),
+  ...collectIconFiles(manifest.icons, "icons"),
+  ...collectIconFiles(manifest.action?.default_icon, "action.default_icon")
 ].filter(Boolean);
 const contentScriptFiles = (manifest.content_scripts ?? [])
   .flatMap((script) => script.js ?? [])

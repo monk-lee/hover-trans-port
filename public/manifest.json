@@ -3,8 +3,20 @@
   "name": "Hover Trans Port",
   "description": "Translate selected or hovered text with a local AI provider.",
   "version": "0.1.0",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAhgPaBLi0EaJUka6EX7RHtsBght9bY8VS60RZnSI/UXw5fP2cTara8Uf9lcwEWOmtKui3brXQAmvVq7zGADkKVhYHaD8ipmewLljkcVVqBTSej1yKqogNzZpx89rNwQ4Lx0oSx2Piz8NUaieAljhvUgyAxMtA1gxQ4tf3sXWjraf3AzjMeg4/W9gJvXlLCaX86MlbaoNpRdKZHiSk56wqp+8VOUrh8C2+GIyohPdbKxHUQeMoBKFa+fIh8nrA4tEKhFMqqFZkNXsSQYpCfiqUk8EvPf9vbHRcmWjPtE+/CEKf1F7by9EWO5JXE3ppxFLxISdvsJSJtY1Fun2/86nrOwIDAQAB",
   "action": {
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    },
     "default_popup": "popup.html",
     "default_title": "Hover Trans Port"
   },
