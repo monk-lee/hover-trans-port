@@ -1,0 +1,50 @@
+{
+  "name": "hover-trans-port",
+  "version": "0.1.0",
+  "description": "Chrome MV3 extension that translates selected or hovered text through a local AI CLI native host.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dev-monk-lee/hover-trans-port.git"
+  },
+  "keywords": [
+    "chrome-extension",
+    "manifest-v3",
+    "native-messaging",
+    "translation",
+    "codex-cli",
+    "local-first"
+  ],
+  "bugs": {
+    "url": "https://github.com/dev-monk-lee/hover-trans-port/issues"
+  },
+  "homepage": "https://github.com/dev-monk-lee/hover-trans-port#readme",
+  "scripts": {
+    "dev": "vite build --watch --mode development",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "validate": "node scripts/validate-dist.mjs",
+    "native:install": "node scripts/install-native-host.mjs",
+    "native:uninstall": "node scripts/uninstall-native-host.mjs",
+    "helper:build": "cargo build --manifest-path native-helper/Cargo.toml",
+    "helper:build:release": "cargo build --release --manifest-path native-helper/Cargo.toml",
+    "helper:test": "cargo test --manifest-path native-helper/Cargo.toml",
+    "macos:script-installer:test": "node scripts/macos-script-installer-check.mjs",
+    "macos:script-installer:build": "bash scripts/build-macos-script-installer-release.sh",
+    "native:protocol-check": "node scripts/native-host-protocol-check.mjs",
+    "native:compatibility-check": "node scripts/native-host-compatibility-check.mjs",
+    "native:paths-check": "node scripts/native-host-paths-check.mjs",
+    "hotkey": "node scripts/hotkey-check.mjs",
+    "open-source:check": "node scripts/open-source-check.mjs",
+    "verify": "pnpm typecheck && pnpm build && pnpm validate && pnpm hotkey && pnpm helper:test && pnpm macos:script-installer:test && pnpm native:compatibility-check && pnpm native:paths-check && pnpm open-source:check",
+    "test": "pnpm verify"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.40",
+    "@types/node": "^25.6.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.10"
+  },
+  "packageManager": "pnpm@10.32.1"
+}

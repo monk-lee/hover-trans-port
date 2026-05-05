@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+native-helper/target/
+
+# Local worktrees and caches
+.worktrees/
+.cache/
+.vite/
+coverage/
+*.tsbuildinfo
+
+# Internal planning artifacts
+docs/DETAIL_PRD.md
+docs/superpowers/
+
+# Local environment and runtime data
+.env
+.env.*
+!.env.example
+*.log
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

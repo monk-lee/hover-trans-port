@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Hover Trans Port",
+  "description": "Translate selected or hovered text with a local AI provider.",
+  "version": "0.1.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAhgPaBLi0EaJUka6EX7RHtsBght9bY8VS60RZnSI/UXw5fP2cTara8Uf9lcwEWOmtKui3brXQAmvVq7zGADkKVhYHaD8ipmewLljkcVVqBTSej1yKqogNzZpx89rNwQ4Lx0oSx2Piz8NUaieAljhvUgyAxMtA1gxQ4tf3sXWjraf3AzjMeg4/W9gJvXlLCaX86MlbaoNpRdKZHiSk56wqp+8VOUrh8C2+GIyohPdbKxHUQeMoBKFa+fIh8nrA4tEKhFMqqFZkNXsSQYpCfiqUk8EvPf9vbHRcmWjPtE+/CEKf1F7by9EWO5JXE3ppxFLxISdvsJSJtY1Fun2/86nrOwIDAQAB",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Hover Trans Port"
+  },
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content/content-script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "options.html",
+  "permissions": ["activeTab", "storage", "nativeMessaging"]
+}

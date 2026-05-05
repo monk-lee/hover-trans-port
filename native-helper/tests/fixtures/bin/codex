@@ -1,0 +1,32 @@
+#!/bin/sh
+if [ "$1" = "--version" ]; then
+  printf 'codex test-version\n'
+  exit 0
+fi
+
+if [ "$1" = "exec" ]; then
+  output_file=""
+  previous=""
+  for arg in "$@"; do
+    if [ "$previous" = "--output-last-message" ]; then
+      output_file="$arg"
+      break
+    fi
+    previous="$arg"
+  done
+
+  prompt="$(/bin/cat)"
+  case "$prompt" in
+    *"Translate the following text to Korean."*)
+      printf '안녕하세요' > "$output_file"
+      exit 0
+      ;;
+    *)
+      printf 'unexpected prompt' >&2
+      exit 2
+      ;;
+  esac
+fi
+
+printf 'unexpected codex args: %s\n' "$*" >&2
+exit 2

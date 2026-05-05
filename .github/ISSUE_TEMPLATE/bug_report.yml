@@ -1,0 +1,70 @@
+name: Bug report
+description: Report a reproducible problem in Hover Trans Port.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Remove private page text from logs before posting.
+
+        Security vulnerabilities must not be reported through public issues. Use GitHub private vulnerability reporting instead.
+  - type: input
+    id: version
+    attributes:
+      label: Commit or version
+      description: Paste the commit SHA or release version.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Extension UI
+        - Left Control trigger
+        - Selection or hover extraction
+        - Native host install
+        - Codex provider
+        - Cache
+        - Options diagnostics
+        - Documentation
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include macOS version, Chrome version, Node version, pnpm version, and Codex CLI version.
+      value: |
+        macOS:
+        Chrome:
+        Node:
+        pnpm:
+        Codex CLI:
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide exact steps with private text removed.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Remove private page text, tokens, account identifiers, and sensitive paths where needed.

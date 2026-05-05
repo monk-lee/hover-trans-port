@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hover Trans Port Options</title>
+  </head>
+  <body>
+    <main class="options-shell">
+      <header class="options-header">
+        <div>
+          <p class="eyebrow">Settings</p>
+          <h1>Hover Trans Port</h1>
+        </div>
+        <p id="save-state" class="save-state" role="status"></p>
+      </header>
+      <section class="settings-section" aria-labelledby="general-heading">
+        <h2 id="general-heading">General</h2>
+        <label class="setting-row">
+          <span>Enable extension</span>
+          <input id="enabled" type="checkbox" />
+        </label>
+        <label class="setting-row">
+          <span>Use cache</span>
+          <input id="cache-enabled" type="checkbox" />
+        </label>
+        <label class="field-row" for="target-language">
+          <span>Target language</span>
+          <select id="target-language"></select>
+        </label>
+        <div class="field-row shortcut-row" aria-labelledby="trigger-hotkey-label">
+          <span id="trigger-hotkey-label">Trigger hotkey</span>
+          <div class="shortcut-controls">
+            <kbd id="trigger-hotkey-display">Left Control</kbd>
+            <button id="trigger-hotkey-record" type="button" class="secondary-button">
+              Record
+            </button>
+            <button id="trigger-hotkey-reset" type="button" class="secondary-button">
+              Reset
+            </button>
+          </div>
+          <p
+            id="trigger-hotkey-status"
+            class="trigger-hotkey-status"
+            role="status"
+          ></p>
+        </div>
+        <label
+          id="target-language-custom-row"
+          class="field-row target-language-custom-row"
+          for="target-language-custom"
+          hidden
+        >
+          <span>Custom target language</span>
+          <input
+            id="target-language-custom"
+            type="text"
+            autocomplete="off"
+            placeholder="French"
+          />
+        </label>
+        <label class="field-row" for="timeout-ms">
+          <span>Timeout seconds</span>
+          <input
+            id="timeout-ms"
+            type="number"
+            inputmode="numeric"
+            min="5"
+            max="120"
+            step="1"
+          />
+        </label>
+      </section>
+      <section class="provider-section" aria-labelledby="provider-heading">
+        <div>
+          <h2 id="provider-heading">Translation Provider</h2>
+          <label class="field-row" for="provider">
+            <span>Provider</span>
+            <select id="provider">
+              <option value="codex">Codex CLI</option>
+              <option value="claude" disabled>Claude CLI - Coming later</option>
+              <option value="gemini" disabled>Gemini CLI - Coming later</option>
+            </select>
+          </label>
+          <label class="field-row" for="provider-model">
+            <span>Model</span>
+            <input id="provider-model" type="text" autocomplete="off" />
+          </label>
+          <p id="provider-status" class="provider-status" role="status">
+            Not checked.
+          </p>
+        </div>
+        <div class="button-row">
+          <button id="provider-model-reset" type="button" class="secondary-button">
+            Reset
+          </button>
+          <button id="provider-status-check" type="button">Check Provider</button>
+        </div>
+      </section>
+      <details class="diagnostics-section">
+        <summary>Diagnostics</summary>
+        <div class="diagnostics-content">
+          <section class="native-host-section" aria-labelledby="native-host-heading">
+            <div>
+              <h2 id="native-host-heading">Native Host</h2>
+              <p id="native-host-status" class="native-host-status" role="status">
+                Not checked.
+              </p>
+            </div>
+            <button id="native-host-ping" type="button" class="secondary-button">
+              Check Native Host
+            </button>
+          </section>
+          <section class="debug-section" aria-labelledby="debug-heading">
+            <div>
+              <h2 id="debug-heading">Debug Log</h2>
+              <label class="setting-row">
+                <span>Debug logging</span>
+                <input id="debug-logging" type="checkbox" />
+              </label>
+              <div class="debug-log-row">
+                <span>Log file</span>
+                <code id="debug-log-path">Checking...</code>
+                <p id="debug-log-status" class="debug-log-status" role="status">
+                  Not checked.
+                </p>
+                <div id="debug-log-view" class="debug-log-view" hidden>
+                  <pre id="debug-log-content" aria-live="polite"></pre>
+                </div>
+              </div>
+            </div>
+            <div class="button-row">
+              <button
+                id="debug-log-refresh"
+                type="button"
+                class="secondary-button"
+              >
+                Refresh log
+              </button>
+              <button
+                id="debug-log-clear"
+                type="button"
+                class="secondary-button"
+              >
+                Clear log
+              </button>
+            </div>
+          </section>
+          <section class="cache-section" aria-labelledby="cache-heading">
+            <div>
+              <h2 id="cache-heading">Cache</h2>
+              <p class="cache-warning">
+                Translation source text and results are stored in a local SQLite
+                cache.
+              </p>
+              <p id="cache-status" class="cache-status" role="status">
+                Not cleared.
+              </p>
+            </div>
+            <button id="cache-clear" type="button" class="secondary-button">
+              Clear cache
+            </button>
+          </section>
+        </div>
+      </details>
+    </main>
+    <script type="module" src="/options/main.ts"></script>
+  </body>
+</html>

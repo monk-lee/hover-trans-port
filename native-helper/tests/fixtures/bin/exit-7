@@ -1,0 +1,3 @@
+#!/bin/sh
+echo failed >&2
+exit 7

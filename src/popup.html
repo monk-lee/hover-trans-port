@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hover Trans Port</title>
+  </head>
+  <body>
+    <main class="popup-shell">
+      <header class="popup-header">
+        <div>
+          <p class="eyebrow">Hover Trans Port</p>
+          <h1 id="status-title">Checking</h1>
+        </div>
+        <span
+          id="status-indicator"
+          class="status-indicator"
+          data-state="checking"
+          aria-hidden="true"
+        ></span>
+      </header>
+      <p id="status-detail" class="status-detail" role="status">
+        Checking Codex CLI...
+      </p>
+      <label class="switch-row">
+        <span>Enable extension</span>
+        <input id="enabled" type="checkbox" />
+      </label>
+      <button id="open-options" type="button">Open Options</button>
+    </main>
+    <script type="module" src="/popup/main.ts"></script>
+  </body>
+</html>
