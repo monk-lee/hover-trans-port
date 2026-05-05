@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 
-const workflowPath = ".github/workflows/release.yml";
+const releaseWorkflowPath = ".github/workflows/release.yml";
+const ciWorkflowPath = ".github/workflows/ci.yml";
 
 function fail(message) {
   console.error(`release-workflow-check: ${message}`);
@@ -13,11 +14,21 @@ function requireIncludes(content, expected, description) {
   }
 }
 
-if (!existsSync(workflowPath)) {
-  fail(`${workflowPath} was not found.`);
+function readWorkflow(workflowPath) {
+  if (!existsSync(workflowPath)) {
+    fail(`${workflowPath} was not found.`);
+  }
+
+  return readFileSync(workflowPath, "utf8");
 }
 
-const workflow = readFileSync(workflowPath, "utf8");
+function requireCurrentOfficialActions(content, workflowPath) {
+  requireIncludes(content, "actions/checkout@v6", `${workflowPath} checkout v6`);
+  requireIncludes(content, "actions/setup-node@v6", `${workflowPath} setup-node v6`);
+}
+
+const ciWorkflow = readWorkflow(ciWorkflowPath);
+const releaseWorkflow = readWorkflow(releaseWorkflowPath);
 
 const requiredSnippets = [
   ["push:", "tag push trigger"],
@@ -44,8 +55,11 @@ const requiredSnippets = [
   ["--prerelease", "prerelease flag"]
 ];
 
+requireCurrentOfficialActions(ciWorkflow, ciWorkflowPath);
+requireCurrentOfficialActions(releaseWorkflow, releaseWorkflowPath);
+
 for (const [snippet, description] of requiredSnippets) {
-  requireIncludes(workflow, snippet, description);
+  requireIncludes(releaseWorkflow, snippet, description);
 }
 
 console.log("release-workflow-check: release workflow is valid.");
