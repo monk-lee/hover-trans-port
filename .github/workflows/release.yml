@@ -1,0 +1,124 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish GitHub Release
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Activate pnpm
+        run: corepack prepare pnpm@10.32.1 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare Rust
+        run: rustup toolchain install stable --profile minimal
+
+      - name: Verify
+        run: pnpm verify
+
+      - name: Build extension
+        run: pnpm build
+
+      - name: Build macOS ARM64 installer assets
+        run: pnpm macos:script-installer:build
+
+      - name: Package extension zip
+        run: |
+          TAG_NAME="${GITHUB_REF_NAME}"
+          EXTENSION_ZIP="build/release/hover-trans-port-extension-${TAG_NAME}.zip"
+
+          mkdir -p build/release
+          rm -f "$EXTENSION_ZIP"
+          (
+            cd dist
+            zip -qr "../$EXTENSION_ZIP" .
+          )
+
+          test -f "$EXTENSION_ZIP"
+          unzip -l "$EXTENSION_ZIP"
+
+      - name: Write release notes
+        run: |
+          TAG_NAME="${GITHUB_REF_NAME}"
+          mkdir -p build/release
+          cat > build/release/release-notes.md <<EOF
+          ${TAG_NAME} Developer Preview
+
+          This developer preview targets macOS, Google Chrome, and Codex CLI.
+
+          Assets:
+          - install-macos-native-host.sh: one-line native host installer
+          - checksums.txt: SHA-256 checksums for native host assets
+          - hover-trans-port-helper-macos-arm64: macOS ARM64 native helper
+          - hover-trans-port-native-host-macos-0.1.0.tar.gz: inspect-first native host package
+          - hover-trans-port-extension-${TAG_NAME}.zip: unpacked Chrome extension package built from dist/
+
+          Install docs: https://github.com/dev-monk-lee/hover-trans-port/blob/${TAG_NAME}/docs/native-host-install.md
+          Privacy: https://github.com/dev-monk-lee/hover-trans-port/blob/${TAG_NAME}/PRIVACY.md
+
+          This is not a Chrome Web Store release. Load the extension package manually through chrome://extensions during the developer preview.
+          EOF
+
+      - name: Check release assets
+        run: |
+          TAG_NAME="${GITHUB_REF_NAME}"
+          NATIVE_DIR="build/macos-script-installer"
+          EXTENSION_ZIP="build/release/hover-trans-port-extension-${TAG_NAME}.zip"
+
+          test -f "$NATIVE_DIR/install-macos-native-host.sh"
+          test -f "$NATIVE_DIR/checksums.txt"
+          test -f "$NATIVE_DIR/hover-trans-port-helper-macos-arm64"
+          test -f "$NATIVE_DIR/hover-trans-port-native-host-macos-0.1.0.tar.gz"
+          test -f "$EXTENSION_ZIP"
+          test -f build/release/release-notes.md
+
+          (
+            cd "$NATIVE_DIR"
+            shasum -a 256 -c checksums.txt
+          )
+
+      - name: Publish release
+        run: |
+          TAG_NAME="${GITHUB_REF_NAME}"
+          NATIVE_DIR="build/macos-script-installer"
+          EXTENSION_ZIP="build/release/hover-trans-port-extension-${TAG_NAME}.zip"
+
+          gh release create "$TAG_NAME" \
+            "$NATIVE_DIR/install-macos-native-host.sh" \
+            "$NATIVE_DIR/checksums.txt" \
+            "$NATIVE_DIR/hover-trans-port-helper-macos-arm64" \
+            "$NATIVE_DIR/hover-trans-port-native-host-macos-0.1.0.tar.gz" \
+            "$EXTENSION_ZIP" \
+            --verify-tag \
+            --prerelease \
+            --title "$TAG_NAME Developer Preview" \
+            --notes-file build/release/release-notes.md
