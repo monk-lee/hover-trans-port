@@ -35,7 +35,7 @@ See [Roadmap](docs/roadmap.md) for planned follow-up work.
 
 ### 1. Install The macOS Native Host
 
-For the alpha path, install the prebuilt native host from GitHub Releases with `curl`:
+Install the prebuilt native host from the latest GitHub Release with `curl`:
 
 ```bash
 curl -fsSL https://github.com/dev-monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh | bash

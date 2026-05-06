@@ -14,6 +14,12 @@ function requireIncludes(content, expected, description) {
   }
 }
 
+function requireNotIncludes(content, unexpected, description) {
+  if (content.includes(unexpected)) {
+    fail(`unexpected ${description}: ${unexpected}`);
+  }
+}
+
 function readWorkflow(workflowPath) {
   if (!existsSync(workflowPath)) {
     fail(`${workflowPath} was not found.`);
@@ -52,7 +58,7 @@ const requiredSnippets = [
   ["GH_TOKEN: ${{ github.token }}", "GitHub CLI token"],
   ["gh release create", "GitHub release creation"],
   ["--verify-tag", "existing tag verification"],
-  ["--prerelease", "prerelease flag"]
+  ["--latest", "latest release flag"]
 ];
 
 requireCurrentOfficialActions(ciWorkflow, ciWorkflowPath);
@@ -61,5 +67,7 @@ requireCurrentOfficialActions(releaseWorkflow, releaseWorkflowPath);
 for (const [snippet, description] of requiredSnippets) {
   requireIncludes(releaseWorkflow, snippet, description);
 }
+
+requireNotIncludes(releaseWorkflow, "--prerelease", "prerelease flag");
 
 console.log("release-workflow-check: release workflow is valid.");

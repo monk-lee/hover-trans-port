@@ -119,6 +119,6 @@ jobs:
             "$NATIVE_DIR/hover-trans-port-native-host-macos-0.1.0.tar.gz" \
             "$EXTENSION_ZIP" \
             --verify-tag \
-            --prerelease \
+            --latest \
             --title "$TAG_NAME Developer Preview" \
             --notes-file build/release/release-notes.md
