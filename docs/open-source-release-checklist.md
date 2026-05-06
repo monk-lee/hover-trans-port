@@ -74,4 +74,3 @@ This checklist is for the first public developer-preview source release.
 - [ ] Confirm privacy docs disclose that Codex CLI may send requested text upstream.
 - [ ] Confirm SECURITY.md documents the private vulnerability reporting channel.
 - [ ] Add a README screenshot or short GIF of inline translation before broad public announcement.
-- [ ] Confirm `docs/roadmap.md` keeps Claude Code CLI and Gemini CLI support marked as future work, not current support.

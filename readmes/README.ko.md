@@ -31,8 +31,6 @@ Hover Trans Port는 웹페이지에서 텍스트를 선택하거나 마우스를
 - Claude/Gemini 실행.
 - 전체 페이지, 자동, PDF, iframe, OCR, 자막 번역.
 
-향후 작업은 영어 문서 [Roadmap](../docs/roadmap.md)을 참고하세요.
-
 ## 설치
 
 ### 1. macOS Native Host 설치

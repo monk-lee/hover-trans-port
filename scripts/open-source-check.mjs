@@ -41,7 +41,6 @@ assertRequiredFiles([
   "CONTRIBUTING.md",
   "CODE_OF_CONDUCT.md",
   "docs/native-host-install.md",
-  "docs/roadmap.md",
   ".github/ISSUE_TEMPLATE/bug_report.yml",
   ".github/ISSUE_TEMPLATE/feature_request.yml",
   ".github/PULL_REQUEST_TEMPLATE.md",
@@ -120,10 +119,5 @@ assertIncludes(nativeHostInstall, "ChatGPT Atlas", "docs/native-host-install.md"
 const optionsHtml = read("src/options.html");
 assertIncludes(optionsHtml, "Trigger not working?", "src/options.html");
 assertIncludes(optionsHtml, "Record another key combination.", "src/options.html");
-
-const roadmap = read("docs/roadmap.md");
-assertIncludes(roadmap, "Claude Code CLI provider adapter", "docs/roadmap.md");
-assertIncludes(roadmap, "Gemini CLI provider adapter", "docs/roadmap.md");
-assertIncludes(roadmap, "Do not read browser cookies", "docs/roadmap.md");
 
 console.log("open-source-check: public release disclosures are present.");

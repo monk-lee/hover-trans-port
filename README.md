@@ -29,8 +29,6 @@ Not yet:
 - Claude/Gemini provider execution.
 - Full-page, automatic, PDF, iframe, OCR, or subtitle translation.
 
-See [Roadmap](docs/roadmap.md) for planned follow-up work.
-
 ## Install
 
 ### 1. Install The macOS Native Host
