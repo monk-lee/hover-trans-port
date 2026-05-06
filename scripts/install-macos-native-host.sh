@@ -26,6 +26,8 @@ Environment overrides:
   HOVER_TRANS_PORT_EXTENSION_ID
   HOVER_TRANS_PORT_INSTALL_ROOT
   HOVER_TRANS_PORT_CHROME_NATIVE_HOSTS_DIR
+  HOVER_TRANS_PORT_WHALE_NATIVE_HOSTS_DIR
+  HOVER_TRANS_PORT_ATLAS_NATIVE_HOSTS_DIR
   HOVER_TRANS_PORT_RELEASE_BASE_URL
 USAGE
 }
@@ -78,7 +80,14 @@ EXTENSION_ID="${HOVER_TRANS_PORT_EXTENSION_ID:-$DEFAULT_EXTENSION_ID}"
 HOME_DIR="${HOME:?HOME is required}"
 INSTALL_ROOT="${HOVER_TRANS_PORT_INSTALL_ROOT:-$HOME_DIR/Library/Application Support/$APP_SUPPORT_DIR_NAME}"
 CHROME_NATIVE_HOSTS_DIR="${HOVER_TRANS_PORT_CHROME_NATIVE_HOSTS_DIR:-$HOME_DIR/Library/Application Support/Google/Chrome/NativeMessagingHosts}"
-MANIFEST_PATH="$CHROME_NATIVE_HOSTS_DIR/$HOST_NAME.json"
+WHALE_NATIVE_HOSTS_DIR="${HOVER_TRANS_PORT_WHALE_NATIVE_HOSTS_DIR:-$HOME_DIR/Library/Application Support/Naver/Whale/NativeMessagingHosts}"
+ATLAS_NATIVE_HOSTS_DIR="${HOVER_TRANS_PORT_ATLAS_NATIVE_HOSTS_DIR:-$HOME_DIR/Library/Application Support/OpenAI/ChatGPT Atlas/NativeMessagingHosts}"
+MANIFEST_PATHS=(
+  "$CHROME_NATIVE_HOSTS_DIR/$HOST_NAME.json"
+  "$WHALE_NATIVE_HOSTS_DIR/$HOST_NAME.json"
+  "$ATLAS_NATIVE_HOSTS_DIR/$HOST_NAME.json"
+)
+MANIFEST_PATH="${MANIFEST_PATHS[0]}"
 NATIVE_HOSTS_ROOT="$INSTALL_ROOT/native-hosts"
 VERSION_DIR="$NATIVE_HOSTS_ROOT/$HOST_VERSION"
 CURRENT_LINK="$INSTALL_ROOT/current"
@@ -149,8 +158,9 @@ LAUNCHER
 }
 
 write_manifest() {
-  mkdir -p "$CHROME_NATIVE_HOSTS_DIR"
-  cat > "$MANIFEST_PATH" <<MANIFEST
+  for manifest_path in "${MANIFEST_PATHS[@]}"; do
+    mkdir -p "$(dirname "$manifest_path")"
+    cat > "$manifest_path" <<MANIFEST
 {
   "allowed_origins": [
     "chrome-extension://$EXTENSION_ID/"
@@ -161,6 +171,7 @@ write_manifest() {
   "type": "stdio"
 }
 MANIFEST
+  done
 }
 
 write_metadata() {
@@ -269,16 +280,29 @@ install_helper() {
   write_manifest
 
   echo "installed native host $HOST_VERSION"
-  echo "manifest: $MANIFEST_PATH"
+  for manifest_path in "${MANIFEST_PATHS[@]}"; do
+    echo "manifest: $manifest_path"
+  done
   echo "launcher: $LAUNCHER_PATH"
   echo "current: $CURRENT_LINK -> $VERSION_DIR"
 }
 
+all_manifests_exist() {
+  for manifest_path in "${MANIFEST_PATHS[@]}"; do
+    if [ ! -f "$manifest_path" ]; then
+      return 1
+    fi
+  done
+  return 0
+}
+
 status_host() {
-  if [ -x "$CURRENT_LINK/$HELPER_EXECUTABLE_NAME" ] && [ -f "$MANIFEST_PATH" ]; then
+  if [ -x "$CURRENT_LINK/$HELPER_EXECUTABLE_NAME" ] && all_manifests_exist; then
     resolved="$(readlink "$CURRENT_LINK" 2>/dev/null || printf '%s' "$CURRENT_LINK")"
     echo "installed native host $HOST_VERSION"
-    echo "manifest: $MANIFEST_PATH"
+    for manifest_path in "${MANIFEST_PATHS[@]}"; do
+      echo "manifest: $manifest_path"
+    done
     echo "current: $CURRENT_LINK -> $resolved"
   else
     echo "not installed"
@@ -286,7 +310,9 @@ status_host() {
 }
 
 uninstall_host() {
-  remove_if_exists "$MANIFEST_PATH"
+  for manifest_path in "${MANIFEST_PATHS[@]}"; do
+    remove_if_exists "$manifest_path"
+  done
   remove_if_exists "$INSTALL_ROOT"
   echo "uninstalled native host"
 }

@@ -1,19 +1,21 @@
 import { existsSync, rmSync } from "node:fs";
 import {
+  getBrowserNativeHostManifestPaths,
   getLegacyNativeHostLauncherPath,
-  getNativeHostInstallRoot,
-  getNativeHostManifestPath
+  getNativeHostInstallRoot
 } from "./native-host-paths.mjs";
 
-const manifestPath = getNativeHostManifestPath();
+const manifestPaths = getBrowserNativeHostManifestPaths();
 const installRoot = getNativeHostInstallRoot();
 const legacyLauncherPath = getLegacyNativeHostLauncherPath();
 
-if (existsSync(manifestPath)) {
-  rmSync(manifestPath);
-  console.log(`native-host uninstall: removed ${manifestPath}`);
-} else {
-  console.log(`native-host uninstall: no manifest at ${manifestPath}`);
+for (const manifestPath of manifestPaths) {
+  if (existsSync(manifestPath)) {
+    rmSync(manifestPath);
+    console.log(`native-host uninstall: removed ${manifestPath}`);
+  } else {
+    console.log(`native-host uninstall: no manifest at ${manifestPath}`);
+  }
 }
 
 if (existsSync(installRoot)) {

@@ -114,6 +114,12 @@ assertIncludes(nativeHostInstall, "developer preview", "docs/native-host-install
 assertIncludes(nativeHostInstall, "pnpm native:install", "docs/native-host-install.md");
 assertIncludes(nativeHostInstall, "pnpm native:uninstall", "docs/native-host-install.md");
 assertIncludes(nativeHostInstall, "Target language", "docs/native-host-install.md");
+assertIncludes(nativeHostInstall, "standalone modifier keys", "docs/native-host-install.md");
+assertIncludes(nativeHostInstall, "ChatGPT Atlas", "docs/native-host-install.md");
+
+const optionsHtml = read("src/options.html");
+assertIncludes(optionsHtml, "Trigger not working?", "src/options.html");
+assertIncludes(optionsHtml, "Record another key combination.", "src/options.html");
 
 const roadmap = read("docs/roadmap.md");
 assertIncludes(roadmap, "Claude Code CLI provider adapter", "docs/roadmap.md");

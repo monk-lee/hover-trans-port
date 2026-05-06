@@ -48,6 +48,14 @@ function makeEnv(root) {
     HOVER_TRANS_PORT_CHROME_NATIVE_HOSTS_DIR: join(
       home,
       "Library/Application Support/Google/Chrome/NativeMessagingHosts"
+    ),
+    HOVER_TRANS_PORT_WHALE_NATIVE_HOSTS_DIR: join(
+      home,
+      "Library/Application Support/Naver/Whale/NativeMessagingHosts"
+    ),
+    HOVER_TRANS_PORT_ATLAS_NATIVE_HOSTS_DIR: join(
+      home,
+      "Library/Application Support/OpenAI/ChatGPT Atlas/NativeMessagingHosts"
     )
   };
 }
@@ -87,6 +95,14 @@ withTempRoot("install", (root) => {
     env.HOVER_TRANS_PORT_CHROME_NATIVE_HOSTS_DIR,
     "com.monklabs.hover_trans_port.json"
   );
+  const whaleManifestPath = join(
+    env.HOVER_TRANS_PORT_WHALE_NATIVE_HOSTS_DIR,
+    "com.monklabs.hover_trans_port.json"
+  );
+  const atlasManifestPath = join(
+    env.HOVER_TRANS_PORT_ATLAS_NATIVE_HOSTS_DIR,
+    "com.monklabs.hover_trans_port.json"
+  );
 
   assert(existsSync(installedHelper), "helper should be copied into version directory");
   assert((lstatSync(installedHelper).mode & 0o111) !== 0, "installed helper should be executable");
@@ -102,6 +118,14 @@ withTempRoot("install", (root) => {
   assert(
     manifest.allowed_origins.includes(`chrome-extension://${extensionId}/`),
     "manifest should allow the extension origin"
+  );
+  assert(
+    readJson(whaleManifestPath).path === launcher,
+    "Whale manifest should point at stable launcher"
+  );
+  assert(
+    readJson(atlasManifestPath).path === launcher,
+    "Atlas manifest should point at stable launcher"
   );
 });
 
@@ -138,6 +162,14 @@ withTempRoot("status-uninstall", (root) => {
   assert(
     !existsSync(join(env.HOVER_TRANS_PORT_CHROME_NATIVE_HOSTS_DIR, "com.monklabs.hover_trans_port.json")),
     "uninstall should remove Chrome manifest"
+  );
+  assert(
+    !existsSync(join(env.HOVER_TRANS_PORT_WHALE_NATIVE_HOSTS_DIR, "com.monklabs.hover_trans_port.json")),
+    "uninstall should remove Whale manifest"
+  );
+  assert(
+    !existsSync(join(env.HOVER_TRANS_PORT_ATLAS_NATIVE_HOSTS_DIR, "com.monklabs.hover_trans_port.json")),
+    "uninstall should remove Atlas manifest"
   );
 });
 

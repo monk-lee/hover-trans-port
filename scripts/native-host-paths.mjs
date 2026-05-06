@@ -83,6 +83,30 @@ export function getChromeNativeHostsDir(platform = process.platform) {
   throw new Error(`Unsupported native host install platform: ${platform}`);
 }
 
+export function getBrowserNativeHostsDirs(platform = process.platform) {
+  if (platform === "darwin") {
+    return [
+      getChromeNativeHostsDir(platform),
+      resolve(
+        homedir(),
+        "Library/Application Support/Naver/Whale/NativeMessagingHosts"
+      ),
+      resolve(
+        homedir(),
+        "Library/Application Support/OpenAI/ChatGPT Atlas/NativeMessagingHosts"
+      )
+    ];
+  }
+
+  return [getChromeNativeHostsDir(platform)];
+}
+
+export function getBrowserNativeHostManifestPaths(platform = process.platform) {
+  return getBrowserNativeHostsDirs(platform).map((dir) =>
+    resolve(dir, `${NATIVE_HOST_NAME}.json`)
+  );
+}
+
 export function getNativeHostManifestPath(platform = process.platform) {
   return resolve(getChromeNativeHostsDir(platform), `${NATIVE_HOST_NAME}.json`);
 }

@@ -14,13 +14,13 @@ import { renderNativeHostLauncher } from "./native-host-launcher.mjs";
 import {
   NATIVE_HOST_VERSION,
   getActiveNativeHostLinkPath,
+  getBrowserNativeHostManifestPaths,
   getCompiledNativeHostPath,
   getExtensionIdFromManifestKey,
   getInstalledNativeHostVersionDir,
   getLegacyNativeHostLauncherPath,
   getNativeHostInstallRoot,
   getNativeHostLauncherPath,
-  getNativeHostManifestPath,
   getRepoNativeHostScriptPath,
   renderNativeHostManifest,
   repoRoot
@@ -93,7 +93,7 @@ function pointCurrentAtVersion(currentPath, versionDir) {
 }
 
 const extensionId = getExtensionIdFromManifestKey(extensionManifest.key);
-const manifestPath = getNativeHostManifestPath();
+const manifestPaths = getBrowserNativeHostManifestPaths();
 const installRoot = getNativeHostInstallRoot();
 const versionDir = getInstalledNativeHostVersionDir(NATIVE_HOST_VERSION);
 const currentPath = getActiveNativeHostLinkPath();
@@ -126,10 +126,14 @@ if (useNodeHostFallback) {
   );
 }
 
-mkdirSync(dirname(manifestPath), { recursive: true });
-writeJson(manifestPath, nativeManifest);
+for (const manifestPath of manifestPaths) {
+  mkdirSync(dirname(manifestPath), { recursive: true });
+  writeJson(manifestPath, nativeManifest);
+}
 
-console.log(`native-host install: ${manifestPath}`);
+for (const manifestPath of manifestPaths) {
+  console.log(`native-host install: ${manifestPath}`);
+}
 console.log(`native-host extension origin: chrome-extension://${extensionId}/`);
 if (useNodeHostFallback) {
   console.log(`native-host mode: node fallback`);

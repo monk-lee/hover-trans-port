@@ -155,6 +155,10 @@ Run Codex CLI directly and complete its login or authentication flow.
 
 Increase Options `Timeout seconds`. The UI clamps this setting to 5-120 seconds.
 
+### Trigger hotkey does not run
+
+Some browsers, including ChatGPT Atlas, may not deliver standalone modifier keys like Left Control to extensions. If the default trigger does not work on a page, choose any key combination that works for your browser in Options.
+
 ### Cache needs to be cleared
 
 Use the Options Cache section, or remove `~/.hover-trans-port/cache.sqlite`.

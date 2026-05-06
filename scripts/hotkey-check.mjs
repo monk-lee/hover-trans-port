@@ -98,7 +98,7 @@ const {
   installHotkeyTrigger,
   installLeftControlTrigger
 } = await import(moduleUrl);
-const { formatTriggerHotkey, validateTriggerHotkey } =
+const { DEFAULT_TRIGGER_HOTKEY, formatTriggerHotkey, validateTriggerHotkey } =
   await import(hotkeysModuleUrl);
 
 function installCounter(hotkey) {
@@ -142,6 +142,12 @@ function dispatch(type, init) {
 }
 
 let counter = installCounter();
+
+assertEqual(
+  formatTriggerHotkey(DEFAULT_TRIGGER_HOTKEY),
+  "Left Control",
+  "default trigger is left Control"
+);
 
 dispatch("keydown", { code: "ControlLeft", ctrlKey: true });
 dispatch("keyup", { code: "ControlLeft" });

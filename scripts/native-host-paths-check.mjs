@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import {
   NATIVE_HOST_VERSION,
   getActiveNativeHostLinkPath,
+  getBrowserNativeHostManifestPaths,
   getChromeNativeHostsDir,
   getCompiledNativeHostPath,
   getInstalledNativeHostVersionDir,
@@ -47,6 +48,18 @@ try {
       "NativeMessagingHosts/com.monklabs.hover_trans_port.json"
     ),
     true
+  );
+  assert.deepEqual(
+    getBrowserNativeHostManifestPaths("darwin").map((path) =>
+      path
+        .replace(`${process.env.HOME}/`, "")
+        .replaceAll("\\", "/")
+    ),
+    [
+      "Library/Application Support/Google/Chrome/NativeMessagingHosts/com.monklabs.hover_trans_port.json",
+      "Library/Application Support/Naver/Whale/NativeMessagingHosts/com.monklabs.hover_trans_port.json",
+      "Library/Application Support/OpenAI/ChatGPT Atlas/NativeMessagingHosts/com.monklabs.hover_trans_port.json"
+    ]
   );
   assert.equal(
     getRepoNativeHostScriptPath().endsWith("native-host/host.mjs"),
