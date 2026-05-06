@@ -40,7 +40,7 @@ Hover Trans Port는 웹페이지에서 텍스트를 선택하거나 마우스를
 alpha 경로는 GitHub Releases의 prebuilt native host를 `curl`로 설치하는 방식입니다.
 
 ```bash
-curl -fsSL https://github.com/dev-monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh | bash
+curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh | bash
 ```
 
 이 installer는 현재 Mac 아키텍처에 맞는 helper를 다운로드하고 `checksums.txt`로 검증한 뒤, stable launcher와 Chrome Native Messaging manifest를 등록합니다. Codex CLI는 별도 전제 조건이므로 로컬에 설치되고 인증되어 있어야 합니다.
@@ -48,7 +48,7 @@ curl -fsSL https://github.com/dev-monk-lee/hover-trans-port/releases/latest/down
 스크립트를 먼저 확인하고 실행하려면:
 
 ```bash
-curl -fLO https://github.com/dev-monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh
+curl -fLO https://github.com/monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh
 bash install-macos-native-host.sh install
 ```
 

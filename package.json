@@ -1,12 +1,12 @@
 {
   "name": "hover-trans-port",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Chrome MV3 extension that translates selected or hovered text through a local AI CLI native host.",
   "type": "module",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/dev-monk-lee/hover-trans-port.git"
+    "url": "https://github.com/monk-lee/hover-trans-port.git"
   },
   "keywords": [
     "chrome-extension",
@@ -17,9 +17,9 @@
     "local-first"
   ],
   "bugs": {
-    "url": "https://github.com/dev-monk-lee/hover-trans-port/issues"
+    "url": "https://github.com/monk-lee/hover-trans-port/issues"
   },
-  "homepage": "https://github.com/dev-monk-lee/hover-trans-port#readme",
+  "homepage": "https://github.com/monk-lee/hover-trans-port#readme",
   "scripts": {
     "dev": "vite build --watch --mode development",
     "build": "vite build",

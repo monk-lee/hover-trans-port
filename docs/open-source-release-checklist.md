@@ -4,7 +4,7 @@ This checklist is for the first public developer-preview source release.
 
 ## Repository
 
-- [ ] Create/confirm GitHub repo `dev-monk-lee/hover-trans-port`.
+- [ ] Create/confirm GitHub repo `monk-lee/hover-trans-port`.
 - [ ] Set visibility to public only after checklist passes.
 - [ ] Set description: `Chrome MV3 extension for explicit hover/selection translation through a local AI CLI native host.`
 - [ ] Add topics: chrome-extension, manifest-v3, native-messaging, translation, codex-cli, local-first.

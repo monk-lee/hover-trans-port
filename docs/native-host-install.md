@@ -18,7 +18,7 @@ The alpha non-developer macOS install path is the script installer. It installs 
 For a one-line alpha install from GitHub Releases:
 
 ```bash
-curl -fsSL https://github.com/dev-monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh | bash
+curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh | bash
 ```
 
 The release must include these individual assets so the curl installer can fetch the right helper for the current Mac:
@@ -39,7 +39,7 @@ bash install-macos-native-host.sh install
 The safer inspect-first form is:
 
 ```bash
-curl -fLO https://github.com/dev-monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh
+curl -fLO https://github.com/monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh
 bash install-macos-native-host.sh install
 ```
 

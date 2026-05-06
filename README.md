@@ -35,10 +35,10 @@ See [Roadmap](docs/roadmap.md) for planned follow-up work.
 
 ### 1. Install The macOS Native Host
 
-For the alpha path, install the prebuilt native host from GitHub Releases with `curl`:
+Install the prebuilt native host from the latest GitHub Release with `curl`:
 
 ```bash
-curl -fsSL https://github.com/dev-monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh | bash
+curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh | bash
 ```
 
 The installer downloads the architecture-specific helper, verifies `checksums.txt`, writes the stable launcher, and registers Chrome's Native Messaging manifest. Codex CLI is still a separate prerequisite and must already be installed and authenticated locally.
@@ -46,7 +46,7 @@ The installer downloads the architecture-specific helper, verifies `checksums.tx
 Inspect-first form:
 
 ```bash
-curl -fLO https://github.com/dev-monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh
+curl -fLO https://github.com/monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh
 bash install-macos-native-host.sh install
 ```
 

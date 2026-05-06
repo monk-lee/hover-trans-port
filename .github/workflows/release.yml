@@ -82,8 +82,8 @@ jobs:
           - hover-trans-port-native-host-macos-0.1.0.tar.gz: inspect-first native host package
           - hover-trans-port-extension-${TAG_NAME}.zip: unpacked Chrome extension package built from dist/
 
-          Install docs: https://github.com/dev-monk-lee/hover-trans-port/blob/${TAG_NAME}/docs/native-host-install.md
-          Privacy: https://github.com/dev-monk-lee/hover-trans-port/blob/${TAG_NAME}/PRIVACY.md
+          Install docs: https://github.com/monk-lee/hover-trans-port/blob/${TAG_NAME}/docs/native-host-install.md
+          Privacy: https://github.com/monk-lee/hover-trans-port/blob/${TAG_NAME}/PRIVACY.md
 
           This is not a Chrome Web Store release. Load the extension package manually through chrome://extensions during the developer preview.
           EOF
@@ -119,6 +119,6 @@ jobs:
             "$NATIVE_DIR/hover-trans-port-native-host-macos-0.1.0.tar.gz" \
             "$EXTENSION_ZIP" \
             --verify-tag \
-            --prerelease \
+            --latest \
             --title "$TAG_NAME Developer Preview" \
             --notes-file build/release/release-notes.md

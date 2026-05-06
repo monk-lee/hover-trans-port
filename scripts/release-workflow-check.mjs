@@ -14,6 +14,12 @@ function requireIncludes(content, expected, description) {
   }
 }
 
+function requireNotIncludes(content, unexpected, description) {
+  if (content.includes(unexpected)) {
+    fail(`unexpected ${description}: ${unexpected}`);
+  }
+}
+
 function readWorkflow(workflowPath) {
   if (!existsSync(workflowPath)) {
     fail(`${workflowPath} was not found.`);
@@ -46,13 +52,14 @@ const requiredSnippets = [
   ["checksums.txt", "checksum asset"],
   ["hover-trans-port-helper-macos-arm64", "ARM64 helper asset"],
   ["hover-trans-port-native-host-macos-0.1.0.tar.gz", "native host tarball asset"],
+  ["https://github.com/monk-lee/hover-trans-port", "current GitHub repository owner"],
   ["docs/native-host-install.md", "native install docs link"],
   ["PRIVACY.md", "privacy docs link"],
   ["not a Chrome Web Store release", "Chrome Web Store disclaimer"],
   ["GH_TOKEN: ${{ github.token }}", "GitHub CLI token"],
   ["gh release create", "GitHub release creation"],
   ["--verify-tag", "existing tag verification"],
-  ["--prerelease", "prerelease flag"]
+  ["--latest", "latest release flag"]
 ];
 
 requireCurrentOfficialActions(ciWorkflow, ciWorkflowPath);
@@ -61,5 +68,8 @@ requireCurrentOfficialActions(releaseWorkflow, releaseWorkflowPath);
 for (const [snippet, description] of requiredSnippets) {
   requireIncludes(releaseWorkflow, snippet, description);
 }
+
+requireNotIncludes(releaseWorkflow, "--prerelease", "prerelease flag");
+requireNotIncludes(releaseWorkflow, "dev-monk-lee", "old GitHub repository owner");
 
 console.log("release-workflow-check: release workflow is valid.");

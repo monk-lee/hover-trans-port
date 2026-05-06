@@ -6,7 +6,7 @@ DEFAULT_HOST_VERSION="0.1.0"
 DEFAULT_EXTENSION_ID="mmbmjpmhmlkjknhcigafgplahdbicabe"
 APP_SUPPORT_DIR_NAME="Hover Trans Port"
 HELPER_EXECUTABLE_NAME="hover-trans-port-helper"
-GITHUB_RELEASE_BASE_URL="https://github.com/dev-monk-lee/hover-trans-port/releases"
+GITHUB_RELEASE_BASE_URL="https://github.com/monk-lee/hover-trans-port/releases"
 
 COMMAND="install"
 HOST_VERSION="$DEFAULT_HOST_VERSION"
