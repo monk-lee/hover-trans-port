@@ -10,6 +10,18 @@ const INLINE_LOADER_ATTRIBUTE = "data-hover-trans-port-loader";
 const INLINE_LINE_BREAK_ATTRIBUTE = "data-hover-trans-port-line-break";
 const INLINE_HIDDEN_ATTRIBUTE = "data-hover-trans-port-hidden";
 const LOADER_STYLE_ID = "hover-trans-port-inline-loader-style";
+const LAYOUT_CONTAINER_DISPLAYS = new Set([
+  "flex",
+  "inline-flex",
+  "grid",
+  "inline-grid"
+]);
+const CLIPPING_OVERFLOW_VALUES = new Set(["hidden", "clip"]);
+
+type InlineInsertionPlacement = {
+  parent: Element;
+  before: ChildNode | null;
+};
 
 export type InlineRenderState =
   | {
@@ -48,6 +60,83 @@ function createLineBreakNode(): HTMLBRElement {
   const lineBreak = document.createElement("br");
   lineBreak.setAttribute(INLINE_LINE_BREAK_ATTRIBUTE, "true");
   return lineBreak;
+}
+
+function normalizeText(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function findTextBearingLayoutChild(
+  sourceElement: Element
+): HTMLElement | null {
+  if (!(sourceElement instanceof HTMLElement)) {
+    return null;
+  }
+
+  const display = window.getComputedStyle(sourceElement).display;
+
+  if (!LAYOUT_CONTAINER_DISPLAYS.has(display)) {
+    return null;
+  }
+
+  const children = Array.from(sourceElement.children);
+
+  for (let index = children.length - 1; index >= 0; index -= 1) {
+    const child = children[index];
+
+    if (
+      child instanceof HTMLElement &&
+      normalizeText(child.textContent ?? "").length > 0
+    ) {
+      return child;
+    }
+  }
+
+  return null;
+}
+
+function getWebkitLineClamp(style: CSSStyleDeclaration): string {
+  return (
+    style.getPropertyValue("-webkit-line-clamp") ||
+    (style as CSSStyleDeclaration & { webkitLineClamp?: string })
+      .webkitLineClamp ||
+    ""
+  );
+}
+
+function isClippingElement(element: Element): boolean {
+  if (!(element instanceof HTMLElement)) {
+    return false;
+  }
+
+  const style = window.getComputedStyle(element);
+  const lineClamp = getWebkitLineClamp(style);
+
+  return (
+    CLIPPING_OVERFLOW_VALUES.has(style.overflow) ||
+    CLIPPING_OVERFLOW_VALUES.has(style.overflowX) ||
+    CLIPPING_OVERFLOW_VALUES.has(style.overflowY) ||
+    (lineClamp !== "" && lineClamp !== "none" && lineClamp !== "0")
+  );
+}
+
+function getInlineInsertionPlacement(
+  sourceElement: Element
+): InlineInsertionPlacement {
+  const insertionElement =
+    findTextBearingLayoutChild(sourceElement) ?? sourceElement;
+
+  if (isClippingElement(insertionElement) && insertionElement.parentElement) {
+    return {
+      parent: insertionElement.parentElement,
+      before: insertionElement.nextSibling
+    };
+  }
+
+  return {
+    parent: insertionElement,
+    before: null
+  };
 }
 
 function ensureLoaderStyle(): void {
@@ -174,7 +263,8 @@ function insertInlineNode(target: TranslationTarget, node: HTMLElement): boolean
     return false;
   }
 
-  sourceElement.appendChild(node);
+  const placement = getInlineInsertionPlacement(sourceElement);
+  placement.parent.insertBefore(node, placement.before);
   return true;
 }
 

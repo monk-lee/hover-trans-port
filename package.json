@@ -35,10 +35,11 @@
     "native:protocol-check": "node scripts/native-host-protocol-check.mjs",
     "native:compatibility-check": "node scripts/native-host-compatibility-check.mjs",
     "native:paths-check": "node scripts/native-host-paths-check.mjs",
+    "inline-renderer:check": "node scripts/inline-renderer-check.mjs",
     "hotkey": "node scripts/hotkey-check.mjs",
     "open-source:check": "node scripts/open-source-check.mjs",
     "release:workflow-check": "node scripts/release-workflow-check.mjs",
-    "verify": "pnpm typecheck && pnpm build && pnpm validate && pnpm hotkey && pnpm helper:test && pnpm macos:script-installer:test && pnpm native:compatibility-check && pnpm native:paths-check && pnpm release:workflow-check && pnpm open-source:check",
+    "verify": "pnpm typecheck && pnpm build && pnpm validate && pnpm hotkey && pnpm inline-renderer:check && pnpm helper:test && pnpm macos:script-installer:test && pnpm native:compatibility-check && pnpm native:paths-check && pnpm release:workflow-check && pnpm open-source:check",
     "test": "pnpm verify"
   },
   "devDependencies": {
