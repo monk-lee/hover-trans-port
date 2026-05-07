@@ -57,8 +57,8 @@ This checklist is for the first public developer-preview source release.
 
 ## Release
 
-- [ ] Tag v0.2.0
-- [ ] Release title: v0.2.0 Developer Preview
+- [ ] Tag v0.2.1
+- [ ] Release title: v0.2.1 Developer Preview
 - [ ] Release notes mention macOS + Chrome + Codex CLI and experimental Claude CLI support
 - [ ] Release notes link docs/native-host-install.md
 - [ ] Release notes link PRIVACY.md

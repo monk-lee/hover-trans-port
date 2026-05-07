@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 const distRoot = new URL("../dist/", import.meta.url);
 const manifestPath = new URL("manifest.json", distRoot);
+const packageJsonPath = new URL("../package.json", import.meta.url);
 
 function fail(message) {
   console.error(`validate-dist: ${message}`);
@@ -14,6 +15,7 @@ if (!existsSync(manifestPath)) {
 }
 
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
 const requiredIconSizes = ["16", "32", "48", "128"];
 
 function collectIconFiles(iconMap, fieldName) {
@@ -44,6 +46,12 @@ const contentScriptFiles = (manifest.content_scripts ?? [])
   .flatMap((script) => script.js ?? [])
   .filter(Boolean);
 const staticModuleSyntaxPattern = /^\s*(?:import(?:\s|[{"'*])|export(?:\s|[{\*]))/m;
+
+if (manifest.version !== packageJson.version) {
+  fail(
+    `manifest version ${manifest.version} does not match package version ${packageJson.version}`
+  );
+}
 
 for (const relativePath of requiredFiles) {
   const targetPath = join(distRoot.pathname, relativePath);
