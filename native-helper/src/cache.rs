@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -145,17 +146,30 @@ where
 }
 
 pub fn resolve_translation_cache_path() -> PathBuf {
-    if let Ok(path) = std::env::var("HOVER_TRANS_PORT_CACHE_PATH") {
+    resolve_translation_cache_path_from_env(&std::env::vars().collect())
+}
+
+pub fn resolve_translation_cache_path_from_env(env: &BTreeMap<String, String>) -> PathBuf {
+    if let Some(path) = env.get("HOVER_TRANS_PORT_CACHE_PATH") {
         let trimmed = path.trim();
         if !trimmed.is_empty() {
             return PathBuf::from(trimmed);
         }
     }
 
-    if let Ok(dir) = std::env::var("HOVER_TRANS_PORT_CACHE_DIR") {
+    if let Some(dir) = env.get("HOVER_TRANS_PORT_CACHE_DIR") {
         let trimmed = dir.trim();
         if !trimmed.is_empty() {
             return Path::new(trimmed).join("cache.sqlite");
+        }
+    }
+
+    if let Some(home) = env.get("HOME") {
+        let trimmed = home.trim();
+        if !trimmed.is_empty() {
+            return Path::new(trimmed)
+                .join(".hover-trans-port")
+                .join("cache.sqlite");
         }
     }
 

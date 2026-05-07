@@ -2,14 +2,14 @@ use std::collections::BTreeMap;
 
 use serde_json::{json, Value};
 
-use crate::cache::{resolve_translation_cache_path, SqliteTranslationCache};
+use crate::cache::{resolve_translation_cache_path_from_env, SqliteTranslationCache};
 use crate::cache_key::create_translation_cache_key;
 use crate::messages::{
-    BaseRequest, ProviderId, TranslateRequest, NATIVE_BRIDGE_VERSION, NATIVE_HOST_PROTOCOL_VERSION,
+    BaseRequest, TranslateRequest, NATIVE_BRIDGE_VERSION, NATIVE_HOST_PROTOCOL_VERSION,
     NATIVE_HOST_VERSION,
 };
 use crate::process::ProviderError;
-use crate::providers::{ProviderRegistry, ProviderTranslateRequest};
+use crate::providers::{resolve_provider_id, ProviderRegistry, ProviderTranslateRequest};
 
 #[derive(Clone, Debug)]
 pub struct BridgeDeps {
@@ -121,16 +121,19 @@ fn translate(value: Value, request_id: Option<String>, deps: BridgeDeps) -> Valu
 }
 
 fn translate_valid(request: TranslateRequest, deps: BridgeDeps) -> Value {
-    let registry = ProviderRegistry::new(deps.env);
+    let registry = ProviderRegistry::new(deps.env.clone());
     let timeout_ms = request.timeout_ms.unwrap_or(30_000).max(1);
     let source_lang = request.source_lang.unwrap_or_else(|| "auto".to_string());
-    let provider_selection = request.provider.as_deref();
+    let provider_selection = request.provider.clone();
+    let effective_provider = resolve_provider_id(provider_selection.as_deref());
 
     if request.cache_enabled.unwrap_or(true) {
-        let cache =
-            SqliteTranslationCache::new(resolve_translation_cache_path(), current_time_millis);
+        let cache = SqliteTranslationCache::new(
+            resolve_translation_cache_path_from_env(&deps.env),
+            current_time_millis,
+        );
         let key = create_translation_cache_key(
-            ProviderId::Codex,
+            effective_provider,
             request.model.as_deref().unwrap_or("default"),
             &request.target_lang,
             &request.text,
@@ -141,7 +144,7 @@ fn translate_valid(request: TranslateRequest, deps: BridgeDeps) -> Value {
                 "type": "TRANSLATE_RESULT",
                 "requestId": request.request_id,
                 "ok": true,
-                "provider": "codex",
+                "provider": effective_provider.as_str(),
                 "translatedText": hit.translated_text,
                 "cached": true,
                 "elapsedMs": 0
@@ -149,7 +152,7 @@ fn translate_valid(request: TranslateRequest, deps: BridgeDeps) -> Value {
         }
 
         let provider_result = registry.translate(
-            provider_selection,
+            provider_selection.as_deref(),
             ProviderTranslateRequest {
                 text: request.text,
                 model: request.model,
@@ -177,7 +180,7 @@ fn translate_valid(request: TranslateRequest, deps: BridgeDeps) -> Value {
     }
 
     match registry.translate(
-        provider_selection,
+        provider_selection.as_deref(),
         ProviderTranslateRequest {
             text: request.text,
             model: request.model,

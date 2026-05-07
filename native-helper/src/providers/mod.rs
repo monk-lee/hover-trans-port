@@ -79,6 +79,14 @@ impl ProviderRegistry {
     }
 }
 
+pub fn resolve_provider_id(selection: Option<&str>) -> ProviderId {
+    match normalize_provider_selection(selection) {
+        ProviderSelection::Codex => ProviderId::Codex,
+        ProviderSelection::Claude => ProviderId::Claude,
+        ProviderSelection::Gemini => ProviderId::Gemini,
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ProviderSelection {
     Codex,
