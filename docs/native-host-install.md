@@ -8,6 +8,7 @@ This guide covers the current macOS developer preview:
 - Google Chrome
 - Unpacked extension loaded from this repository's `dist/` folder
 - Codex CLI as the default executable provider
+- Experimental Claude CLI as an optional executable provider
 
 Chrome Web Store installation is not part of this preview.
 
@@ -53,7 +54,7 @@ bash install-macos-native-host.sh uninstall
 
 The installer writes the helper to `~/Library/Application Support/Hover Trans Port/native-hosts/<version>/`, updates `current`, writes the stable launcher, and registers Chrome's Native Messaging manifest.
 
-Codex CLI is still a separate prerequisite. The installer does not store provider credentials or browser session data.
+Codex CLI and Claude CLI are separate prerequisites. The installer does not store provider credentials, API keys, or browser session data.
 
 ## Developer Install
 
@@ -85,23 +86,24 @@ After installing:
 4. Click `Check Provider` in `Translation Provider`.
 5. Expand `Diagnostics` and click `Check Native Host`.
 
-Expected results: `Check Provider` shows Codex as available, and `Check Native Host` shows the bridge is connected.
+Expected results: `Check Provider` shows the selected provider CLI as available, and `Check Native Host` shows the bridge is connected.
 
 ## Options
 
 Common settings:
 
 - `Target language`: translation output language. Choose `Korean` for Korean output.
-- `Timeout seconds`: per-request Codex timeout. The default is 30 seconds. Values are clamped to 5-120.
+- `Timeout seconds`: per-request provider CLI timeout. The default is 30 seconds. Values are clamped to 5-120.
+- `Provider`: executable CLI used for translation. Codex is the default provider; Claude is experimental and CLI-only.
 - `Use cache`: when disabled, Local Bridge skips both cache lookup and cache write.
-- `Model`: Codex CLI model passed as `--model <model>`. Reset restores `gpt-5.4-mini`.
+- `Model`: provider-specific model passed to the selected CLI. Codex reset restores `gpt-5.4-mini`; Claude reset clears the field so Claude CLI uses its default model.
 
-Invalid or unavailable model names fail at translation time and render the inline Codex execution error.
+Invalid or unavailable model names fail at translation time and render the inline provider execution error.
 
 Diagnostics:
 
 - `Check Native Host`: verifies Chrome can reach the native host.
-- `Check Provider`: verifies configured provider CLIs are available. Codex CLI is the default provider for the current extension UI.
+- `Check Provider`: verifies configured provider CLI binaries are available. For Claude, it reports binary availability; Claude authentication is verified by Claude CLI when a translation runs.
 - `Debug logging`: writes cache/provider diagnostics to `~/.hover-trans-port/hover-trans-port.log`. The Debug Log controls can show and clear that log.
 
 ## Cache And Logs
@@ -150,6 +152,21 @@ Then click `Check Provider` and check the resolved binary path. Chrome on macOS 
 ### Codex is not authenticated
 
 Run Codex CLI directly and complete its login or authentication flow.
+
+### Claude cannot be found
+
+Verify Claude CLI is installed and visible in your shell:
+
+```bash
+command -v claude
+claude --version
+```
+
+Then click `Check Provider` and check the resolved binary path. Chrome on macOS may not inherit your shell `PATH`, so Claude must be available from a standard install path or from the environment used to launch Chrome.
+
+### Claude is not authenticated
+
+Run Claude CLI directly and complete its login or authentication flow. Hover Trans Port does not store Anthropic API keys, OAuth tokens, or Claude session credentials.
 
 ### Translation times out
 
