@@ -113,6 +113,44 @@ fn claude_fake_cli_translation_returns_success_result() {
 }
 
 #[test]
+fn claude_nonzero_json_error_surfaces_result_message() {
+    let claude = fixture_path("claude");
+    make_executable(&claude);
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CLAUDE_PATH".to_string(),
+        claude.to_string_lossy().into_owned(),
+    );
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+    let home_dir = tempdir().unwrap();
+    env.insert("HOME".to_string(), home_dir.path().display().to_string());
+
+    let response = handle_request(
+        json!({
+            "type": "TRANSLATE",
+            "requestId": "req-claude-auth",
+            "provider": "claude",
+            "model": "",
+            "targetLang": "Korean",
+            "text": "Trigger auth error",
+            "cacheEnabled": false,
+            "timeoutMs": 5_000
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "TRANSLATE_RESULT");
+    assert_eq!(response["requestId"], "req-claude-auth");
+    assert_eq!(response["ok"], false);
+    assert_eq!(response["error"], "PROVIDER_EXIT_NONZERO");
+    assert!(response["message"]
+        .as_str()
+        .unwrap()
+        .contains("Not logged in"));
+}
+
+#[test]
 fn claude_provider_status_finds_home_local_bin_when_path_is_minimal() {
     let fixture = fixture_path("claude");
     let home_dir = tempdir().unwrap();
@@ -146,7 +184,7 @@ fn claude_provider_status_finds_home_local_bin_when_path_is_minimal() {
 }
 
 #[test]
-fn claude_command_builder_uses_constrained_headless_json_shape() {
+fn claude_command_builder_uses_subscription_auth_compatible_json_shape() {
     let args = build_claude_args(Some("claude-sonnet-4"));
 
     assert_eq!(
@@ -156,7 +194,6 @@ fn claude_command_builder_uses_constrained_headless_json_shape() {
             "Translate according to the instructions provided on stdin. Return only the translated text.",
             "--output-format",
             "json",
-            "--bare",
             "--no-session-persistence",
             "--tools",
             "",
@@ -177,7 +214,6 @@ fn claude_command_builder_omits_empty_model() {
             "Translate according to the instructions provided on stdin. Return only the translated text.",
             "--output-format",
             "json",
-            "--bare",
             "--no-session-persistence",
             "--tools",
             "",

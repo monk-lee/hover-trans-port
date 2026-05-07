@@ -6,7 +6,6 @@ fi
 
 if [ "$1" = "-p" ]; then
   output_format=""
-  bare=0
   no_session_persistence=0
   tools=""
   tools_seen=0
@@ -23,9 +22,6 @@ if [ "$1" = "-p" ]; then
     if [ "$arg" = "--no-session-persistence" ]; then
       no_session_persistence=1
     fi
-    if [ "$arg" = "--bare" ]; then
-      bare=1
-    fi
     previous="$arg"
   done
 
@@ -37,10 +33,6 @@ if [ "$1" = "-p" ]; then
     printf 'expected --no-session-persistence\n' >&2
     exit 2
   fi
-  if [ "$bare" -ne 1 ]; then
-    printf 'expected --bare\n' >&2
-    exit 2
-  fi
   if [ "$tools_seen" -ne 1 ] || [ -n "$tools" ]; then
     printf 'expected --tools ""\n' >&2
     exit 2
@@ -48,6 +40,10 @@ if [ "$1" = "-p" ]; then
 
   prompt="$(/bin/cat)"
   case "$prompt" in
+    *"Trigger auth error"*)
+      printf '{"type":"result","subtype":"error","is_error":true,"result":"Not logged in · Please run /login"}\n'
+      exit 1
+      ;;
     *"Translate the following text to Korean."*)
       printf '{"type":"result","subtype":"success","is_error":false,"result":"클로드 안녕하세요"}\n'
       exit 0

@@ -17,6 +17,7 @@ pub enum ProviderError {
     },
     ExitNonzero {
         exit_code: Option<i32>,
+        stdout: String,
         stderr: String,
         elapsed_ms: u64,
     },
@@ -54,12 +55,15 @@ impl fmt::Display for ProviderError {
                 write!(formatter, "Provider process failed to start: {message}")
             }
             Self::ExitNonzero {
-                exit_code, stderr, ..
+                exit_code,
+                stdout,
+                stderr,
+                ..
             } => write!(
                 formatter,
                 "Provider exited with status {:?}: {}",
                 exit_code,
-                stderr.trim()
+                process_error_detail(stdout, stderr)
             ),
             Self::Timeout { .. } => write!(formatter, "Provider process timed out."),
             Self::Output(error) => write!(formatter, "Provider output could not be read: {error}"),
@@ -141,6 +145,7 @@ pub fn run_process(request: ProcessRequest) -> Result<ProcessOutput, ProviderErr
     if !output.status.success() {
         return Err(ProviderError::ExitNonzero {
             exit_code: output.status.code(),
+            stdout,
             stderr,
             elapsed_ms,
         });
@@ -155,4 +160,13 @@ pub fn run_process(request: ProcessRequest) -> Result<ProcessOutput, ProviderErr
 
 fn elapsed_ms(started: Instant) -> u64 {
     started.elapsed().as_millis().try_into().unwrap_or(u64::MAX)
+}
+
+fn process_error_detail(stdout: &str, stderr: &str) -> String {
+    let stderr = stderr.trim();
+    if !stderr.is_empty() {
+        return stderr.to_string();
+    }
+
+    stdout.trim().to_string()
 }

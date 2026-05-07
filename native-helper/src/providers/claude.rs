@@ -103,7 +103,8 @@ impl Provider for ClaudeProvider {
             env: provider_env(&self.env, &binary),
             stdin: prompt,
             timeout_ms: request.timeout_ms,
-        })?;
+        })
+        .map_err(map_claude_process_error)?;
 
         Ok(ProviderTranslateResult {
             translated_text: parse_claude_output(&output.stdout)?,
@@ -118,7 +119,6 @@ pub fn build_claude_args(model: Option<&str>) -> Vec<String> {
         PROMPT_ARG.to_string(),
         "--output-format".to_string(),
         "json".to_string(),
-        "--bare".to_string(),
         "--no-session-persistence".to_string(),
         "--tools".to_string(),
         String::new(),
@@ -142,9 +142,11 @@ pub fn parse_claude_output(stdout: &str) -> Result<String, ProviderError> {
         .and_then(|value| value.as_bool())
         .unwrap_or(false)
     {
+        let message = parse_claude_error_message(stdout).unwrap_or_else(|| value.to_string());
         return Err(ProviderError::ExitNonzero {
             exit_code: Some(1),
-            stderr: value.to_string(),
+            stdout: stdout.trim().to_string(),
+            stderr: message,
             elapsed_ms: 0,
         });
     }
@@ -158,6 +160,61 @@ pub fn parse_claude_output(stdout: &str) -> Result<String, ProviderError> {
         .ok_or_else(|| ProviderError::OutputParseFailed {
             message: "Claude output did not include result.".to_string(),
         })
+}
+
+fn map_claude_process_error(error: ProviderError) -> ProviderError {
+    let ProviderError::ExitNonzero {
+        exit_code,
+        stdout,
+        stderr,
+        elapsed_ms,
+    } = error
+    else {
+        return error;
+    };
+
+    let message = parse_claude_error_message(&stdout)
+        .or_else(|| parse_claude_error_message(&stderr))
+        .unwrap_or_else(|| {
+            let stderr = stderr.trim();
+            if !stderr.is_empty() {
+                stderr.to_string()
+            } else {
+                stdout.trim().to_string()
+            }
+        });
+
+    ProviderError::ExitNonzero {
+        exit_code,
+        stdout,
+        stderr: message,
+        elapsed_ms,
+    }
+}
+
+fn parse_claude_error_message(output: &str) -> Option<String> {
+    let value = serde_json::from_str::<serde_json::Value>(output.trim()).ok()?;
+    if !value
+        .get("is_error")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false)
+    {
+        return None;
+    }
+
+    for key in ["result", "message", "error"] {
+        let message = value
+            .get(key)
+            .and_then(|value| value.as_str())
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+
+        if let Some(message) = message {
+            return Some(message.to_string());
+        }
+    }
+
+    Some(value.to_string())
 }
 
 fn find_binary(
