@@ -10,6 +10,7 @@ use crate::providers::{Provider, ProviderTranslateRequest, ProviderTranslateResu
 
 const PROMPT_ARG: &str =
     "Translate according to the instructions provided on stdin. Return only the translated text.";
+const DEFAULT_CLAUDE_MODEL: &str = "haiku";
 const DEFAULT_STATUS_TIMEOUT_MS: u64 = 5_000;
 
 #[derive(Clone, Debug)]
@@ -37,7 +38,7 @@ impl Provider for ClaudeProvider {
     }
 
     fn default_model(&self) -> &'static str {
-        ""
+        DEFAULT_CLAUDE_MODEL
     }
 
     fn status(&self) -> ProviderStatusEntry {
@@ -96,9 +97,15 @@ impl Provider for ClaudeProvider {
         })?;
         let prompt =
             build_translate_prompt(&request.text, &request.source_lang, &request.target_lang);
+        let model = request
+            .model
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or(self.default_model());
         let output = run_process(ProcessRequest {
             executable: binary.clone(),
-            args: build_claude_args(request.model.as_deref()),
+            args: build_claude_args(Some(model)),
             cwd: Some(temp_dir.path().to_path_buf()),
             env: provider_env(&self.env, &binary),
             stdin: prompt,
@@ -123,7 +130,9 @@ pub fn build_claude_args(model: Option<&str>) -> Vec<String> {
         "--tools".to_string(),
         String::new(),
     ];
-    if let Some(model) = model.map(str::trim).filter(|value| !value.is_empty()) {
+    if let Some(model) = model.map(str::trim).filter(|value| {
+        !value.is_empty() && !value.eq_ignore_ascii_case("default")
+    }) {
         args.push("--model".to_string());
         args.push(model.to_string());
     }

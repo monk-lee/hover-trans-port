@@ -96,7 +96,7 @@ Common settings:
 - `Timeout seconds`: per-request provider CLI timeout. The default is 30 seconds. Values are clamped to 5-120.
 - `Provider`: executable CLI used for translation. Codex is the default provider; Claude is experimental and CLI-only.
 - `Use cache`: when disabled, Local Bridge skips both cache lookup and cache write.
-- `Model`: provider-specific model passed to the selected CLI. Codex reset restores `gpt-5.4-mini`; Claude reset clears the field so Claude CLI uses its default model.
+- `Model`: provider model alias passed as `--model <model>`. Selecting `Default (Claude CLI)` omits `--model` so Claude CLI chooses its configured default. Codex reset restores `gpt-5.4-mini`; Claude reset restores `haiku`.
 
 Invalid or unavailable model names fail at translation time and render the inline provider execution error.
 
@@ -189,4 +189,4 @@ Use the Options Cache section, or remove `~/.hover-trans-port/cache.sqlite`.
 5. Select text or hover a paragraph, heading, or list item.
 6. Press and release the left Ctrl key by itself, then confirm the inline translation appears.
 
-If Codex is not available, the inline slot shows `Codex를 찾을 수 없습니다.`.
+If the selected provider is not available, the inline slot shows a provider-specific unavailable message.

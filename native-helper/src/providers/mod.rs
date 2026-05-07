@@ -51,6 +51,14 @@ impl ProviderRegistry {
         ]
     }
 
+    pub fn provider_id_for_selection(&self, selection: Option<&str>) -> ProviderId {
+        match normalize_provider_selection(selection) {
+            ProviderSelection::Codex => ProviderId::Codex,
+            ProviderSelection::Claude => ProviderId::Claude,
+            ProviderSelection::Gemini => ProviderId::Gemini,
+        }
+    }
+
     pub fn translate(
         &self,
         selection: Option<&str>,

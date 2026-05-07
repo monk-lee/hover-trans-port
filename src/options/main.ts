@@ -2,6 +2,7 @@ import "./options.css";
 import type { ExtensionRequest, ExtensionResponse } from "../shared/messages";
 import {
   getDefaultModelForProvider,
+  getModelOptionsForProvider,
   getProviderLabel,
   resolveProviderForModel,
   type ProviderSelection
@@ -68,7 +69,7 @@ const providerStatusCheckButton =
 const providerModelResetButton =
   document.querySelector<HTMLButtonElement>("#provider-model-reset");
 const providerModelInput =
-  document.querySelector<HTMLInputElement>("#provider-model");
+  document.querySelector<HTMLSelectElement>("#provider-model");
 const providerStatus =
   document.querySelector<HTMLParagraphElement>("#provider-status");
 const timeoutInput = document.querySelector<HTMLInputElement>("#timeout-ms");
@@ -148,14 +149,7 @@ function setProviderModelInput(
   provider: ProviderSelection,
   options: HoverTransPortOptions | undefined
 ) {
-  if (!providerModelInput) {
-    return;
-  }
-
-  const modelProvider = resolveProviderForModel(provider);
-  providerModelInput.value = getModelForProvider(options, provider);
-  providerModelInput.placeholder =
-    getDefaultModelForProvider(modelProvider) || "CLI default";
+  setProviderModelInputForProvider(provider, getModelForProvider(options, provider));
 }
 
 function setCacheStatus(message: string) {
@@ -291,6 +285,53 @@ function setTargetLanguageInputs(targetLang: string) {
   }
 
   updateTargetLanguageCustomVisibility();
+}
+
+function populateProviderModelOptions(
+  provider: ProviderSelection,
+  selectedModel: string | undefined
+) {
+  if (!providerModelInput) {
+    return;
+  }
+
+  const providerId = resolveProviderForModel(provider);
+  const normalizedModel = normalizeProviderModel(providerId, selectedModel);
+  const modelOptions = getModelOptionsForProvider(providerId);
+  providerModelInput.replaceChildren();
+
+  for (const modelOption of modelOptions) {
+    const option = document.createElement("option");
+    option.value = modelOption.value;
+    option.textContent = modelOption.label;
+    providerModelInput.append(option);
+  }
+
+  if (
+    normalizedModel &&
+    !modelOptions.some((modelOption) => modelOption.value === normalizedModel)
+  ) {
+    const option = document.createElement("option");
+    option.value = normalizedModel;
+    option.textContent = `Custom (${normalizedModel})`;
+    providerModelInput.append(option);
+  }
+
+  if (!providerModelInput.options.length) {
+    const option = document.createElement("option");
+    option.value = normalizedModel;
+    option.textContent = normalizedModel || "Default";
+    providerModelInput.append(option);
+  }
+
+  providerModelInput.value = normalizedModel;
+}
+
+function setProviderModelInputForProvider(
+  provider: ProviderSelection,
+  model: string | undefined
+) {
+  populateProviderModelOptions(provider, model);
 }
 
 function getSelectedTargetLangForSave(): string {
@@ -624,9 +665,10 @@ async function resetProviderModel() {
   const selectedProvider = getSelectedProvider();
   const modelProvider = resolveProviderForModel(selectedProvider);
 
-  if (providerModelInput) {
-    providerModelInput.value = getDefaultModelForProvider(modelProvider);
-  }
+  setProviderModelInputForProvider(
+    selectedProvider,
+    getDefaultModelForProvider(modelProvider)
+  );
 
   await saveOptions();
 }

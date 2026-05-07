@@ -12,7 +12,8 @@ In scope:
 - Preserve the existing extension to native host to local CLI execution flow.
 - Use the existing Rust `ClaudeProvider` as the supported execution path.
 - Keep provider-specific model storage so a Claude model value does not overwrite the Codex model value.
-- Treat an empty Claude model as "use the Claude CLI default model".
+- Treat the Claude default model as the `haiku` alias for fast translation.
+- Preserve provider-aware cache isolation when cache is enabled.
 - Add user-facing documentation for Claude CLI install/auth prerequisites and privacy disclosure.
 - Add focused tests for Claude translation execution through the native helper.
 
@@ -49,16 +50,18 @@ Claude support should reuse this boundary. The browser extension should not know
 - Save the model under `modelsByProvider[providerId]`.
 - Run `Check Provider` against the selected provider status returned by the native host.
 
-The model input should be allowed to stay empty for Claude. For Codex, the existing default model behavior remains unchanged.
+The model selector should include common aliases for each provider. Claude should also offer a `Default (Claude CLI)` option whose stored `default` sentinel omits `--model`, allowing Claude CLI to choose its configured default. For Codex, the existing default model behavior remains unchanged.
 
-The model reset action should be provider-aware. Resetting Codex restores `gpt-5.4-mini`; resetting Claude clears the model field so Claude CLI uses its configured default.
+Provider changes should not copy the previous provider's model into the newly selected provider slot. When the user changes providers, Options should refresh the model field from `modelsByProvider[newProviderId]` or that provider's default before saving the selected provider. For example, switching from Codex to Claude should not save `gpt-5.4-mini` as the Claude model unless the user explicitly enters it for Claude.
+
+The model reset action should be provider-aware. Resetting Codex restores `gpt-5.4-mini`; resetting Claude restores `haiku`.
 
 ### Shared Provider Metadata
 
 `src/shared/providers.ts` remains the source of provider IDs, labels, and default models.
 
 - `codex`: default model remains `gpt-5.4-mini`.
-- `claude`: default model remains empty so Claude CLI uses its own configured default.
+- `claude`: default model is `haiku` for fast translation, with an explicit `default` selector option that omits `--model`.
 - `gemini`: remains present in metadata but disabled in UI.
 
 ### Native Helper
@@ -68,10 +71,12 @@ The model reset action should be provider-aware. Resetting Codex restores `gpt-5
 Expected command shape:
 
 ```text
-claude -p "Translate according to the instructions provided on stdin. Return only the translated text." --output-format json [--model <model>]
+claude -p "Translate according to the instructions provided on stdin. Return only the translated text." --output-format json --no-session-persistence --tools "" [--model <model>]
 ```
 
 The translation prompt is supplied on stdin using the same prompt builder as Codex. The JSON response parser reads the `result` field and treats `is_error: true` as a provider execution error.
+
+Claude should run as a constrained one-shot translation command. Use print mode, JSON output, no session persistence, and no tool access for translation requests. If a local Claude CLI version does not support one of these safety flags, that should be treated as an incompatible provider execution error rather than silently falling back to a more stateful or tool-enabled command.
 
 No protocol version bump is required because the existing protocol already carries `provider` and `model`.
 
@@ -93,7 +98,7 @@ Stored options:
 
 - `hoverTransPort.provider`: `"codex"` or `"claude"`.
 - `hoverTransPort.modelsByProvider.codex`: Codex model string.
-- `hoverTransPort.modelsByProvider.claude`: Optional Claude model string, usually empty.
+- `hoverTransPort.modelsByProvider.claude`: Claude model alias, defaulting to `haiku`; `default` means omit `--model`.
 - `hoverTransPort.codexModel`: Legacy Codex model compatibility value remains supported.
 
 Runtime request:
@@ -101,7 +106,9 @@ Runtime request:
 1. Background resolves provider selection and model.
 2. Native host receives `TRANSLATE` with `provider`, `model`, `targetLang`, `text`, `timeoutMs`, and cache setting.
 3. Native helper routes `"claude"` to `ClaudeProvider`.
-4. Cache key includes provider and model, so Codex and Claude results do not collide.
+4. Native helper resolves the effective provider before cache lookup and cache write.
+5. Cache key includes provider and model, so Codex and Claude results do not collide.
+6. Cached hits report the provider that produced the cached value, not a hardcoded default provider.
 
 ## Error Handling
 
@@ -115,15 +122,23 @@ Expected errors should stay user-actionable:
 
 Provider diagnostics should remain non-destructive and should not create sessions, store credentials, or mutate provider configuration.
 
+`Check Provider` should distinguish binary availability from authentication readiness for Claude. Prefer `claude auth status` when available because it reports login state without creating a translation session. If the implementation only checks `claude --version`, the Options UI and documentation must make that limitation explicit so users do not interpret "Available" as "authenticated and ready to translate".
+
+Provider execution errors should preserve useful CLI failure details for user action. The background layer may localize the leading message, but it should not discard details needed to diagnose unauthenticated Claude, unsupported flags, or invalid model names.
+
 ## Testing
 
 Add or maintain focused coverage:
 
 - Rust command-builder test for Claude CLI args with and without model.
+- Rust command-builder test proving the Claude `default` sentinel omits `--model`.
 - Rust parser test for successful Claude JSON output and `is_error: true`.
 - Rust bridge test using a fake `claude` executable to confirm a `TRANSLATE` request with `provider: "claude"` returns a successful `TRANSLATE_RESULT`.
-- TypeScript verification that provider/model normalization still preserves Codex defaults and allows empty Claude models.
-- Options reset verification that Codex reset restores `gpt-5.4-mini` and Claude reset clears the model field.
+- Rust cache-path test proving cached Claude and Codex translations for the same text/model do not collide, and cached Claude hits return `provider: "claude"`.
+- TypeScript verification that provider/model normalization still preserves Codex defaults and Claude `haiku` defaults.
+- Options provider-change verification that switching from Codex to Claude does not save the Codex model into `modelsByProvider.claude`.
+- Options reset verification that Codex reset restores `gpt-5.4-mini` and Claude reset restores `haiku`.
+- Translation error verification that actionable provider stderr/details survive the native helper to extension error path.
 - Existing full project verification via `pnpm verify`.
 
 Manual verification:

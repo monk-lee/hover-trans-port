@@ -1,7 +1,11 @@
 use hover_trans_port_helper::bridge::{handle_request, BridgeDeps};
-use hover_trans_port_helper::providers::claude::{build_claude_args, parse_claude_output};
+use hover_trans_port_helper::messages::ProviderId;
+use hover_trans_port_helper::providers::claude::{
+    build_claude_args, parse_claude_output, ClaudeProvider,
+};
 use hover_trans_port_helper::providers::codex::build_codex_exec_args;
 use hover_trans_port_helper::providers::gemini::{build_gemini_args, parse_gemini_output};
+use hover_trans_port_helper::providers::{Provider, ProviderRegistry};
 use serde_json::json;
 use std::collections::BTreeMap;
 use std::fs;
@@ -219,6 +223,50 @@ fn claude_command_builder_omits_empty_model() {
             "",
         ]
     );
+}
+
+#[test]
+fn claude_command_builder_omits_default_model_sentinel() {
+    let args = build_claude_args(Some("default"));
+
+    assert_eq!(
+        args,
+        vec![
+            "-p",
+            "Translate according to the instructions provided on stdin. Return only the translated text.",
+            "--output-format",
+            "json",
+            "--no-session-persistence",
+            "--tools",
+            "",
+        ]
+    );
+}
+
+#[test]
+fn claude_provider_defaults_to_haiku_alias() {
+    let provider = ClaudeProvider::new(BTreeMap::new());
+
+    assert_eq!(provider.default_model(), "haiku");
+}
+
+#[test]
+fn provider_registry_resolves_selected_provider_ids() {
+    let registry = ProviderRegistry::new(BTreeMap::new());
+
+    assert_eq!(
+        registry.provider_id_for_selection(Some("claude")),
+        ProviderId::Claude
+    );
+    assert_eq!(
+        registry.provider_id_for_selection(Some("codex")),
+        ProviderId::Codex
+    );
+    assert_eq!(
+        registry.provider_id_for_selection(Some("auto")),
+        ProviderId::Codex
+    );
+    assert_eq!(registry.provider_id_for_selection(None), ProviderId::Codex);
 }
 
 #[test]

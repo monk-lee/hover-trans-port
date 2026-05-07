@@ -60,6 +60,19 @@ async function saveEnabled(enabled: boolean): Promise<void> {
   });
 }
 
+async function openExtensionOptions(): Promise<void> {
+  try {
+    await chrome.runtime.openOptionsPage();
+    return;
+  } catch {
+    // Some Chromium builds reject the managed options UI even when the page exists.
+  }
+
+  await chrome.tabs.create({
+    url: chrome.runtime.getURL("options.html")
+  });
+}
+
 async function checkSelectedProviderStatus(options: StoredOptions): Promise<void> {
   const selectedProvider = normalizeProvider(options.hoverTransPort?.provider);
   const providerId = resolveProviderForModel(selectedProvider);
@@ -141,7 +154,10 @@ enabledInput?.addEventListener("change", () => {
 });
 
 openOptionsButton?.addEventListener("click", () => {
-  chrome.runtime.openOptionsPage();
+  openExtensionOptions().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    setStatus("Options unavailable", message, "error");
+  });
 });
 
 refreshPopup().catch((error: unknown) => {

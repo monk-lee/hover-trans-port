@@ -34,7 +34,7 @@ assertNotIncludes(
 );
 
 assertIncludes(providersTs, 'claude: "Claude CLI"', "Claude provider label");
-assertIncludes(providersTs, 'claude: ""', "Claude provider default model");
+assertIncludes(providersTs, 'claude: "haiku"', "Claude provider default model");
 
 assertIncludes(
   optionsMainTs,
@@ -53,8 +53,8 @@ assertIncludes(
 );
 assertIncludes(
   optionsMainTs,
-  "providerModelInput.value = getDefaultModelForProvider(modelProvider);",
-  "provider model reset uses provider default exactly"
+  "getDefaultModelForProvider(modelProvider)",
+  "provider model reset uses provider default"
 );
 assertIncludes(
   optionsMainTs,

@@ -119,6 +119,7 @@ assertIncludes(
 assertIncludes(
   privacy,
   "does not store provider credentials or API keys",
+  "may send requested text upstream",
   "PRIVACY.md"
 );
 assertIncludes(privacy, "does not request the `cookies` permission", "PRIVACY.md");

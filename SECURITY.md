@@ -22,12 +22,12 @@ Include:
 
 ## Security Model
 
-Hover Trans Port uses Chrome Native Messaging to call a local native host. The native host invokes Codex CLI as a subprocess for requested translations.
+Hover Trans Port uses Chrome Native Messaging to call a local native host. The native host invokes the selected provider CLI as a subprocess for requested translations.
 
 The native host should:
 
 - Use no shell invocation for provider execution.
-- Run Codex CLI in ephemeral mode.
+- Run Codex CLI in ephemeral mode and Claude CLI in non-interactive print mode.
 - Use read-only sandbox mode.
 - Avoid approval prompts.
 - Use no browser cookies or service tokens.
@@ -39,7 +39,7 @@ The extension can read selected or hovered page text on pages where its content 
 
 The native host can execute the configured provider CLI on the local machine.
 
-Codex CLI may communicate with upstream AI services according to the Codex CLI account/authentication, environment, and provider policies. Hover Trans Port invokes Codex CLI with `--ignore-user-config`.
+The selected provider CLI may communicate with upstream AI services according to that provider account, authentication, environment, and provider policies. Hover Trans Port invokes Codex CLI with `--ignore-user-config`.
 
 ## Out Of Scope
 
