@@ -51,7 +51,7 @@ const requiredSnippets = [
   ["install-macos-native-host.sh", "script installer asset"],
   ["checksums.txt", "checksum asset"],
   ["hover-trans-port-helper-macos-arm64", "ARM64 helper asset"],
-  ["hover-trans-port-native-host-macos-0.1.0.tar.gz", "native host tarball asset"],
+  ["hover-trans-port-native-host-macos-0.2.0.tar.gz", "native host tarball asset"],
   ["https://github.com/monk-lee/hover-trans-port", "current GitHub repository owner"],
   ["docs/native-host-install.md", "native install docs link"],
   ["PRIVACY.md", "privacy docs link"],

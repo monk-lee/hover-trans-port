@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 BUILD_DIR="$ROOT/build/macos-script-installer"
-HOST_VERSION="0.1.0"
+HOST_VERSION="0.2.0"
 PACKAGE_NAME="hover-trans-port-native-host-macos-$HOST_VERSION"
 
 if [ "$(uname -s)" != "Darwin" ]; then

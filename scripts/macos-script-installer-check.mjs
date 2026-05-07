@@ -84,10 +84,10 @@ withTempRoot("install", (root) => {
   const helper = makeFixtureHelper(root);
 
   const output = run(["install", "--helper-source", helper], env);
-  assert(output.includes("installed native host 0.1.0"), "install output should name host version");
+  assert(output.includes("installed native host 0.2.0"), "install output should name host version");
 
   const installRoot = env.HOVER_TRANS_PORT_INSTALL_ROOT;
-  const versionDir = join(installRoot, "native-hosts/0.1.0");
+  const versionDir = join(installRoot, "native-hosts/0.2.0");
   const installedHelper = join(versionDir, "hover-trans-port-helper");
   const launcher = join(installRoot, "launcher");
   const current = join(installRoot, "current");
@@ -155,7 +155,7 @@ withTempRoot("status-uninstall", (root) => {
 
   run(["install", "--helper-source", helper], env);
   const status = run(["status"], env);
-  assert(status.includes("installed native host 0.1.0"), "status should report installed version");
+  assert(status.includes("installed native host 0.2.0"), "status should report installed version");
 
   run(["uninstall"], env);
   assert(!existsSync(env.HOVER_TRANS_PORT_INSTALL_ROOT), "uninstall should remove install root");

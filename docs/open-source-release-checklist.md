@@ -34,7 +34,7 @@ This checklist is for the first public developer-preview source release.
 - [ ] pnpm macos:script-installer:test
 - [ ] pnpm macos:script-installer:build
 - [ ] Release uploads `install-macos-native-host.sh`, `checksums.txt`, and architecture-specific helper files as individual assets so `curl .../latest/download/install-macos-native-host.sh | bash` works.
-- [ ] Release also includes `hover-trans-port-native-host-macos-0.1.0.tar.gz` for inspect-first/offline installation.
+- [ ] Release also includes `hover-trans-port-native-host-macos-0.2.0.tar.gz` for inspect-first/offline installation.
 - [ ] pnpm native:uninstall
 - [ ] Reload the extension and confirm `Check Native Host` returns `Native Host is not installed or not reachable.`
 - [ ] pnpm build
@@ -55,10 +55,10 @@ This checklist is for the first public developer-preview source release.
 - [ ] `git status --short` returns no output.
 - [ ] Run `rg -n "\bsk-[A-Za-z0-9_-]{20,}|OPENAI_API_KEY|ANTHROPIC_API_KEY|GEMINI_API_KEY|/Users/[A-Za-z0-9._-]+|session token|oauth token" .` and confirm matches are limited to intentional documentation warnings.
 
-## First Release
+## Release
 
-- [ ] Tag v0.1.0-alpha.1
-- [ ] Release title: v0.1.0-alpha.1 Developer Preview
+- [ ] Tag v0.2.0
+- [ ] Release title: v0.2.0 Developer Preview
 - [ ] Release notes mention macOS + Chrome + Codex CLI and experimental Claude CLI support
 - [ ] Release notes link docs/native-host-install.md
 - [ ] Release notes link PRIVACY.md
