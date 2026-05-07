@@ -113,6 +113,9 @@ pub fn build_claude_args(model: Option<&str>) -> Vec<String> {
         PROMPT_ARG.to_string(),
         "--output-format".to_string(),
         "json".to_string(),
+        "--no-session-persistence".to_string(),
+        "--tools".to_string(),
+        String::new(),
     ];
     if let Some(model) = model.map(str::trim).filter(|value| !value.is_empty()) {
         args.push("--model".to_string());
