@@ -33,7 +33,13 @@ Hover Trans Port는 웹페이지에서 텍스트를 선택하거나 마우스를
 
 ## 설치
 
-### 1. macOS Native Host 설치
+### 1. Release에서 Extension package 다운로드
+
+[최신 GitHub Release](https://github.com/monk-lee/hover-trans-port/releases/latest)를 열고 `hover-trans-port-extension-<version>.zip` asset을 다운로드합니다.
+
+압축을 해제한 뒤 `chrome://extensions`를 열고 Developer mode를 켠 다음 `Load unpacked`에서 압축 해제한 extension 폴더를 선택합니다. 이 developer preview에서는 `.zip` 파일 자체가 아니라 압축 해제한 폴더를 Chrome에 불러옵니다.
+
+### 2. macOS Native Host 설치
 
 alpha 경로는 GitHub Releases의 prebuilt native host를 `curl`로 설치하는 방식입니다.
 
@@ -58,16 +64,20 @@ bash install-macos-native-host.sh update
 bash install-macos-native-host.sh uninstall
 ```
 
-### 2. Extension 불러오기
+### 3. 설치 상태 확인
 
-확장 프로그램 본체는 아직 unpacked developer-preview build로 설치합니다.
+Extension의 Options 페이지를 열고 `Check Native Host`와 `Check Provider`를 모두 실행합니다.
+
+### Source에서 Extension build하기
+
+release package를 다운로드하지 않고 로컬에서 unpacked extension을 build하려면:
 
 ```bash
 pnpm install
 pnpm build
 ```
 
-이후 `chrome://extensions`를 열고 Developer mode를 켠 다음 `Load unpacked`에서 이 저장소의 `dist/` 폴더를 선택합니다. Options에서 `Check Native Host`와 `Check Provider`를 모두 실행해 상태를 확인합니다.
+이후 `chrome://extensions`를 열고 Developer mode를 켠 다음 `Load unpacked`에서 이 저장소의 `dist/` 폴더를 선택합니다.
 
 개발자가 source에서 native host를 설치할 수도 있습니다.
 

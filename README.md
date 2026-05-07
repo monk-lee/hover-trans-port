@@ -31,7 +31,13 @@ Not yet:
 
 ## Install
 
-### 1. Install The macOS Native Host
+### 1. Download The Extension Package
+
+Open the [latest GitHub Release](https://github.com/monk-lee/hover-trans-port/releases/latest) and download the asset named `hover-trans-port-extension-<version>.zip`.
+
+Unzip it somewhere you can keep it, then open `chrome://extensions`, enable Developer mode, click `Load unpacked`, and select the unzipped extension folder. Chrome loads the unpacked folder during this developer preview, not the `.zip` file itself.
+
+### 2. Install The macOS Native Host
 
 Install the prebuilt native host from the latest GitHub Release with `curl`:
 
@@ -56,16 +62,20 @@ bash install-macos-native-host.sh update
 bash install-macos-native-host.sh uninstall
 ```
 
-### 2. Load The Extension
+### 3. Verify Setup
 
-The extension itself is still installed as an unpacked developer-preview build:
+Open the extension's Options page and run both `Check Native Host` and `Check Provider`.
+
+### Build The Extension From Source
+
+If you want to build the unpacked extension locally instead of downloading the release package:
 
 ```bash
 pnpm install
 pnpm build
 ```
 
-Then open `chrome://extensions`, enable Developer mode, click `Load unpacked`, and select this repository's `dist/` folder. Open Options and run both `Check Native Host` and `Check Provider`.
+Then open `chrome://extensions`, enable Developer mode, click `Load unpacked`, and select this repository's `dist/` folder.
 
 Developer native-host install from source is still available:
 
