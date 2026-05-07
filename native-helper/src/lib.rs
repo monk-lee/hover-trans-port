@@ -1,6 +1,7 @@
 pub mod bridge;
 pub mod cache;
 pub mod cache_key;
+pub mod debug_log;
 pub mod messages;
 pub mod process;
 pub mod prompt;

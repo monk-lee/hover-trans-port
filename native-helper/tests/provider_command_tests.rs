@@ -192,8 +192,7 @@ fn claude_json_output_parser_returns_result() {
 
 #[test]
 fn claude_json_output_parser_treats_is_error_as_provider_error() {
-    let output =
-        r#"{"type":"result","subtype":"error","is_error":true,"result":"not logged in"}"#;
+    let output = r#"{"type":"result","subtype":"error","is_error":true,"result":"not logged in"}"#;
 
     let error = parse_claude_output(output).unwrap_err();
 

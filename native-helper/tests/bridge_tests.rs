@@ -129,6 +129,128 @@ fn cached_claude_and_codex_translations_do_not_collide() {
     assert_eq!(codex_second["cached"], true);
 }
 
+#[test]
+fn debug_log_write_info_content_and_clear_use_configured_log_path() {
+    let temp = tempdir().unwrap();
+    let log_path = temp.path().join("debug").join("hover-trans-port.log");
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_LOG_PATH".to_string(),
+        log_path.to_string_lossy().into_owned(),
+    );
+    env.insert("HOME".to_string(), temp.path().display().to_string());
+
+    let write = handle_request(
+        json!({
+            "type": "WRITE_DEBUG_LOG",
+            "requestId": "req-log-write",
+            "event": "content.trigger",
+            "fields": {
+                "mode": "selection",
+                "textLength": 5,
+                "ignored": {"nested": true}
+            }
+        }),
+        BridgeDeps::with_env(env.clone()),
+    );
+
+    assert_eq!(write["type"], "DEBUG_LOG_WRITE_RESULT");
+    assert_eq!(write["requestId"], "req-log-write");
+    assert_eq!(write["ok"], true);
+    assert_eq!(write["written"], true);
+
+    let info = handle_request(
+        json!({"type":"GET_DEBUG_LOG_INFO","requestId":"req-log-info"}),
+        BridgeDeps::with_env(env.clone()),
+    );
+    assert_eq!(info["type"], "DEBUG_LOG_INFO_RESULT");
+    assert_eq!(info["requestId"], "req-log-info");
+    assert_eq!(info["ok"], true);
+    assert_eq!(info["logPath"], log_path.display().to_string());
+    assert_eq!(info["exists"], true);
+    assert!(info["sizeBytes"].as_u64().unwrap() > 0);
+
+    let content = handle_request(
+        json!({
+            "type": "GET_DEBUG_LOG_CONTENT",
+            "requestId": "req-log-content",
+            "maxBytes": 4096,
+            "maxLines": 20
+        }),
+        BridgeDeps::with_env(env.clone()),
+    );
+    assert_eq!(content["type"], "DEBUG_LOG_CONTENT_RESULT");
+    assert_eq!(content["requestId"], "req-log-content");
+    assert_eq!(content["ok"], true);
+    assert_eq!(content["logPath"], log_path.display().to_string());
+    assert_eq!(content["exists"], true);
+    assert_eq!(content["truncated"], false);
+    let log_content = content["content"].as_str().unwrap();
+    assert!(log_content.contains("\"event\":\"content.trigger\""));
+    assert!(log_content.contains("\"mode\":\"selection\""));
+    assert!(log_content.contains("\"textLength\":5"));
+    assert!(!log_content.contains("ignored"));
+
+    let clear = handle_request(
+        json!({"type":"CLEAR_DEBUG_LOG","requestId":"req-log-clear"}),
+        BridgeDeps::with_env(env.clone()),
+    );
+    assert_eq!(clear["type"], "DEBUG_LOG_CLEAR_RESULT");
+    assert_eq!(clear["requestId"], "req-log-clear");
+    assert_eq!(clear["ok"], true);
+    assert_eq!(clear["logPath"], log_path.display().to_string());
+    assert_eq!(clear["exists"], true);
+    assert_eq!(clear["sizeBytes"], 0);
+}
+
+#[test]
+fn translation_debug_logging_records_provider_execution_events() {
+    let claude = fixture_path("claude");
+    make_executable(&claude);
+
+    let temp = tempdir().unwrap();
+    let log_path = temp.path().join("hover-trans-port.log");
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CLAUDE_PATH".to_string(),
+        claude.to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "HOVER_TRANS_PORT_LOG_PATH".to_string(),
+        log_path.to_string_lossy().into_owned(),
+    );
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+    env.insert("HOME".to_string(), temp.path().display().to_string());
+
+    let response = handle_request(
+        json!({
+            "type": "TRANSLATE",
+            "requestId": "req-claude-debug",
+            "provider": "claude",
+            "model": "",
+            "targetLang": "Korean",
+            "text": "Hello",
+            "cacheEnabled": false,
+            "debugLogging": true,
+            "timeoutMs": 5_000
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "TRANSLATE_RESULT");
+    assert_eq!(response["requestId"], "req-claude-debug");
+    assert_eq!(response["ok"], true);
+    assert_eq!(response["provider"], "claude");
+
+    let log_content = fs::read_to_string(log_path).unwrap();
+    assert!(log_content.contains("\"event\":\"translation.start\""));
+    assert!(log_content.contains("\"provider\":\"claude\""));
+    assert!(log_content.contains("\"event\":\"cache.disabled\""));
+    assert!(log_content.contains("\"event\":\"provider.start\""));
+    assert!(log_content.contains("\"event\":\"translation.success\""));
+    assert!(!log_content.contains("Hello"));
+}
+
 fn translate_with_provider(
     request_id: &str,
     provider: &str,
