@@ -26,6 +26,13 @@ fn nonzero_exit_maps_to_provider_exit_nonzero() {
 }
 
 #[test]
+fn nonzero_exit_preserves_stdout_when_stderr_is_empty() {
+    let error = run_fixture("stdout-exit-7", vec![], "", 5_000).unwrap_err();
+
+    assert!(error.to_string().contains("stdout failure detail"));
+}
+
+#[test]
 fn timeout_maps_to_provider_timeout() {
     let error = run_fixture("sleep-long", vec![], "", 100).unwrap_err();
 

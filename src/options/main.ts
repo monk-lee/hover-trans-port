@@ -3,13 +3,13 @@ import type { ExtensionRequest, ExtensionResponse } from "../shared/messages";
 import {
   getDefaultModelForProvider,
   getProviderLabel,
-  resolveProviderForModel
+  resolveProviderForModel,
+  type ProviderSelection
 } from "../shared/providers";
 import {
   COMMON_TARGET_LANGUAGES,
   CUSTOM_TARGET_LANG_VALUE,
   DEFAULT_CACHE_ENABLED,
-  DEFAULT_CODEX_MODEL,
   DEFAULT_DEBUG_LOGGING,
   DEFAULT_EXTENSION_ENABLED,
   DEFAULT_PROVIDER,
@@ -26,6 +26,7 @@ import {
   normalizeTriggerHotkey,
   normalizeTimeoutMs,
   type CommonTargetLanguage,
+  type HoverTransPortOptions,
   type StoredOptions,
   type TriggerHotkey
 } from "../shared/options";
@@ -137,6 +138,24 @@ function setProviderStatus(message: string) {
   if (providerStatus) {
     providerStatus.textContent = message;
   }
+}
+
+function getSelectedProvider(): ProviderSelection {
+  return normalizeProvider(providerInput?.value);
+}
+
+function setProviderModelInput(
+  provider: ProviderSelection,
+  options: HoverTransPortOptions | undefined
+) {
+  if (!providerModelInput) {
+    return;
+  }
+
+  const modelProvider = resolveProviderForModel(provider);
+  providerModelInput.value = getModelForProvider(options, provider);
+  providerModelInput.placeholder =
+    getDefaultModelForProvider(modelProvider) || "CLI default";
 }
 
 function setCacheStatus(message: string) {
@@ -457,21 +476,13 @@ async function loadOptions() {
   );
 
   const selectedProvider = normalizeProvider(options.hoverTransPort?.provider);
-  const modelProvider = resolveProviderForModel(selectedProvider);
 
   if (providerInput) {
     providerInput.value =
       selectedProvider === "auto" ? DEFAULT_PROVIDER : selectedProvider;
   }
 
-  if (providerModelInput) {
-    providerModelInput.value = getModelForProvider(
-      options.hoverTransPort,
-      selectedProvider
-    );
-    providerModelInput.placeholder =
-      getDefaultModelForProvider(modelProvider) || DEFAULT_CODEX_MODEL;
-  }
+  setProviderModelInput(selectedProvider, options.hoverTransPort);
 
   if (timeoutInput) {
     timeoutInput.value = String(
@@ -566,48 +577,55 @@ async function loadDebugLogContent() {
   setDebugLogContent(`${prefix}${formatDebugLogContent(response.content)}`);
 }
 
-async function saveOptions() {
+async function saveOptions(
+  { persistProviderModel = true }: { persistProviderModel?: boolean } = {}
+) {
   const current = (await chrome.storage.local.get(
     "hoverTransPort"
   )) as StoredOptions;
-  const selectedProvider = normalizeProvider(providerInput?.value);
+  const selectedProvider = getSelectedProvider();
   const modelProvider = resolveProviderForModel(selectedProvider);
-  const selectedModel = normalizeProviderModel(
-    modelProvider,
-    providerModelInput?.value
-  );
-  const modelsByProvider = {
-    ...current.hoverTransPort?.modelsByProvider,
-    [modelProvider]: selectedModel
+  const nextOptions: HoverTransPortOptions = {
+    ...current.hoverTransPort,
+    enabled: enabledInput?.checked ?? DEFAULT_EXTENSION_ENABLED,
+    targetLang: getSelectedTargetLangForSave(),
+    provider: selectedProvider,
+    modelsByProvider: current.hoverTransPort?.modelsByProvider,
+    codexModel: current.hoverTransPort?.codexModel,
+    triggerHotkey: currentTriggerHotkey,
+    timeoutMs: timeoutSecondsInputToMs(timeoutInput?.value),
+    cacheEnabled: cacheEnabledInput?.checked ?? DEFAULT_CACHE_ENABLED,
+    debugLogging: debugLoggingInput?.checked ?? DEFAULT_DEBUG_LOGGING
   };
 
+  if (persistProviderModel) {
+    const selectedModel = normalizeProviderModel(
+      modelProvider,
+      providerModelInput?.value
+    );
+
+    nextOptions.modelsByProvider = {
+      ...current.hoverTransPort?.modelsByProvider,
+      [modelProvider]: selectedModel
+    };
+    nextOptions.codexModel =
+      modelProvider === "codex"
+        ? selectedModel
+        : current.hoverTransPort?.codexModel;
+  }
+
   await chrome.storage.local.set({
-    hoverTransPort: {
-      ...current.hoverTransPort,
-      enabled: enabledInput?.checked ?? DEFAULT_EXTENSION_ENABLED,
-      targetLang: getSelectedTargetLangForSave(),
-      provider: selectedProvider,
-      codexModel:
-        modelProvider === "codex"
-          ? selectedModel
-          : current.hoverTransPort?.codexModel,
-      modelsByProvider,
-      triggerHotkey: currentTriggerHotkey,
-      timeoutMs: timeoutSecondsInputToMs(timeoutInput?.value),
-      cacheEnabled: cacheEnabledInput?.checked ?? DEFAULT_CACHE_ENABLED,
-      debugLogging: debugLoggingInput?.checked ?? DEFAULT_DEBUG_LOGGING
-    }
+    hoverTransPort: nextOptions
   });
   setSaveState("Saved.");
 }
 
 async function resetProviderModel() {
-  const selectedProvider = normalizeProvider(providerInput?.value);
+  const selectedProvider = getSelectedProvider();
   const modelProvider = resolveProviderForModel(selectedProvider);
 
   if (providerModelInput) {
-    providerModelInput.value =
-      getDefaultModelForProvider(modelProvider) || DEFAULT_CODEX_MODEL;
+    providerModelInput.value = getDefaultModelForProvider(modelProvider);
   }
 
   await saveOptions();
@@ -713,6 +731,15 @@ async function checkProviderStatus() {
   const details = [selectedStatus.version, selectedStatus.binaryPath]
     .filter(Boolean)
     .join(" · ");
+  if (providerId === "claude") {
+    setProviderStatus(
+      details
+        ? `Available. ${details}. Claude authentication is verified when translating.`
+        : "Available. Claude binary is available. Claude authentication is verified when translating."
+    );
+    return;
+  }
+
   setProviderStatus(details ? `Available. ${details}` : "Available.");
 }
 
@@ -804,7 +831,13 @@ targetLanguageCustomInput?.addEventListener("change", () => {
 });
 
 providerInput?.addEventListener("change", () => {
-  saveOptions()
+  chrome.storage.local
+    .get("hoverTransPort")
+    .then((current) => {
+      const storedOptions = current as StoredOptions;
+      setProviderModelInput(getSelectedProvider(), storedOptions.hoverTransPort);
+      return saveOptions({ persistProviderModel: false });
+    })
     .then(checkProviderStatus)
     .catch((error: unknown) => {
       const message = error instanceof Error ? error.message : "Unknown error";

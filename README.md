@@ -8,16 +8,16 @@ Language: English | [한국어](readmes/README.ko.md)
 
 ![Hover Trans Port inline translation preview](docs/assets/hover-trans-port-preview.png)
 
-Hover Trans Port is an early developer preview Chrome Manifest V3 extension for translating selected or hovered web text on demand. It uses Chrome Native Messaging to reach a local compiled helper, and the helper calls the AI CLI that is already installed and authenticated on your machine. The current executable provider is Codex CLI.
+Hover Trans Port is an early developer preview Chrome Manifest V3 extension for translating selected or hovered web text on demand. It uses Chrome Native Messaging to reach a local compiled helper, and the helper calls the AI CLI that is already installed and authenticated on your machine. Supported executable providers are Codex CLI and experimental Claude CLI.
 
-This project is not affiliated with, endorsed by, or sponsored by OpenAI or Codex.
+This project is not affiliated with, endorsed by, or sponsored by OpenAI, Codex, Anthropic, or Claude.
 
 ## Current Scope
 
 Works today:
 
 - macOS, Google Chrome, and an unpacked extension loaded from `dist/`.
-- Codex CLI provider.
+- Codex CLI provider and experimental Claude CLI provider.
 - Selection-first translation and hovered readable block translation.
 - Inline translation rendering, local SQLite cache, and Options diagnostics.
 - macOS script installer for the native host.
@@ -26,7 +26,7 @@ Not yet:
 
 - Chrome Web Store install.
 - Windows/Linux native host guide.
-- Claude/Gemini provider execution.
+- Gemini provider execution.
 - Full-page, automatic, PDF, iframe, OCR, or subtitle translation.
 
 ## Install
@@ -45,7 +45,7 @@ Install the prebuilt native host from the latest GitHub Release with `curl`:
 curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh | bash
 ```
 
-The installer downloads the architecture-specific helper, verifies `checksums.txt`, writes the stable launcher, and registers Chrome's Native Messaging manifest. Codex CLI is still a separate prerequisite and must already be installed and authenticated locally.
+The installer downloads the architecture-specific helper, verifies `checksums.txt`, writes the stable launcher, and registers Chrome's Native Messaging manifest. Codex CLI and Claude CLI are separate prerequisites; each local CLI must already be installed and authenticated before selecting it in Options.
 
 Inspect-first form:
 

@@ -1,0 +1,59 @@
+#!/bin/sh
+if [ "$1" = "--version" ]; then
+  printf 'claude test-version\n'
+  exit 0
+fi
+
+if [ "$1" = "-p" ]; then
+  output_format=""
+  no_session_persistence=0
+  tools=""
+  tools_seen=0
+  previous=""
+
+  for arg in "$@"; do
+    if [ "$previous" = "--output-format" ]; then
+      output_format="$arg"
+    fi
+    if [ "$previous" = "--tools" ]; then
+      tools="$arg"
+      tools_seen=1
+    fi
+    if [ "$arg" = "--no-session-persistence" ]; then
+      no_session_persistence=1
+    fi
+    previous="$arg"
+  done
+
+  if [ "$output_format" != "json" ]; then
+    printf 'expected --output-format json, got: %s\n' "$output_format" >&2
+    exit 2
+  fi
+  if [ "$no_session_persistence" -ne 1 ]; then
+    printf 'expected --no-session-persistence\n' >&2
+    exit 2
+  fi
+  if [ "$tools_seen" -ne 1 ] || [ -n "$tools" ]; then
+    printf 'expected --tools ""\n' >&2
+    exit 2
+  fi
+
+  prompt="$(/bin/cat)"
+  case "$prompt" in
+    *"Trigger auth error"*)
+      printf '{"type":"result","subtype":"error","is_error":true,"result":"Not logged in · Please run /login"}\n'
+      exit 1
+      ;;
+    *"Translate the following text to Korean."*)
+      printf '{"type":"result","subtype":"success","is_error":false,"result":"클로드 안녕하세요"}\n'
+      exit 0
+      ;;
+    *)
+      printf 'unexpected prompt: %s\n' "$prompt" >&2
+      exit 2
+      ;;
+  esac
+fi
+
+printf 'unexpected claude args: %s\n' "$*" >&2
+exit 2

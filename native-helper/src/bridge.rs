@@ -2,14 +2,18 @@ use std::collections::BTreeMap;
 
 use serde_json::{json, Value};
 
-use crate::cache::{resolve_translation_cache_path, SqliteTranslationCache};
+use crate::cache::{resolve_translation_cache_path_from_env, SqliteTranslationCache};
 use crate::cache_key::create_translation_cache_key;
+use crate::debug_log::{
+    clear_debug_log, debug_log_info as read_debug_log_info, log_debug_event, read_debug_log_tail,
+    write_debug_log_event,
+};
 use crate::messages::{
-    BaseRequest, ProviderId, TranslateRequest, NATIVE_BRIDGE_VERSION, NATIVE_HOST_PROTOCOL_VERSION,
-    NATIVE_HOST_VERSION,
+    BaseRequest, DebugLogContentRequest, DebugLogWriteRequest, TranslateRequest,
+    NATIVE_BRIDGE_VERSION, NATIVE_HOST_PROTOCOL_VERSION, NATIVE_HOST_VERSION,
 };
 use crate::process::ProviderError;
-use crate::providers::{ProviderRegistry, ProviderTranslateRequest};
+use crate::providers::{resolve_provider_id, ProviderRegistry, ProviderTranslateRequest};
 
 #[derive(Clone, Debug)]
 pub struct BridgeDeps {
@@ -56,10 +60,10 @@ pub fn handle_request(value: Value, deps: BridgeDeps) -> Value {
         Some("PROVIDER_STATUS") => provider_status(request_id, deps),
         Some("TRANSLATE") => translate(value, request_id, deps),
         Some("CLEAR_TRANSLATION_CACHE") => cache_clear(request_id),
-        Some("GET_DEBUG_LOG_INFO") => debug_log_info(request_id),
-        Some("CLEAR_DEBUG_LOG") => debug_log_clear(request_id),
-        Some("GET_DEBUG_LOG_CONTENT") => debug_log_content(request_id),
-        Some("WRITE_DEBUG_LOG") => debug_log_write(request_id),
+        Some("GET_DEBUG_LOG_INFO") => debug_log_info(request_id, deps),
+        Some("CLEAR_DEBUG_LOG") => debug_log_clear(request_id, deps),
+        Some("GET_DEBUG_LOG_CONTENT") => debug_log_content(value, request_id, deps),
+        Some("WRITE_DEBUG_LOG") => debug_log_write(value, request_id, deps),
         _ => error_response(
             request_id,
             "UNSUPPORTED_MESSAGE",
@@ -121,35 +125,83 @@ fn translate(value: Value, request_id: Option<String>, deps: BridgeDeps) -> Valu
 }
 
 fn translate_valid(request: TranslateRequest, deps: BridgeDeps) -> Value {
-    let registry = ProviderRegistry::new(deps.env);
+    let registry = ProviderRegistry::new(deps.env.clone());
     let timeout_ms = request.timeout_ms.unwrap_or(30_000).max(1);
     let source_lang = request.source_lang.unwrap_or_else(|| "auto".to_string());
-    let provider_selection = request.provider.as_deref();
+    let provider_selection = request.provider.clone();
+    let effective_provider = resolve_provider_id(provider_selection.as_deref());
+    let debug_logging = request.debug_logging.unwrap_or(false);
+    let cache_enabled = request.cache_enabled.unwrap_or(true);
+    let request_id = request.request_id.clone();
+    let target_lang = request.target_lang.clone();
+    let model = request.model.clone().unwrap_or_default();
+    let text_length = request.text.chars().count();
 
-    if request.cache_enabled.unwrap_or(true) {
-        let cache =
-            SqliteTranslationCache::new(resolve_translation_cache_path(), current_time_millis);
+    log_debug_event(
+        &deps.env,
+        debug_logging,
+        "translation.start",
+        json!({
+            "requestId": request_id,
+            "provider": effective_provider.as_str(),
+            "model": model,
+            "targetLang": target_lang,
+            "timeoutMs": timeout_ms,
+            "cacheEnabled": cache_enabled,
+            "textLength": text_length
+        }),
+    );
+
+    if cache_enabled {
+        let cache = SqliteTranslationCache::new(
+            resolve_translation_cache_path_from_env(&deps.env),
+            current_time_millis,
+        );
         let key = create_translation_cache_key(
-            ProviderId::Codex,
+            effective_provider,
             request.model.as_deref().unwrap_or("default"),
             &request.target_lang,
             &request.text,
         );
 
         if let Ok(Some(hit)) = cache.lookup(&key) {
+            log_debug_event(
+                &deps.env,
+                debug_logging,
+                "cache.hit",
+                json!({"requestId": request.request_id, "elapsedMs": 0}),
+            );
+            log_debug_event(
+                &deps.env,
+                debug_logging,
+                "translation.success",
+                json!({"requestId": request.request_id, "cached": true, "elapsedMs": 0}),
+            );
             return json!({
                 "type": "TRANSLATE_RESULT",
                 "requestId": request.request_id,
                 "ok": true,
-                "provider": "codex",
+                "provider": effective_provider.as_str(),
                 "translatedText": hit.translated_text,
                 "cached": true,
                 "elapsedMs": 0
             });
         }
+        log_debug_event(
+            &deps.env,
+            debug_logging,
+            "cache.miss",
+            json!({"requestId": request.request_id}),
+        );
 
+        log_debug_event(
+            &deps.env,
+            debug_logging,
+            "provider.start",
+            json!({"requestId": request.request_id, "provider": effective_provider.as_str()}),
+        );
         let provider_result = registry.translate(
-            provider_selection,
+            provider_selection.as_deref(),
             ProviderTranslateRequest {
                 text: request.text,
                 model: request.model,
@@ -161,7 +213,33 @@ fn translate_valid(request: TranslateRequest, deps: BridgeDeps) -> Value {
 
         return match provider_result {
             Ok((provider, result)) => {
-                let _ = cache.write(&key, &result.translated_text);
+                match cache.write(&key, &result.translated_text) {
+                    Ok(()) => log_debug_event(
+                        &deps.env,
+                        debug_logging,
+                        "cache.write",
+                        json!({"requestId": request.request_id}),
+                    ),
+                    Err(error) => log_debug_event(
+                        &deps.env,
+                        debug_logging,
+                        "cache.write_failed",
+                        json!({
+                            "requestId": request.request_id,
+                            "message": error.to_string()
+                        }),
+                    ),
+                }
+                log_debug_event(
+                    &deps.env,
+                    debug_logging,
+                    "translation.success",
+                    json!({
+                        "requestId": request.request_id,
+                        "cached": false,
+                        "elapsedMs": result.elapsed_ms
+                    }),
+                );
                 json!({
                     "type": "TRANSLATE_RESULT",
                     "requestId": request.request_id,
@@ -172,12 +250,27 @@ fn translate_valid(request: TranslateRequest, deps: BridgeDeps) -> Value {
                     "elapsedMs": result.elapsed_ms
                 })
             }
-            Err(error) => provider_error_response(request.request_id, error),
+            Err(error) => {
+                log_provider_error(&deps.env, debug_logging, &request.request_id, &error);
+                provider_error_response(request.request_id, error)
+            }
         };
     }
 
+    log_debug_event(
+        &deps.env,
+        debug_logging,
+        "cache.disabled",
+        json!({"requestId": request.request_id}),
+    );
+    log_debug_event(
+        &deps.env,
+        debug_logging,
+        "provider.start",
+        json!({"requestId": request.request_id, "provider": effective_provider.as_str()}),
+    );
     match registry.translate(
-        provider_selection,
+        provider_selection.as_deref(),
         ProviderTranslateRequest {
             text: request.text,
             model: request.model,
@@ -186,16 +279,72 @@ fn translate_valid(request: TranslateRequest, deps: BridgeDeps) -> Value {
             timeout_ms,
         },
     ) {
-        Ok((provider, result)) => json!({
-            "type": "TRANSLATE_RESULT",
-            "requestId": request.request_id,
-            "ok": true,
-            "provider": provider.as_str(),
-            "translatedText": result.translated_text,
-            "cached": false,
-            "elapsedMs": result.elapsed_ms
+        Ok((provider, result)) => {
+            log_debug_event(
+                &deps.env,
+                debug_logging,
+                "translation.success",
+                json!({
+                    "requestId": request.request_id,
+                    "cached": false,
+                    "elapsedMs": result.elapsed_ms
+                }),
+            );
+            json!({
+                "type": "TRANSLATE_RESULT",
+                "requestId": request.request_id,
+                "ok": true,
+                "provider": provider.as_str(),
+                "translatedText": result.translated_text,
+                "cached": false,
+                "elapsedMs": result.elapsed_ms
+            })
+        }
+        Err(error) => {
+            log_provider_error(&deps.env, debug_logging, &request.request_id, &error);
+            provider_error_response(request.request_id, error)
+        }
+    }
+}
+
+fn log_provider_error(
+    env: &BTreeMap<String, String>,
+    enabled: bool,
+    request_id: &str,
+    error: &ProviderError,
+) {
+    let elapsed_ms = match error {
+        ProviderError::ExitNonzero { elapsed_ms, .. } | ProviderError::Timeout { elapsed_ms } => {
+            *elapsed_ms
+        }
+        _ => 0,
+    };
+
+    log_debug_event(
+        env,
+        enabled,
+        "translation.error",
+        json!({
+            "requestId": request_id,
+            "error": error.code(),
+            "retryable": error.retryable(),
+            "elapsedMs": elapsed_ms,
+            "message": summarize_provider_error_for_log(error)
         }),
-        Err(error) => provider_error_response(request.request_id, error),
+    );
+}
+
+fn summarize_provider_error_for_log(error: &ProviderError) -> String {
+    match error.code() {
+        "PROVIDER_NOT_FOUND" => "Provider binary was not found.".to_string(),
+        "PROVIDER_TIMEOUT" => "Provider process timed out.".to_string(),
+        "PROVIDER_EXIT_NONZERO" => "Provider exited with a non-zero status.".to_string(),
+        "PROVIDER_OUTPUT_PARSE_FAILED" => "Provider output could not be parsed.".to_string(),
+        _ => error
+            .to_string()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" "),
     }
 }
 
@@ -237,47 +386,118 @@ fn cache_clear(request_id: Option<String>) -> Value {
     })
 }
 
-fn debug_log_info(request_id: Option<String>) -> Value {
-    json!({
-        "type": "DEBUG_LOG_INFO_RESULT",
-        "requestId": request_id.unwrap_or_default(),
-        "ok": true,
-        "logPath": "",
-        "exists": false,
-        "sizeBytes": 0
-    })
+fn debug_log_info(request_id: Option<String>, deps: BridgeDeps) -> Value {
+    match read_debug_log_info(&deps.env) {
+        Ok(info) => json!({
+            "type": "DEBUG_LOG_INFO_RESULT",
+            "requestId": request_id.unwrap_or_default(),
+            "ok": true,
+            "logPath": info.log_path.display().to_string(),
+            "exists": info.exists,
+            "sizeBytes": info.size_bytes
+        }),
+        Err(error) => {
+            debug_log_error_response("DEBUG_LOG_INFO_RESULT", request_id, error.to_string())
+        }
+    }
 }
 
-fn debug_log_clear(request_id: Option<String>) -> Value {
-    json!({
-        "type": "DEBUG_LOG_CLEAR_RESULT",
-        "requestId": request_id.unwrap_or_default(),
-        "ok": true,
-        "logPath": "",
-        "exists": false,
-        "sizeBytes": 0
-    })
+fn debug_log_clear(request_id: Option<String>, deps: BridgeDeps) -> Value {
+    match clear_debug_log(&deps.env) {
+        Ok(info) => json!({
+            "type": "DEBUG_LOG_CLEAR_RESULT",
+            "requestId": request_id.unwrap_or_default(),
+            "ok": true,
+            "logPath": info.log_path.display().to_string(),
+            "exists": info.exists,
+            "sizeBytes": info.size_bytes
+        }),
+        Err(error) => {
+            debug_log_error_response("DEBUG_LOG_CLEAR_RESULT", request_id, error.to_string())
+        }
+    }
 }
 
-fn debug_log_content(request_id: Option<String>) -> Value {
-    json!({
-        "type": "DEBUG_LOG_CONTENT_RESULT",
-        "requestId": request_id.unwrap_or_default(),
-        "ok": true,
-        "logPath": "",
-        "exists": false,
-        "sizeBytes": 0,
-        "content": "",
-        "truncated": false
-    })
+fn debug_log_content(value: Value, request_id: Option<String>, deps: BridgeDeps) -> Value {
+    let request = serde_json::from_value::<DebugLogContentRequest>(value);
+    let Ok(request) = request else {
+        return json!({
+            "type": "DEBUG_LOG_CONTENT_RESULT",
+            "requestId": request_id.unwrap_or_default(),
+            "ok": false,
+            "error": "INVALID_MESSAGE",
+            "message": "GET_DEBUG_LOG_CONTENT message is missing required fields.",
+            "retryable": false
+        });
+    };
+
+    match read_debug_log_tail(&deps.env, request.max_bytes, request.max_lines) {
+        Ok(result) => json!({
+            "type": "DEBUG_LOG_CONTENT_RESULT",
+            "requestId": request.request_id,
+            "ok": true,
+            "logPath": result.info.log_path.display().to_string(),
+            "exists": result.info.exists,
+            "sizeBytes": result.info.size_bytes,
+            "content": result.content,
+            "truncated": result.truncated
+        }),
+        Err(error) => debug_log_error_response(
+            "DEBUG_LOG_CONTENT_RESULT",
+            Some(request.request_id),
+            error.to_string(),
+        ),
+    }
 }
 
-fn debug_log_write(request_id: Option<String>) -> Value {
+fn debug_log_write(value: Value, request_id: Option<String>, deps: BridgeDeps) -> Value {
+    let request = serde_json::from_value::<DebugLogWriteRequest>(value);
+    let Ok(request) = request else {
+        return json!({
+            "type": "DEBUG_LOG_WRITE_RESULT",
+            "requestId": request_id.unwrap_or_default(),
+            "ok": false,
+            "error": "INVALID_MESSAGE",
+            "message": "WRITE_DEBUG_LOG message is missing required fields.",
+            "retryable": false
+        });
+    };
+
+    if request.event.trim().is_empty() || request.event.len() > 120 {
+        return json!({
+            "type": "DEBUG_LOG_WRITE_RESULT",
+            "requestId": request.request_id,
+            "ok": false,
+            "error": "INVALID_MESSAGE",
+            "message": "WRITE_DEBUG_LOG message is missing required fields.",
+            "retryable": false
+        });
+    }
+
     json!({
         "type": "DEBUG_LOG_WRITE_RESULT",
-        "requestId": request_id.unwrap_or_default(),
+        "requestId": request.request_id,
         "ok": true,
-        "written": false
+        "written": write_debug_log_event(
+            &deps.env,
+            &request.event,
+            request.fields.as_ref()
+        )
+    })
+}
+
+fn debug_log_error_response(
+    message_type: &str,
+    request_id: Option<String>,
+    message: String,
+) -> Value {
+    json!({
+        "type": message_type,
+        "requestId": request_id.unwrap_or_default(),
+        "ok": false,
+        "error": "DEBUG_LOG_ERROR",
+        "message": message,
+        "retryable": true
     })
 }
 

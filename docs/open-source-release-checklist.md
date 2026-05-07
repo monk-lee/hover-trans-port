@@ -59,7 +59,7 @@ This checklist is for the first public developer-preview source release.
 
 - [ ] Tag v0.1.0-alpha.1
 - [ ] Release title: v0.1.0-alpha.1 Developer Preview
-- [ ] Release notes mention macOS + Chrome + Codex CLI only
+- [ ] Release notes mention macOS + Chrome + Codex CLI and experimental Claude CLI support
 - [ ] Release notes link docs/native-host-install.md
 - [ ] Release notes link PRIVACY.md
 - [ ] Release notes state this is not a Chrome Web Store release
@@ -70,7 +70,7 @@ This checklist is for the first public developer-preview source release.
 - [ ] Confirm `pnpm verify` passes.
 - [ ] Confirm native host install/uninstall works on maintainer macOS.
 - [ ] Confirm README does not imply offline-only translation.
-- [ ] Confirm README does not imply official affiliation with OpenAI or Codex.
-- [ ] Confirm privacy docs disclose that Codex CLI may send requested text upstream.
+- [ ] Confirm README does not imply official affiliation with OpenAI, Codex, Anthropic, or Claude.
+- [ ] Confirm privacy docs disclose that Codex CLI and Claude CLI may send requested text upstream according to each CLI provider's account and policies.
 - [ ] Confirm SECURITY.md documents the private vulnerability reporting channel.
 - [ ] Add a README screenshot or short GIF of inline translation before broad public announcement.

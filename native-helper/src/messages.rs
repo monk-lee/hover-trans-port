@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 
 pub const NATIVE_BRIDGE_VERSION: &str = "0.2.0-rust-helper";
 pub const NATIVE_HOST_VERSION: &str = "0.2.0";
@@ -61,4 +62,23 @@ pub struct TranslateRequest {
     pub cache_enabled: Option<bool>,
     #[serde(default)]
     pub debug_logging: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DebugLogContentRequest {
+    pub request_id: String,
+    #[serde(default)]
+    pub max_bytes: Option<u64>,
+    #[serde(default)]
+    pub max_lines: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DebugLogWriteRequest {
+    pub request_id: String,
+    pub event: String,
+    #[serde(default)]
+    pub fields: Option<Map<String, Value>>,
 }

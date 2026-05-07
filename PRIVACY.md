@@ -26,7 +26,7 @@ Requested text flows through these local components:
 4. Hover Trans Port local native helper.
 5. The configured local provider CLI.
 
-The current executable provider is Codex CLI. Codex CLI may send requested text to upstream AI services according to the Codex CLI account/authentication, environment, and provider policies. The helper invokes the configured local provider CLI, and that CLI may send requested text upstream according to the user's provider account, authentication, environment, and provider policies. Hover Trans Port invokes Codex CLI with `--ignore-user-config`.
+Supported executable providers are Codex CLI and experimental Claude CLI. Each configured local provider CLI may send requested text upstream according to that provider CLI's account, authentication, environment, and provider policies. Hover Trans Port does not store provider credentials or API keys. Hover Trans Port invokes Codex CLI with `--ignore-user-config`. Claude CLI support is CLI-only; Hover Trans Port does not make direct Anthropic API calls.
 
 ## What Is Stored
 
