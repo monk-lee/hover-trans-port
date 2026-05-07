@@ -166,11 +166,24 @@ fn find_binary(
         let candidate = PathBuf::from(path);
         return is_executable(&candidate).then_some(candidate);
     }
-    env.get("PATH")
+
+    let mut candidates = Vec::new();
+    if let Some(path) = env.get("PATH") {
+        candidates.extend(
+            path.split(':')
+                .filter(|value| !value.is_empty())
+                .map(|dir| Path::new(dir).join(binary_name)),
+        );
+    }
+    if let Some(home) = env.get("HOME").filter(|value| !value.trim().is_empty()) {
+        candidates.push(Path::new(home).join(".local").join("bin").join(binary_name));
+    }
+    candidates.push(Path::new("/opt/homebrew/bin").join(binary_name));
+    candidates.push(Path::new("/usr/local/bin").join(binary_name));
+    candidates.push(Path::new("/usr/bin").join(binary_name));
+
+    candidates
         .into_iter()
-        .flat_map(|path| path.split(':'))
-        .filter(|value| !value.is_empty())
-        .map(|dir| Path::new(dir).join(binary_name))
         .find(|candidate| is_executable(candidate))
 }
 

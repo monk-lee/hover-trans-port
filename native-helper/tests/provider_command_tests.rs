@@ -113,6 +113,39 @@ fn claude_fake_cli_translation_returns_success_result() {
 }
 
 #[test]
+fn claude_provider_status_finds_home_local_bin_when_path_is_minimal() {
+    let fixture = fixture_path("claude");
+    let home_dir = tempdir().unwrap();
+    let local_bin = home_dir.path().join(".local").join("bin");
+    fs::create_dir_all(&local_bin).unwrap();
+    let claude = local_bin.join("claude");
+    fs::copy(&fixture, &claude).unwrap();
+    make_executable(&claude);
+
+    let mut env = BTreeMap::new();
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+    env.insert("HOME".to_string(), home_dir.path().display().to_string());
+
+    let response = handle_request(
+        json!({
+            "type": "PROVIDER_STATUS",
+            "requestId": "req-providers"
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    let providers = response["providers"].as_array().unwrap();
+    let claude_status = providers
+        .iter()
+        .find(|provider| provider["id"] == "claude")
+        .unwrap();
+
+    assert_eq!(claude_status["available"], true);
+    assert_eq!(claude_status["binaryPath"], claude.display().to_string());
+    assert_eq!(claude_status["version"], "claude test-version");
+}
+
+#[test]
 fn claude_command_builder_uses_constrained_headless_json_shape() {
     let args = build_claude_args(Some("claude-sonnet-4"));
 
