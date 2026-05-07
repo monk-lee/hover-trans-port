@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use tempfile::tempdir;
+
 use crate::messages::{ProviderId, ProviderStatusEntry};
 use crate::process::{run_process, ProcessRequest, ProviderError};
 use crate::prompt::build_translate_prompt;
@@ -89,12 +91,15 @@ impl Provider for ClaudeProvider {
                 executable: PathBuf::from("claude"),
             });
         };
+        let temp_dir = tempdir().map_err(|error| ProviderError::SpawnFailed {
+            message: error.to_string(),
+        })?;
         let prompt =
             build_translate_prompt(&request.text, &request.source_lang, &request.target_lang);
         let output = run_process(ProcessRequest {
             executable: binary.clone(),
             args: build_claude_args(request.model.as_deref()),
-            cwd: None,
+            cwd: Some(temp_dir.path().to_path_buf()),
             env: provider_env(&self.env, &binary),
             stdin: prompt,
             timeout_ms: request.timeout_ms,
@@ -113,6 +118,7 @@ pub fn build_claude_args(model: Option<&str>) -> Vec<String> {
         PROMPT_ARG.to_string(),
         "--output-format".to_string(),
         "json".to_string(),
+        "--bare".to_string(),
         "--no-session-persistence".to_string(),
         "--tools".to_string(),
         String::new(),
