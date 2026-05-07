@@ -238,6 +238,16 @@ function isUnsupportedHostInfoError(response: NativeResponse): boolean {
   return response.type === "ERROR" && response.error === "UNSUPPORTED_MESSAGE";
 }
 
+function appendProviderDetail(summary: string, fallback: string): string {
+  const detail = fallback.trim();
+
+  if (!detail || detail === summary) {
+    return summary;
+  }
+
+  return `${summary} ${detail}`;
+}
+
 function toUserFacingTranslationMessage(
   error: string,
   fallback: string,
@@ -247,13 +257,25 @@ function toUserFacingTranslationMessage(
 
   switch (error) {
     case "PROVIDER_NOT_FOUND":
-      return `${providerLabel}를 찾을 수 없습니다.`;
+      return appendProviderDetail(
+        `${providerLabel}를 찾을 수 없습니다.`,
+        fallback
+      );
     case "PROVIDER_TIMEOUT":
-      return `${providerLabel} 번역 시간이 초과되었습니다.`;
+      return appendProviderDetail(
+        `${providerLabel} 번역 시간이 초과되었습니다.`,
+        fallback
+      );
     case "PROVIDER_EXIT_NONZERO":
-      return `${providerLabel} 실행에 실패했습니다.`;
+      return appendProviderDetail(
+        `${providerLabel} 실행에 실패했습니다.`,
+        fallback
+      );
     case "PROVIDER_OUTPUT_PARSE_FAILED":
-      return `${providerLabel} 번역 결과를 읽지 못했습니다.`;
+      return appendProviderDetail(
+        `${providerLabel} 번역 결과를 읽지 못했습니다.`,
+        fallback
+      );
     case "CACHE_ERROR":
       return "번역 캐시를 처리하지 못했습니다.";
     case "NATIVE_HOST_UNAVAILABLE":
