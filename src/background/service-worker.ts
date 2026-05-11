@@ -80,6 +80,31 @@ function isNativeHostUpdateStatusStale(
   return !status || Date.now() - status.checkedAt > NATIVE_HOST_UPDATE_STALE_MS;
 }
 
+function didNativeHostUpdateAutoCheckChange(
+  change: chrome.storage.StorageChange
+): boolean {
+  const oldOptions = change.oldValue as StoredOptions["hoverTransPort"] | undefined;
+  const newOptions = change.newValue as StoredOptions["hoverTransPort"] | undefined;
+
+  return (
+    normalizeNativeHostUpdateAutoCheck(
+      oldOptions?.nativeHostUpdateAutoCheck
+    ) !==
+    normalizeNativeHostUpdateAutoCheck(newOptions?.nativeHostUpdateAutoCheck)
+  );
+}
+
+async function refreshPostNativeHostUpdateStatus(
+  requestId: string
+): Promise<void> {
+  try {
+    await checkNativeHost(`${requestId}:host-info`);
+    await refreshNativeHostUpdateStatus(`${requestId}:status`);
+  } catch {
+    // Post-update status refresh is best-effort; the update result was already returned.
+  }
+}
+
 chrome.runtime.onInstalled.addListener(async ({ reason }) => {
   if (reason === chrome.runtime.OnInstalledReason.INSTALL) {
     await chrome.storage.local.set({
@@ -99,12 +124,32 @@ chrome.runtime.onStartup.addListener(() => {
   void ensureNativeHostUpdateAlarm();
 });
 
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== "local" || !changes.hoverTransPort) {
+    return;
+  }
+
+  if (!didNativeHostUpdateAutoCheckChange(changes.hoverTransPort)) {
+    return;
+  }
+
+  void ensureNativeHostUpdateAlarm();
+});
+
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name !== NATIVE_HOST_UPDATE_ALARM) {
     return;
   }
 
-  void refreshNativeHostUpdateStatus(`${NATIVE_HOST_UPDATE_ALARM}:${Date.now()}`);
+  void shouldAutoCheckNativeHostUpdate().then((autoCheckEnabled) => {
+    if (!autoCheckEnabled) {
+      return;
+    }
+
+    return refreshNativeHostUpdateStatus(
+      `${NATIVE_HOST_UPDATE_ALARM}:${Date.now()}`
+    );
+  });
 });
 
 chrome.runtime.onMessage.addListener(
@@ -179,15 +224,14 @@ chrome.runtime.onMessage.addListener(
         message.requestId,
         message.targetTag,
         message.targetVersion
-      ).then(async (result) => {
-        await checkNativeHost(`${message.requestId}:host-info`);
-        await refreshNativeHostUpdateStatus(`${message.requestId}:status`);
-
+      ).then((result) => {
         sendResponse({
           type: "NATIVE_HOST_UPDATE_RESULT",
           requestId: message.requestId,
           ...result
         });
+
+        void refreshPostNativeHostUpdateStatus(message.requestId);
       });
       return true;
     }

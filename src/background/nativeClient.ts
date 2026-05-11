@@ -375,6 +375,7 @@ function toNativeHostUpdateStoredError(
     case "UPDATE_CHECKSUM_FAILED":
     case "UPDATE_INSTALL_FAILED":
     case "UPDATE_RECONNECT_FAILED":
+    case "INVALID_MESSAGE":
       return error;
     case "UNSUPPORTED_MESSAGE":
       return "NATIVE_HOST_UPDATE_REQUIRED";
@@ -394,6 +395,7 @@ function toNativeHostUpdateApplyError(
     case "UPDATE_CHECKSUM_FAILED":
     case "UPDATE_INSTALL_FAILED":
     case "UPDATE_RECONNECT_FAILED":
+    case "INVALID_MESSAGE":
       return error;
     case "UNSUPPORTED_MESSAGE":
       return "NATIVE_HOST_UPDATE_REQUIRED";
@@ -715,6 +717,16 @@ export async function checkNativeHostUpdateStatus(
         };
       }
 
+      if (response.error === "INVALID_MESSAGE") {
+        return {
+          checkedAt,
+          ok: false,
+          error: "INVALID_MESSAGE",
+          message: response.message || "Native host update status request was invalid.",
+          retryable: false
+        };
+      }
+
       return {
         checkedAt,
         ok: false,
@@ -812,6 +824,15 @@ export async function updateNativeHost(
           error: "NATIVE_HOST_UPDATE_REQUIRED",
           message:
             "One manual native host update is required before in-app updates are available.",
+          retryable: false
+        };
+      }
+
+      if (response.error === "INVALID_MESSAGE") {
+        return {
+          ok: false,
+          error: "INVALID_MESSAGE",
+          message: response.message || "Native host update request was invalid.",
           retryable: false
         };
       }

@@ -10,6 +10,12 @@ function assertIncludes(text, needle, path) {
   }
 }
 
+function assertMatches(text, pattern, path, message) {
+  if (!pattern.test(text)) {
+    throw new Error(`${path} must include ${message}`);
+  }
+}
+
 const manifest = JSON.parse(readText("public/manifest.json"));
 
 if (!Array.isArray(manifest.permissions) || !manifest.permissions.includes("alarms")) {
@@ -30,7 +36,8 @@ const checks = [
     needles: [
       'type: "CHECK_NATIVE_HOST_UPDATE"',
       'type: "UPDATE_NATIVE_HOST"',
-      'type: "NATIVE_HOST_UPDATE_STATUS"'
+      'type: "NATIVE_HOST_UPDATE_STATUS"',
+      '"INVALID_MESSAGE"'
     ]
   },
   {
@@ -42,14 +49,22 @@ const checks = [
   },
   {
     path: "src/background/nativeClient.ts",
-    needles: ["checkNativeHostUpdateStatus", "updateNativeHost"]
+    needles: [
+      "checkNativeHostUpdateStatus",
+      "updateNativeHost",
+      'case "INVALID_MESSAGE"'
+    ]
   },
   {
     path: "src/background/service-worker.ts",
     needles: [
       "chrome.alarms.create",
       "native-host-update-check",
-      "hoverTransPortNativeHostUpdate"
+      "hoverTransPortNativeHostUpdate",
+      "shouldAutoCheckNativeHostUpdate",
+      "chrome.storage.onChanged",
+      "refreshPostNativeHostUpdateStatus",
+      "return true;"
     ]
   }
 ];
@@ -61,5 +76,32 @@ for (const check of checks) {
     assertIncludes(text, needle, check.path);
   }
 }
+
+const serviceWorkerText = readText("src/background/service-worker.ts");
+
+assertMatches(
+  serviceWorkerText,
+  /chrome\.alarms\.onAlarm[\s\S]*shouldAutoCheckNativeHostUpdate[\s\S]*refreshNativeHostUpdateStatus/u,
+  "src/background/service-worker.ts",
+  "auto-check gating inside chrome.alarms.onAlarm"
+);
+assertMatches(
+  serviceWorkerText,
+  /chrome\.storage\.onChanged[\s\S]*ensureNativeHostUpdateAlarm/u,
+  "src/background/service-worker.ts",
+  "alarm rescheduling from chrome.storage.onChanged"
+);
+assertMatches(
+  serviceWorkerText,
+  /if \(message\.type === "UPDATE_NATIVE_HOST"\)[\s\S]*sendResponse[\s\S]*refreshPostNativeHostUpdateStatus[\s\S]*return true;/u,
+  "src/background/service-worker.ts",
+  "async UPDATE_NATIVE_HOST response pattern"
+);
+assertMatches(
+  serviceWorkerText,
+  /refreshPostNativeHostUpdateStatus[\s\S]*try[\s\S]*(checkNativeHost|refreshNativeHostUpdateStatus)[\s\S]*catch/u,
+  "src/background/service-worker.ts",
+  "best-effort post-update try/catch"
+);
 
 console.log("native-host-update-check: ok");

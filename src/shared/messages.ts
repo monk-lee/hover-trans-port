@@ -206,6 +206,7 @@ export type NativeHostUpdateStoredStatus =
         | "UPDATE_CHECKSUM_FAILED"
         | "UPDATE_INSTALL_FAILED"
         | "UPDATE_RECONNECT_FAILED"
+        | "INVALID_MESSAGE"
         | "UNKNOWN_ERROR";
       message: string;
       retryable: boolean;
@@ -242,6 +243,7 @@ export type NativeHostUpdateApplyResponse =
         | "UPDATE_CHECKSUM_FAILED"
         | "UPDATE_INSTALL_FAILED"
         | "UPDATE_RECONNECT_FAILED"
+        | "INVALID_MESSAGE"
         | "UNKNOWN_ERROR";
       message: string;
       retryable: boolean;
