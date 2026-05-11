@@ -41,6 +41,15 @@ fn timeout_maps_to_provider_timeout() {
 }
 
 #[test]
+fn timeout_returns_even_when_descendant_keeps_stdout_open() {
+    let started = std::time::Instant::now();
+    let error = run_fixture("descendant-keeps-stdout-open", vec![], "", 100).unwrap_err();
+
+    assert!(started.elapsed() < std::time::Duration::from_secs(1));
+    assert!(matches!(error, ProviderError::Timeout { .. }));
+}
+
+#[test]
 fn large_stdout_does_not_block_process_completion() {
     let output = run_fixture("large-stdout", vec![], "", 5_000).unwrap();
 

@@ -149,8 +149,8 @@ pub fn run_process(request: ProcessRequest) -> Result<ProcessOutput, ProviderErr
     if status.is_none() {
         let _ = child.kill();
         let _ = child.wait();
-        let _ = collect_reader(stdout_reader);
-        let _ = collect_reader(stderr_reader);
+        drop(stdout_reader);
+        drop(stderr_reader);
         return Err(ProviderError::Timeout {
             elapsed_ms: elapsed_ms(started),
         });

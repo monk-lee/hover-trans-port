@@ -1,0 +1,19 @@
+#!/bin/sh
+python3 - <<'PY'
+import os
+import subprocess
+import time
+
+devnull = open(os.devnull, "rb")
+stdout = os.fdopen(os.dup(1), "wb", closefd=True)
+stderr = os.fdopen(os.dup(2), "wb", closefd=True)
+subprocess.Popen(
+    ["sleep", "5"],
+    stdin=devnull,
+    stdout=stdout,
+    stderr=stderr,
+    start_new_session=True,
+    close_fds=False,
+)
+time.sleep(5)
+PY
