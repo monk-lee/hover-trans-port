@@ -4,7 +4,7 @@ Date: 2026-05-11
 
 ## Goal
 
-Add native host/helper update support without making binary replacement invisible to the user. The first version should detect when a newer GitHub Release is available, show that state in Options, and let the user run a verified update from the same place they already check native host diagnostics.
+Add native host/helper update support without making binary replacement invisible to the user. The first version should check in the background for newer GitHub Releases, show that state in Options, and let the user run a verified update from the same place they already check native host diagnostics.
 
 This is a staged design. Version 1 is user-confirmed update from Options. Fully unattended background updates are intentionally out of scope until the verified update path has shipped and proven reliable.
 
@@ -16,20 +16,22 @@ The macOS script installer already supports `install`, `update`, `status`, and `
 
 That means the update feature should reuse the existing installer/update mechanics. The extension should not download or replace native binaries directly.
 
-One gap exists today: the one-line installer is not guaranteed to persist a local updater script because `curl ... | bash` has no stable script file path. The update-capable installer must install a versioned updater script alongside the helper so future update requests can execute a known local script with fixed arguments.
+One gap exists today: the one-line installer is not guaranteed to persist a local updater script because a script piped into `bash` has no stable script file path. The update-capable installer must install a versioned updater script alongside the helper so future update requests can execute a known local script with fixed arguments.
 
 ## Recommended Approach
 
 Use a native-host mediated update flow:
 
-1. Options asks the background page to check for native host updates.
-2. The background page asks the current native host for update status.
-3. The native host fetches release metadata from GitHub Releases, compares the latest supported native host version with the installed version, and returns a structured result.
-4. Options shows either “up to date”, “update available”, or a concrete failure.
-5. When the user clicks `Update Native Host`, the background page sends an update request to the native host.
-6. The native host invokes the installed updater script with fixed `update --release-tag <tag> --host-version <version> --json` arguments.
-7. The updater downloads the latest helper/checksum assets, verifies checksums, stages the new version, switches `current`, installs the new versioned updater script for future updates, and returns a JSON result.
-8. Options automatically reruns `Check Native Host` after the update and shows the new version.
+1. The background page schedules a low-frequency native host update check.
+2. Options can also ask the background page to check immediately.
+3. The background page asks the current native host for update status.
+4. The native host fetches release metadata from GitHub Releases, compares the latest supported native host version with the installed version, and returns a structured result.
+5. The background page stores the latest check result in `chrome.storage.local`.
+6. Options shows either “up to date”, “update available”, “manual update required”, or a concrete failure.
+7. When the user clicks `Update Native Host`, the background page sends an update request to the native host.
+8. The native host invokes the installed updater script with fixed `update --release-tag <tag> --host-version <version> --json` arguments.
+9. The updater downloads the latest helper/checksum assets, verifies checksums, stages the new version, switches `current`, installs the new versioned updater script for future updates, and returns a JSON result.
+10. Options automatically reruns `Check Native Host` after the update and shows the new version.
 
 This keeps network/download/checksum logic in the native layer, where process execution and filesystem writes already live. It also keeps the Chrome extension’s role limited to UI, user confirmation, and messaging.
 
@@ -60,6 +62,7 @@ Default state:
 
 - `Check Native Host` remains available and continues to show installed host/bridge/protocol versions.
 - A new `Check for Updates` control queries latest native host availability.
+- A new `Auto-check native host updates` setting controls scheduled checks and defaults to enabled.
 - `Update Native Host` is hidden or disabled until an update is known to be available.
 
 When up to date:
@@ -87,6 +90,12 @@ On failure:
 
 When the installed native host does not support update messages, Options should report that one manual native host update is required before in-app updates can work.
 
+## Background Check Cadence
+
+Use `chrome.alarms` for a daily check when auto-check is enabled. Also check opportunistically when Options opens if the last stored result is older than 24 hours.
+
+Background checks must not install or replace binaries. They only update stored status. The extension should not show browser notifications in v1; Options is the reporting surface.
+
 ## Bootstrap Constraint
 
 The currently released v0.2.2 native host does not understand update messages and does not install a persisted updater script. Users on that host cannot be updated entirely through Options.
@@ -107,7 +116,7 @@ Add two dedicated native request/response pairs.
 ```json
 {
   "type": "NATIVE_HOST_UPDATE_STATUS",
-  "requestId": "..."
+  "requestId": "req-update-status"
 }
 ```
 
@@ -116,7 +125,7 @@ Successful response:
 ```json
 {
   "type": "NATIVE_HOST_UPDATE_STATUS_RESULT",
-  "requestId": "...",
+  "requestId": "req-update-status",
   "ok": true,
   "installedVersion": "0.2.2",
   "latestVersion": "0.2.3",
@@ -131,7 +140,7 @@ Failure response:
 ```json
 {
   "type": "NATIVE_HOST_UPDATE_STATUS_RESULT",
-  "requestId": "...",
+  "requestId": "req-update-status",
   "ok": false,
   "error": "UPDATE_CHECK_FAILED",
   "message": "Could not check latest release.",
@@ -144,7 +153,7 @@ Failure response:
 ```json
 {
   "type": "NATIVE_HOST_UPDATE",
-  "requestId": "...",
+  "requestId": "req-update",
   "targetTag": "v0.2.3"
 }
 ```
@@ -154,7 +163,7 @@ Successful response:
 ```json
 {
   "type": "NATIVE_HOST_UPDATE_RESULT",
-  "requestId": "...",
+  "requestId": "req-update",
   "ok": true,
   "previousVersion": "0.2.2",
   "installedVersion": "0.2.3",
@@ -167,7 +176,7 @@ Failure response:
 ```json
 {
   "type": "NATIVE_HOST_UPDATE_RESULT",
-  "requestId": "...",
+  "requestId": "req-update",
   "ok": false,
   "error": "UPDATE_INSTALL_FAILED",
   "message": "Checksum verification failed.",
@@ -283,6 +292,7 @@ Add focused tests before implementation:
 - TypeScript protocol types cover update status and update result responses.
 - Background message handling maps update status/update requests correctly.
 - Options check script verifies the update controls and status strings exist.
+- Background scheduler tests verify alarm setup, stale-result checks, and disabled auto-check behavior.
 - Native helper bridge tests cover update status and update result success/failure shapes.
 - Rust update module tests use a local fixture release directory or mock HTTP layer to verify version comparison, missing asset handling, checksum failure, and successful install result parsing.
 - Script installer tests cover `--json`, successful update, rollback-preserving failure, and status output.
