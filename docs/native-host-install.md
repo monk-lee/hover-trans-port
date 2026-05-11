@@ -2,7 +2,7 @@
 
 Hover Trans Port uses Chrome Native Messaging to connect the browser extension to a local compiled native helper. The helper calls local AI CLIs for requested translations.
 
-This guide covers the current macOS developer preview:
+This guide covers the current macOS install path:
 
 - macOS
 - Google Chrome
@@ -10,13 +10,13 @@ This guide covers the current macOS developer preview:
 - Codex CLI as the default executable provider
 - Experimental Claude CLI as an optional executable provider
 
-Chrome Web Store installation is not part of this preview.
+Chrome Web Store installation is not currently supported.
 
 ## Script Installer
 
-The alpha non-developer macOS install path is the script installer. It installs the prebuilt native helper without Node.js, pnpm, Cargo, or Xcode.
+The macOS install path is the script installer. It installs the prebuilt native helper without Node.js, pnpm, Cargo, or Xcode.
 
-For a one-line alpha install from GitHub Releases:
+For a one-line install from GitHub Releases:
 
 ```bash
 curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh | bash
@@ -108,7 +108,7 @@ Diagnostics:
 
 ## Cache And Logs
 
-The developer preview stores successful translations in a local SQLite database owned by the native helper: `~/.hover-trans-port/cache.sqlite`.
+When cache is enabled, the native helper stores successful translations in a local SQLite database: `~/.hover-trans-port/cache.sqlite`.
 
 Cached entries include provider, selected model, target language, normalized source text, and translated text. The Options page Cache section can clear cached translations through the Native Host.
 

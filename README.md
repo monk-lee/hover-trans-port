@@ -8,7 +8,7 @@ Language: English | [한국어](readmes/README.ko.md)
 
 ![Hover Trans Port inline translation preview](docs/assets/hover-trans-port-preview.png)
 
-Hover Trans Port is an early developer preview Chrome Manifest V3 extension for translating selected or hovered web text on demand. It uses Chrome Native Messaging to reach a local compiled helper, and the helper calls the AI CLI that is already installed and authenticated on your machine. Supported executable providers are Codex CLI and experimental Claude CLI.
+Hover Trans Port is a Chrome Manifest V3 extension for translating selected or hovered web text on demand. It uses Chrome Native Messaging to reach a local compiled helper, and the helper calls the AI CLI that is already installed and authenticated on your machine. Supported executable providers are Codex CLI and experimental Claude CLI.
 
 This project is not affiliated with, endorsed by, or sponsored by OpenAI, Codex, Anthropic, or Claude.
 
@@ -35,7 +35,7 @@ Not yet:
 
 Open the [latest GitHub Release](https://github.com/monk-lee/hover-trans-port/releases/latest) and download the asset named `hover-trans-port-extension-<version>.zip`.
 
-Unzip it somewhere you can keep it, then open `chrome://extensions`, enable Developer mode, click `Load unpacked`, and select the unzipped extension folder. Chrome loads the unpacked folder during this developer preview, not the `.zip` file itself.
+Unzip it somewhere you can keep it, then open `chrome://extensions`, enable Developer mode, click `Load unpacked`, and select the unzipped extension folder. Chrome loads the unpacked folder; the `.zip` file is only the download package.
 
 ### 2. Install The macOS Native Host
 

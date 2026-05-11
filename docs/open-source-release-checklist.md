@@ -1,6 +1,6 @@
 # Open Source Release Checklist
 
-This checklist is for the first public developer-preview source release.
+This checklist is for the first public source release.
 
 ## Repository
 
@@ -58,7 +58,7 @@ This checklist is for the first public developer-preview source release.
 ## Release
 
 - [ ] Tag v0.2.2
-- [ ] Release title: v0.2.2 Developer Preview
+- [ ] Release title: v0.2.2
 - [ ] Release notes mention macOS + Chrome + Codex CLI and experimental Claude CLI support
 - [ ] Release notes link docs/native-host-install.md
 - [ ] Release notes link PRIVACY.md

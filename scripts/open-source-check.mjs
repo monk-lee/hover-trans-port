@@ -80,7 +80,7 @@ if (!permissions.includes("nativeMessaging")) {
 }
 
 const readme = read("README.md");
-assertIncludes(readme, "developer preview", "README.md");
+assertIncludes(readme, "Chrome Manifest V3 extension", "README.md");
 assertIncludes(readme, "Codex CLI", "README.md");
 assertIncludes(readme, "Claude CLI", "README.md");
 assertIncludes(readme, "experimental Claude CLI", "README.md");
@@ -132,7 +132,7 @@ assertIncludes(security, "read-only sandbox", "SECURITY.md");
 assertIncludes(security, "private vulnerability reporting", "SECURITY.md");
 
 const nativeHostInstall = read("docs/native-host-install.md");
-assertIncludes(nativeHostInstall, "developer preview", "docs/native-host-install.md");
+assertIncludes(nativeHostInstall, "current macOS install path", "docs/native-host-install.md");
 assertIncludes(nativeHostInstall, "pnpm native:install", "docs/native-host-install.md");
 assertIncludes(nativeHostInstall, "pnpm native:uninstall", "docs/native-host-install.md");
 assertIncludes(nativeHostInstall, "Target language", "docs/native-host-install.md");

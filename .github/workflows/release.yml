@@ -71,9 +71,9 @@ jobs:
           TAG_NAME="${GITHUB_REF_NAME}"
           mkdir -p build/release
           cat > build/release/release-notes.md <<EOF
-          ${TAG_NAME} Developer Preview
+          ${TAG_NAME}
 
-          This developer preview targets macOS, Google Chrome, and local provider CLIs.
+          This release targets macOS, Google Chrome, and local provider CLIs.
 
           Assets:
           - install-macos-native-host.sh: one-line native host installer
@@ -96,7 +96,7 @@ jobs:
           Install docs: https://github.com/monk-lee/hover-trans-port/blob/${TAG_NAME}/docs/native-host-install.md
           Privacy: https://github.com/monk-lee/hover-trans-port/blob/${TAG_NAME}/PRIVACY.md
 
-          This is not a Chrome Web Store release. Load the extension package manually through chrome://extensions during the developer preview.
+          This is not a Chrome Web Store release. Load the extension package manually through chrome://extensions.
           EOF
 
       - name: Check release assets
@@ -131,5 +131,5 @@ jobs:
             "$EXTENSION_ZIP" \
             --verify-tag \
             --latest \
-            --title "$TAG_NAME Developer Preview" \
+            --title "$TAG_NAME" \
             --notes-file build/release/release-notes.md

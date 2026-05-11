@@ -73,5 +73,7 @@ for (const [snippet, description] of requiredSnippets) {
 
 requireNotIncludes(releaseWorkflow, "--prerelease", "prerelease flag");
 requireNotIncludes(releaseWorkflow, "dev-monk-lee", "old GitHub repository owner");
+requireNotIncludes(releaseWorkflow, "Developer Preview", "developer preview release title");
+requireNotIncludes(releaseWorkflow, "developer preview", "developer preview release wording");
 
 console.log("release-workflow-check: release workflow is valid.");

@@ -18,7 +18,7 @@ Hover Trans Port는 웹페이지에서 텍스트를 선택하거나 마우스를
 
 현재 동작하는 범위:
 
-- macOS, Google Chrome, `dist/` 폴더를 직접 불러오는 개발자 미리보기 설치.
+- macOS, Google Chrome, `dist/` 폴더를 직접 불러오는 unpacked extension 설치.
 - Codex CLI provider 및 experimental Claude CLI provider.
 - 선택 영역 우선 번역과 마우스로 가리킨 읽기 가능한 블록 번역.
 - 원문 안에 번역 표시, 로컬 SQLite 캐시, Options 진단 기능.
@@ -37,11 +37,11 @@ Hover Trans Port는 웹페이지에서 텍스트를 선택하거나 마우스를
 
 [최신 GitHub Release](https://github.com/monk-lee/hover-trans-port/releases/latest)를 열고 `hover-trans-port-extension-<version>.zip` asset을 다운로드합니다.
 
-압축을 해제한 뒤 `chrome://extensions`를 열고 Developer mode를 켠 다음 `Load unpacked`에서 압축 해제한 extension 폴더를 선택합니다. 이 developer preview에서는 `.zip` 파일 자체가 아니라 압축 해제한 폴더를 Chrome에 불러옵니다.
+압축을 해제한 뒤 `chrome://extensions`를 열고 Developer mode를 켠 다음 `Load unpacked`에서 압축 해제한 extension 폴더를 선택합니다. Chrome은 `.zip` 파일 자체가 아니라 압축 해제한 폴더를 불러옵니다.
 
 ### 2. macOS Native Host 설치
 
-alpha 경로는 GitHub Releases의 prebuilt native host를 `curl`로 설치하는 방식입니다.
+macOS 설치 경로는 GitHub Releases의 prebuilt native host를 `curl`로 설치하는 방식입니다.
 
 ```bash
 curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh | bash
