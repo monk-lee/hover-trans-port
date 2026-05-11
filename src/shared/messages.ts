@@ -1,4 +1,8 @@
-import type { ProviderId } from "./providers";
+import type {
+  ProviderId,
+  ProviderModelCatalog,
+  ProviderSelection
+} from "./providers";
 
 export type TranslationTargetMode = "selection" | "hover-block";
 
@@ -65,6 +69,11 @@ export type ExtensionRequest =
   | {
       type: "CHECK_PROVIDER_STATUS";
       requestId: string;
+    }
+  | {
+      type: "GET_PROVIDER_MODELS";
+      requestId: string;
+      provider: ProviderSelection;
     }
   | {
       type: "CLEAR_TRANSLATION_CACHE";
@@ -181,6 +190,24 @@ export type ProviderStatusResponse =
       retryable: boolean;
     };
 
+export type ProviderModelsExtensionResponse =
+  | {
+      type: "PROVIDER_MODELS_RESULT";
+      requestId: string;
+      ok: true;
+      catalog: ProviderModelCatalog;
+    }
+  | {
+      type: "PROVIDER_MODELS_RESULT";
+      requestId: string;
+      ok: false;
+      provider: ProviderId;
+      error: "NATIVE_HOST_UNAVAILABLE" | "PROVIDER_UNAVAILABLE" | "UNKNOWN_ERROR";
+      message: string;
+      retryable: boolean;
+      fallbackCatalog: ProviderModelCatalog;
+    };
+
 export type CacheClearResponse =
   | {
       type: "CACHE_CLEAR_RESULT";
@@ -276,6 +303,7 @@ export type ExtensionResponse =
     }
   | NativeHostStatusResponse
   | ProviderStatusResponse
+  | ProviderModelsExtensionResponse
   | CacheClearResponse
   | DebugLogInfoResponse
   | DebugLogClearResponse

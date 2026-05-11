@@ -1,4 +1,8 @@
-import type { ProviderId, ProviderSelection } from "./providers";
+import type {
+  ProviderId,
+  ProviderModelCatalog,
+  ProviderSelection
+} from "./providers";
 
 export const NATIVE_HOST_NAME = "com.monklabs.hover_trans_port";
 export const NATIVE_BRIDGE_VERSION = "0.2.0-rust-helper";
@@ -34,6 +38,12 @@ export type NativeTranslateRequest = {
 export type NativeProviderStatusRequest = {
   type: "PROVIDER_STATUS";
   requestId: string;
+};
+
+export type NativeProviderModelsRequest = {
+  type: "PROVIDER_MODELS";
+  requestId: string;
+  provider?: ProviderId | ProviderSelection;
 };
 
 export type NativeClearCacheRequest = {
@@ -77,6 +87,7 @@ export type NativeRequest =
   | NativeHostInfoRequest
   | NativeTranslateRequest
   | NativeProviderStatusRequest
+  | NativeProviderModelsRequest
   | NativeClearCacheRequest
   | NativeDebugLogInfoRequest
   | NativeDebugLogClearRequest
@@ -122,6 +133,23 @@ export type NativeProviderStatusResponse = {
     error?: string;
   }>;
 };
+
+export type NativeProviderModelsResponse =
+  | {
+      type: "PROVIDER_MODELS_RESULT";
+      requestId: string;
+      ok: true;
+      catalog: ProviderModelCatalog;
+    }
+  | {
+      type: "PROVIDER_MODELS_RESULT";
+      requestId: string;
+      ok: false;
+      provider: ProviderId;
+      error: NativeErrorCode;
+      message: string;
+      fallbackCatalog: ProviderModelCatalog;
+    };
 
 export type NativeTranslateResultResponse =
   | {
@@ -257,6 +285,7 @@ export type NativeResponse =
   | NativePongResponse
   | NativeHostInfoResponse
   | NativeProviderStatusResponse
+  | NativeProviderModelsResponse
   | NativeTranslateResultResponse
   | NativeCacheClearResponse
   | NativeDebugLogInfoResponse

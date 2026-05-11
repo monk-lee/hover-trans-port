@@ -7,6 +7,15 @@ export type ProviderSelection = (typeof PROVIDER_SELECTION_IDS)[number];
 export type ProviderModelOption = {
   value: string;
   label: string;
+  recommended?: boolean;
+};
+
+export type ProviderModelCatalog = {
+  provider: ProviderId;
+  defaultModel: string;
+  models: ProviderModelOption[];
+  supportsCustomModel: boolean;
+  source: "cli" | "fallback";
 };
 
 export const DEFAULT_PROVIDER: ProviderId = "codex";
@@ -23,20 +32,43 @@ export const PROVIDER_DEFAULT_MODELS: Record<ProviderId, string> = {
   gemini: ""
 };
 
-export const PROVIDER_MODEL_OPTIONS: Record<ProviderId, ProviderModelOption[]> = {
-  codex: [
-    { value: "gpt-5.4-mini", label: "Fast (GPT-5.4 Mini)" },
-    { value: "gpt-5.4-nano", label: "Fastest (GPT-5.4 Nano)" },
-    { value: "gpt-5.4", label: "Balanced (GPT-5.4)" },
-    { value: "gpt-5.5", label: "Best (GPT-5.5)" }
-  ],
-  claude: [
-    { value: "haiku", label: "Fast (Haiku)" },
-    { value: "sonnet", label: "Balanced (Sonnet)" },
-    { value: "opus", label: "Best (Opus)" },
-    { value: "default", label: "Default (Claude CLI)" }
-  ],
-  gemini: []
+export const PROVIDER_FALLBACK_MODEL_CATALOGS: Record<
+  ProviderId,
+  ProviderModelCatalog
+> = {
+  codex: {
+    provider: "codex",
+    defaultModel: "gpt-5.4-mini",
+    models: [
+      { value: "gpt-5.5", label: "GPT-5.5" },
+      { value: "gpt-5.4", label: "GPT-5.4" },
+      { value: "gpt-5.4-mini", label: "GPT-5.4 Mini", recommended: true },
+      { value: "gpt-5.3-codex", label: "GPT-5.3 Codex" },
+      { value: "gpt-5.3-codex-spark", label: "GPT-5.3 Codex Spark" },
+      { value: "gpt-5.2", label: "GPT-5.2" }
+    ],
+    supportsCustomModel: true,
+    source: "fallback"
+  },
+  claude: {
+    provider: "claude",
+    defaultModel: "haiku",
+    models: [
+      { value: "haiku", label: "Haiku", recommended: true },
+      { value: "sonnet", label: "Sonnet" },
+      { value: "opus", label: "Opus" },
+      { value: "default", label: "Default (Claude CLI)" }
+    ],
+    supportsCustomModel: true,
+    source: "fallback"
+  },
+  gemini: {
+    provider: "gemini",
+    defaultModel: "",
+    models: [],
+    supportsCustomModel: true,
+    source: "fallback"
+  }
 };
 
 export function isProviderId(value: unknown): value is ProviderId {
@@ -73,8 +105,14 @@ export function getDefaultModelForProvider(provider: ProviderId): string {
   return PROVIDER_DEFAULT_MODELS[provider];
 }
 
+export function getFallbackModelCatalog(
+  provider: ProviderId
+): ProviderModelCatalog {
+  return PROVIDER_FALLBACK_MODEL_CATALOGS[provider];
+}
+
 export function getModelOptionsForProvider(
   provider: ProviderId
 ): ProviderModelOption[] {
-  return PROVIDER_MODEL_OPTIONS[provider];
+  return getFallbackModelCatalog(provider).models;
 }
