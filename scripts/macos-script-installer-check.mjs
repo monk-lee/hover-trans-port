@@ -152,7 +152,12 @@ withTempRoot("json-update", (root) => {
   const install = runJson(["install", "--host-version", "0.1.0", "--helper-source", helperV1], env);
   assert(install.ok === true, "json install should report ok");
   assert(install.command === "install", "json install should name command");
+  assert(install.previousVersion === "", "json install should report no previous version");
   assert(install.installedVersion === "0.1.0", "json install should name installed version");
+  assert(
+    install.currentLink === join(env.HOVER_TRANS_PORT_INSTALL_ROOT, "current"),
+    "json install should name current link"
+  );
   assert(Array.isArray(install.manifests), "json install should list manifests");
 
   const update = runJson(["update", "--host-version", "0.2.2", "--helper-source", helperV2], env);
@@ -160,7 +165,10 @@ withTempRoot("json-update", (root) => {
   assert(update.command === "update", "json update should name command");
   assert(update.previousVersion === "0.1.0", "json update should name previous version");
   assert(update.installedVersion === "0.2.2", "json update should name installed version");
-  assert(update.currentLink.endsWith("Hover Trans Port/current"), "json update should name current link");
+  assert(
+    update.currentLink === join(env.HOVER_TRANS_PORT_INSTALL_ROOT, "current"),
+    "json update should name current link"
+  );
 });
 
 withTempRoot("update", (root) => {
