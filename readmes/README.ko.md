@@ -68,6 +68,8 @@ bash install-macos-native-host.sh uninstall
 
 Extension의 Options 페이지를 열고 `Check Native Host`와 `Check Provider`를 모두 실행합니다.
 
+Options는 선택한 provider의 model catalog를 native host에 요청합니다. Codex는 `codex debug models`로 CLI가 제공하는 모델 목록을 보여줄 수 있고, 안정적인 machine-readable 목록 명령이 없는 provider는 내장 fallback alias를 사용하되 custom model 값은 계속 허용합니다.
+
 ### Source에서 Extension build하기
 
 release package를 다운로드하지 않고 로컬에서 unpacked extension을 build하려면:
