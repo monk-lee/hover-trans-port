@@ -3,7 +3,7 @@ use hover_trans_port_helper::messages::ProviderId;
 use hover_trans_port_helper::providers::claude::{
     build_claude_args, parse_claude_output, ClaudeProvider,
 };
-use hover_trans_port_helper::providers::codex::build_codex_exec_args;
+use hover_trans_port_helper::providers::codex::{build_codex_exec_args, CodexProvider};
 use hover_trans_port_helper::providers::gemini::{build_gemini_args, parse_gemini_output};
 use hover_trans_port_helper::providers::{Provider, ProviderRegistry};
 use serde_json::json;
@@ -78,6 +78,45 @@ fn codex_fake_cli_translation_returns_success_result() {
     assert_eq!(response["provider"], "codex");
     assert_eq!(response["translatedText"], "안녕하세요");
     assert_eq!(response["cached"], false);
+}
+
+#[test]
+fn codex_model_catalog_filters_visible_debug_models() {
+    let codex = fixture_path("codex");
+    make_executable(&codex);
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CODEX_PATH".to_string(),
+        codex.to_string_lossy().into_owned(),
+    );
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+
+    let provider = CodexProvider::new(env);
+    let catalog = provider.model_catalog();
+
+    assert_eq!(catalog.provider, ProviderId::Codex);
+    assert_eq!(catalog.default_model, "gpt-5.4-mini");
+    assert_eq!(catalog.source, "cli");
+    assert!(catalog
+        .models
+        .iter()
+        .any(|model| model.value == "gpt-5.4-mini"));
+    assert!(!catalog
+        .models
+        .iter()
+        .any(|model| model.value == "gpt-5.4-nano"));
+}
+
+#[test]
+fn claude_model_catalog_uses_unified_fallback_shape() {
+    let provider = ClaudeProvider::new(BTreeMap::new());
+    let catalog = provider.model_catalog();
+
+    assert_eq!(catalog.provider, ProviderId::Claude);
+    assert_eq!(catalog.default_model, "haiku");
+    assert!(catalog.supports_custom_model);
+    assert!(catalog.models.iter().any(|model| model.value == "default"));
 }
 
 #[test]

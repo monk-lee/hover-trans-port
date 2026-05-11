@@ -4,6 +4,12 @@ if [ "$1" = "--version" ]; then
   exit 0
 fi
 
+if [ "$1" = "debug" ] && [ "$2" = "models" ]; then
+  printf '%s\n' 'WARNING: proceeding, even though we could not update PATH: Operation not permitted (os error 1)'
+  printf '%s\n' '{"models":[{"slug":"gpt-5.5","display_name":"GPT-5.5","visibility":"list"},{"slug":"gpt-5.4-mini","display_name":"GPT-5.4 Mini","visibility":"list"},{"slug":"codex-auto-review","display_name":"Codex Auto Review","visibility":"hide"},{"slug":"gpt-5.4-nano","display_name":"GPT-5.4 Nano","visibility":"hide"}]}'
+  exit 0
+fi
+
 if [ "$1" = "exec" ]; then
   output_file=""
   previous=""

@@ -6,7 +6,10 @@ use tempfile::tempdir;
 use crate::messages::{ProviderId, ProviderStatusEntry};
 use crate::process::{run_process, ProcessRequest, ProviderError};
 use crate::prompt::build_translate_prompt;
-use crate::providers::{Provider, ProviderTranslateRequest, ProviderTranslateResult};
+use crate::providers::{
+    Provider, ProviderModelCatalog, ProviderModelOption, ProviderTranslateRequest,
+    ProviderTranslateResult,
+};
 
 const PROMPT_ARG: &str =
     "Translate according to the instructions provided on stdin. Return only the translated text.";
@@ -80,6 +83,37 @@ impl Provider for ClaudeProvider {
                 version: None,
                 error: Some(error.code().to_string()),
             },
+        }
+    }
+
+    fn model_catalog(&self) -> ProviderModelCatalog {
+        ProviderModelCatalog {
+            provider: self.id(),
+            default_model: self.default_model().to_string(),
+            models: vec![
+                ProviderModelOption {
+                    value: "haiku".to_string(),
+                    label: "Haiku".to_string(),
+                    recommended: Some(true),
+                },
+                ProviderModelOption {
+                    value: "sonnet".to_string(),
+                    label: "Sonnet".to_string(),
+                    recommended: None,
+                },
+                ProviderModelOption {
+                    value: "opus".to_string(),
+                    label: "Opus".to_string(),
+                    recommended: None,
+                },
+                ProviderModelOption {
+                    value: "default".to_string(),
+                    label: "Default (Claude CLI)".to_string(),
+                    recommended: None,
+                },
+            ],
+            supports_custom_model: true,
+            source: "fallback".to_string(),
         }
     }
 

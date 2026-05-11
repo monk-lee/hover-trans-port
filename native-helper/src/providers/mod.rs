@@ -22,11 +22,31 @@ pub struct ProviderTranslateResult {
     pub elapsed_ms: u64,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderModelOption {
+    pub value: String,
+    pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recommended: Option<bool>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderModelCatalog {
+    pub provider: ProviderId,
+    pub default_model: String,
+    pub models: Vec<ProviderModelOption>,
+    pub supports_custom_model: bool,
+    pub source: String,
+}
+
 pub trait Provider {
     fn id(&self) -> ProviderId;
     fn label(&self) -> &'static str;
     fn default_model(&self) -> &'static str;
     fn status(&self) -> ProviderStatusEntry;
+    fn model_catalog(&self) -> ProviderModelCatalog;
     fn translate(
         &self,
         request: ProviderTranslateRequest,

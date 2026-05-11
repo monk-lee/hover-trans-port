@@ -4,7 +4,9 @@ use std::path::{Path, PathBuf};
 use crate::messages::{ProviderId, ProviderStatusEntry};
 use crate::process::{run_process, ProcessRequest, ProviderError};
 use crate::prompt::build_translate_prompt;
-use crate::providers::{Provider, ProviderTranslateRequest, ProviderTranslateResult};
+use crate::providers::{
+    Provider, ProviderModelCatalog, ProviderTranslateRequest, ProviderTranslateResult,
+};
 
 const PROMPT_ARG: &str =
     "Translate according to the instructions provided on stdin. Return only the translated text.";
@@ -77,6 +79,16 @@ impl Provider for GeminiProvider {
                 version: None,
                 error: Some(error.code().to_string()),
             },
+        }
+    }
+
+    fn model_catalog(&self) -> ProviderModelCatalog {
+        ProviderModelCatalog {
+            provider: self.id(),
+            default_model: self.default_model().to_string(),
+            models: Vec::new(),
+            supports_custom_model: true,
+            source: "fallback".to_string(),
         }
     }
 

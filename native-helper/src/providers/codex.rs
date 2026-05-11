@@ -7,10 +7,14 @@ use tempfile::tempdir;
 use crate::messages::{ProviderId, ProviderStatusEntry};
 use crate::process::{run_process, ProcessRequest, ProviderError};
 use crate::prompt::build_translate_prompt;
-use crate::providers::{Provider, ProviderTranslateRequest, ProviderTranslateResult};
+use crate::providers::{
+    Provider, ProviderModelCatalog, ProviderModelOption, ProviderTranslateRequest,
+    ProviderTranslateResult,
+};
 
 const DEFAULT_CODEX_MODEL: &str = "gpt-5.4-mini";
 const DEFAULT_STATUS_TIMEOUT_MS: u64 = 5_000;
+const UNSUPPORTED_CODEX_MODELS: &[&str] = &["gpt-5.4-nano"];
 
 #[derive(Clone, Debug)]
 pub struct CodexProvider {
@@ -76,6 +80,26 @@ impl Provider for CodexProvider {
         }
     }
 
+    fn model_catalog(&self) -> ProviderModelCatalog {
+        let Some(binary) = self.find_binary() else {
+            return codex_fallback_model_catalog();
+        };
+
+        let output = run_process(ProcessRequest {
+            executable: binary.clone(),
+            args: vec!["debug".to_string(), "models".to_string()],
+            cwd: None,
+            env: provider_env(&self.env, &binary),
+            stdin: String::new(),
+            timeout_ms: DEFAULT_STATUS_TIMEOUT_MS,
+        });
+
+        output
+            .ok()
+            .and_then(|output| parse_codex_model_catalog(&output.stdout).ok())
+            .unwrap_or_else(codex_fallback_model_catalog)
+    }
+
     fn translate(
         &self,
         request: ProviderTranslateRequest,
@@ -110,6 +134,94 @@ impl Provider for CodexProvider {
             elapsed_ms: output.elapsed_ms,
         })
     }
+}
+
+fn codex_fallback_model_catalog() -> ProviderModelCatalog {
+    ProviderModelCatalog {
+        provider: ProviderId::Codex,
+        default_model: DEFAULT_CODEX_MODEL.to_string(),
+        models: vec![
+            ProviderModelOption {
+                value: "gpt-5.5".to_string(),
+                label: "GPT-5.5".to_string(),
+                recommended: None,
+            },
+            ProviderModelOption {
+                value: "gpt-5.4".to_string(),
+                label: "GPT-5.4".to_string(),
+                recommended: None,
+            },
+            ProviderModelOption {
+                value: "gpt-5.4-mini".to_string(),
+                label: "GPT-5.4 Mini".to_string(),
+                recommended: Some(true),
+            },
+            ProviderModelOption {
+                value: "gpt-5.3-codex".to_string(),
+                label: "GPT-5.3 Codex".to_string(),
+                recommended: None,
+            },
+            ProviderModelOption {
+                value: "gpt-5.3-codex-spark".to_string(),
+                label: "GPT-5.3 Codex Spark".to_string(),
+                recommended: None,
+            },
+            ProviderModelOption {
+                value: "gpt-5.2".to_string(),
+                label: "GPT-5.2".to_string(),
+                recommended: None,
+            },
+        ],
+        supports_custom_model: true,
+        source: "fallback".to_string(),
+    }
+}
+
+fn parse_codex_model_catalog(stdout: &str) -> Result<ProviderModelCatalog, ProviderError> {
+    let Some(json_line) = stdout.lines().map(str::trim).find(|line| line.starts_with('{')) else {
+        return Err(ProviderError::OutputParseFailed {
+            message: "Codex model catalog output did not contain JSON.".to_string(),
+        });
+    };
+    let value =
+        serde_json::from_str::<serde_json::Value>(json_line).map_err(|error| {
+            ProviderError::OutputParseFailed {
+                message: error.to_string(),
+            }
+        })?;
+    let Some(model_values) = value.get("models").and_then(serde_json::Value::as_array) else {
+        return Ok(codex_fallback_model_catalog());
+    };
+
+    let models = model_values
+        .iter()
+        .filter(|model| model["visibility"].as_str() == Some("list"))
+        .filter_map(|model| {
+            let value = model["slug"].as_str()?.to_string();
+            let label = model["display_name"]
+                .as_str()
+                .map(str::to_string)
+                .unwrap_or_else(|| value.clone());
+            Some(ProviderModelOption {
+                recommended: (value == DEFAULT_CODEX_MODEL).then_some(true),
+                value,
+                label,
+            })
+        })
+        .filter(|model| !UNSUPPORTED_CODEX_MODELS.contains(&model.value.as_str()))
+        .collect::<Vec<_>>();
+
+    if models.is_empty() {
+        return Ok(codex_fallback_model_catalog());
+    }
+
+    Ok(ProviderModelCatalog {
+        provider: ProviderId::Codex,
+        default_model: DEFAULT_CODEX_MODEL.to_string(),
+        models,
+        supports_custom_model: true,
+        source: "cli".to_string(),
+    })
 }
 
 pub fn build_codex_exec_args(model: &str, temp_dir: &Path, output_file: &Path) -> Vec<String> {
@@ -208,12 +320,16 @@ fn resolve_codex_model(
     requested: Option<&str>,
     fallback: &str,
 ) -> String {
-    env.get("HOVER_TRANS_PORT_CODEX_MODEL")
+    let selected = env
+        .get("HOVER_TRANS_PORT_CODEX_MODEL")
         .map(|value| value.trim())
         .filter(|value| !value.is_empty())
-        .or_else(|| requested.map(str::trim).filter(|value| !value.is_empty()))
-        .unwrap_or(fallback)
-        .to_string()
+        .or_else(|| requested.map(str::trim).filter(|value| !value.is_empty()));
+
+    match selected {
+        Some(model) if !UNSUPPORTED_CODEX_MODELS.contains(&model) => model.to_string(),
+        _ => fallback.to_string(),
+    }
 }
 
 fn parse_codex_output(last_message: &str, stdout: &str) -> Result<String, ProviderError> {
@@ -242,6 +358,21 @@ fn parse_codex_output(last_message: &str, stdout: &str) -> Result<String, Provid
     }
 
     Ok(parsed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_codex_model_maps_unsupported_nano_to_default() {
+        let env = BTreeMap::new();
+
+        assert_eq!(
+            resolve_codex_model(&env, Some("gpt-5.4-nano"), DEFAULT_CODEX_MODEL),
+            DEFAULT_CODEX_MODEL
+        );
+    }
 }
 
 fn strip_markdown_fence(text: &str) -> String {
