@@ -109,6 +109,34 @@
               <p id="native-host-status" class="native-host-status" role="status">
                 Not checked.
               </p>
+              <label class="setting-row native-host-update-toggle">
+                <span>Auto-check native host updates</span>
+                <input id="native-host-update-auto-check" type="checkbox" />
+              </label>
+              <p
+                id="native-host-update-status"
+                class="native-host-update-status"
+                role="status"
+              >
+                Update status not checked.
+              </p>
+              <div class="button-row native-host-update-actions">
+                <button
+                  id="native-host-update-check"
+                  type="button"
+                  class="secondary-button"
+                >
+                  Check for Updates
+                </button>
+                <button
+                  id="native-host-update-apply"
+                  type="button"
+                  class="secondary-button"
+                  disabled
+                >
+                  Update Native Host
+                </button>
+              </div>
             </div>
             <button id="native-host-ping" type="button" class="secondary-button">
               Check Native Host

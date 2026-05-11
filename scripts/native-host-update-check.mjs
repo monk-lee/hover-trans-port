@@ -79,6 +79,8 @@ for (const check of checks) {
 
 const serviceWorkerText = readText("src/background/service-worker.ts");
 const nativeClientText = readText("src/background/nativeClient.ts");
+const optionsHtml = readText("src/options.html");
+const optionsMain = readText("src/options/main.ts");
 
 assertMatches(
   serviceWorkerText,
@@ -115,6 +117,42 @@ assertMatches(
   /updateNativeHost[\s\S]*response\?\.type === "ERROR"[\s\S]*response\.error === "INVALID_MESSAGE"[\s\S]*error: "INVALID_MESSAGE"[\s\S]*retryable: false/u,
   "src/background/nativeClient.ts",
   "generic ERROR INVALID_MESSAGE handling in update apply path"
+);
+
+assertIncludes(
+  optionsHtml,
+  'id="native-host-update-auto-check"',
+  "Options auto-check toggle"
+);
+assertIncludes(
+  optionsHtml,
+  'id="native-host-update-status"',
+  "Options update status"
+);
+assertIncludes(
+  optionsHtml,
+  'id="native-host-update-check"',
+  "Options check update button"
+);
+assertIncludes(
+  optionsHtml,
+  'id="native-host-update-apply"',
+  "Options update apply button"
+);
+assertIncludes(
+  optionsMain,
+  "loadNativeHostUpdateStatus",
+  "Options update status loader"
+);
+assertIncludes(
+  optionsMain,
+  "checkNativeHostUpdate",
+  "Options update status checker"
+);
+assertIncludes(
+  optionsMain,
+  "applyNativeHostUpdate",
+  "Options update applier"
 );
 
 console.log("native-host-update-check: ok");
