@@ -359,7 +359,7 @@ function isCurrentProviderStatusCheck(
 async function loadProviderModelCatalog(
   provider: ProviderSelection,
   statusCheckSequence?: number
-) {
+): Promise<ProviderModelCatalog | undefined> {
   const providerId = resolveProviderForModel(provider);
   const stored = (await chrome.storage.local.get(
     "hoverTransPort"
@@ -394,21 +394,22 @@ async function loadProviderModelCatalog(
   } catch {
     catalog = getFallbackModelCatalog(providerId);
     providerModelCatalogCache.set(providerId, catalog);
-  } finally {
-    if (
-      statusCheckSequence !== undefined &&
-      !isCurrentProviderStatusCheck(statusCheckSequence, provider)
-    ) {
-      return;
-    }
-
-    currentModelCatalog = catalog;
-    populateProviderModelOptions(
-      provider,
-      getModelForProvider(stored.hoverTransPort, provider),
-      catalog
-    );
   }
+
+  if (
+    statusCheckSequence !== undefined &&
+    !isCurrentProviderStatusCheck(statusCheckSequence, provider)
+  ) {
+    return undefined;
+  }
+
+  currentModelCatalog = catalog;
+  populateProviderModelOptions(
+    provider,
+    getModelForProvider(stored.hoverTransPort, provider),
+    catalog
+  );
+  return catalog;
 }
 
 function setProviderModelInputForProvider(
@@ -773,6 +774,19 @@ function formatNativeHostReadyStatus(
   return `Connected. ${details.join(" · ")}.`;
 }
 
+function formatProviderModelCatalogSourceStatus(
+  catalog: ProviderModelCatalog | undefined,
+  providerLabel: string
+): string {
+  if (!catalog) {
+    return "";
+  }
+
+  return catalog.source === "cli"
+    ? `Models loaded from ${providerLabel}.`
+    : "Models loaded from fallback aliases.";
+}
+
 async function checkNativeHost() {
   const requestId = createRequestId();
   setNativeHostStatus("Checking...");
@@ -862,22 +876,38 @@ async function checkProviderStatus() {
   const details = [selectedStatus.version, selectedStatus.binaryPath]
     .filter(Boolean)
     .join(" · ");
-  await loadProviderModelCatalog(selectedProvider, statusCheckSequence);
+  const catalog = await loadProviderModelCatalog(
+    selectedProvider,
+    statusCheckSequence
+  );
 
   if (!isCurrentProviderStatusCheck(statusCheckSequence, selectedProvider)) {
     return;
   }
 
+  const catalogSourceStatus = formatProviderModelCatalogSourceStatus(
+    catalog,
+    providerLabel
+  );
+
   if (providerId === "claude") {
     setProviderStatus(
-      details
-        ? `Available. ${details}. Claude authentication is verified when translating.`
-        : "Available. Claude binary is available. Claude authentication is verified when translating."
+      [
+        details ? `Available. ${details}.` : "Available. Claude binary is available.",
+        catalogSourceStatus,
+        "Claude authentication is verified when translating."
+      ]
+        .filter(Boolean)
+        .join(" ")
     );
     return;
   }
 
-  setProviderStatus(details ? `Available. ${details}` : "Available.");
+  setProviderStatus(
+    [details ? `Available. ${details}.` : "Available.", catalogSourceStatus]
+      .filter(Boolean)
+      .join(" ")
+  );
 }
 
 async function clearCache() {
