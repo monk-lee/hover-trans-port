@@ -79,3 +79,13 @@ assertIncludes(
   "setProviderModelInputForProvider",
   "src/options/main.ts"
 );
+assertIncludes(
+  optionsMain,
+  "providerStatusCheckSequence",
+  "src/options/main.ts"
+);
+assertIncludes(
+  optionsMain,
+  "isCurrentProviderStatusCheck",
+  "src/options/main.ts"
+);

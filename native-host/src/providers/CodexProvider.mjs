@@ -59,17 +59,41 @@ function createCodexFallbackModelCatalog() {
   };
 }
 
-function parseCodexModelCatalog(stdout) {
-  const jsonLine = stdout
-    .split(/\r?\n/u)
-    .map((line) => line.trim())
-    .find((line) => line.startsWith("{"));
+function extractJsonObjectAt(text, start) {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
 
-  if (!jsonLine) {
-    return null;
+  for (let index = start; index < text.length; index += 1) {
+    const char = text[index];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = true;
+    } else if (char === "{") {
+      depth += 1;
+    } else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return text.slice(start, index + 1);
+      }
+    }
   }
 
-  const parsed = JSON.parse(jsonLine);
+  return null;
+}
+
+function createCodexModelCatalog(parsed) {
   const models = Array.isArray(parsed.models)
     ? parsed.models
         .filter((model) => model?.visibility === "list")
@@ -101,6 +125,36 @@ function parseCodexModelCatalog(stdout) {
     supportsCustomModel: true,
     source: "cli"
   };
+}
+
+function parseCodexModelCatalog(stdout) {
+  let searchIndex = 0;
+
+  while (searchIndex < stdout.length) {
+    const start = stdout.indexOf("{", searchIndex);
+
+    if (start < 0) {
+      return null;
+    }
+
+    const jsonText = extractJsonObjectAt(stdout, start);
+    searchIndex = start + 1;
+
+    if (!jsonText) {
+      continue;
+    }
+
+    try {
+      const catalog = createCodexModelCatalog(JSON.parse(jsonText));
+      if (catalog) {
+        return catalog;
+      }
+    } catch {
+      // Keep scanning: Codex may print non-JSON status text before the payload.
+    }
+  }
+
+  return null;
 }
 
 function resolveCodexModel(model) {

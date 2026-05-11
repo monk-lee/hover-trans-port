@@ -100,6 +100,7 @@ let isRecordingTriggerHotkey = false;
 const pendingModifierCodes = new Set<ModifierTriggerCode>();
 let currentModelCatalog: ProviderModelCatalog | undefined;
 const providerModelCatalogCache = new Map<ProviderId, ProviderModelCatalog>();
+let providerStatusCheckSequence = 0;
 
 function setSaveState(message: string) {
   if (saveState) {
@@ -348,14 +349,30 @@ function getProviderModelCatalog(provider: ProviderSelection): ProviderModelCata
   );
 }
 
-async function loadProviderModelCatalog(provider: ProviderSelection) {
+function isCurrentProviderStatusCheck(
+  sequence: number,
+  provider: ProviderSelection
+): boolean {
+  return sequence === providerStatusCheckSequence && getSelectedProvider() === provider;
+}
+
+async function loadProviderModelCatalog(
+  provider: ProviderSelection,
+  statusCheckSequence?: number
+) {
   const providerId = resolveProviderForModel(provider);
   const stored = (await chrome.storage.local.get(
     "hoverTransPort"
   )) as StoredOptions;
-  currentModelCatalog =
-    providerModelCatalogCache.get(providerId) ??
-    getFallbackModelCatalog(providerId);
+  let catalog =
+    providerModelCatalogCache.get(providerId) ?? getFallbackModelCatalog(providerId);
+
+  if (
+    statusCheckSequence === undefined ||
+    isCurrentProviderStatusCheck(statusCheckSequence, provider)
+  ) {
+    currentModelCatalog = catalog;
+  }
 
   try {
     const response = await chrome.runtime.sendMessage<
@@ -367,21 +384,29 @@ async function loadProviderModelCatalog(provider: ProviderSelection) {
       provider
     });
 
-    currentModelCatalog =
+    catalog =
       response?.type === "PROVIDER_MODELS_RESULT" && response.ok
         ? response.catalog
         : response?.type === "PROVIDER_MODELS_RESULT"
           ? response.fallbackCatalog
           : getFallbackModelCatalog(providerId);
-    providerModelCatalogCache.set(providerId, currentModelCatalog);
+    providerModelCatalogCache.set(providerId, catalog);
   } catch {
-    currentModelCatalog = getFallbackModelCatalog(providerId);
-    providerModelCatalogCache.set(providerId, currentModelCatalog);
+    catalog = getFallbackModelCatalog(providerId);
+    providerModelCatalogCache.set(providerId, catalog);
   } finally {
+    if (
+      statusCheckSequence !== undefined &&
+      !isCurrentProviderStatusCheck(statusCheckSequence, provider)
+    ) {
+      return;
+    }
+
+    currentModelCatalog = catalog;
     populateProviderModelOptions(
       provider,
       getModelForProvider(stored.hoverTransPort, provider),
-      currentModelCatalog
+      catalog
     );
   }
 }
@@ -789,6 +814,7 @@ async function checkNativeHost() {
 }
 
 async function checkProviderStatus() {
+  const statusCheckSequence = ++providerStatusCheckSequence;
   const requestId = createRequestId();
   const selectedProvider = normalizeProvider(providerInput?.value);
   const providerId = resolveProviderForModel(selectedProvider);
@@ -802,6 +828,10 @@ async function checkProviderStatus() {
     type: "CHECK_PROVIDER_STATUS",
     requestId
   });
+
+  if (!isCurrentProviderStatusCheck(statusCheckSequence, selectedProvider)) {
+    return;
+  }
 
   if (response?.type !== "PROVIDER_STATUS" || response.requestId !== requestId) {
     setProviderStatus(`${providerLabel} check returned an invalid response.`);
@@ -832,7 +862,11 @@ async function checkProviderStatus() {
   const details = [selectedStatus.version, selectedStatus.binaryPath]
     .filter(Boolean)
     .join(" · ");
-  await loadProviderModelCatalog(selectedProvider);
+  await loadProviderModelCatalog(selectedProvider, statusCheckSequence);
+
+  if (!isCurrentProviderStatusCheck(statusCheckSequence, selectedProvider)) {
+    return;
+  }
 
   if (providerId === "claude") {
     setProviderStatus(

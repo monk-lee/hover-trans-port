@@ -178,22 +178,35 @@ fn codex_fallback_model_catalog() -> ProviderModelCatalog {
 }
 
 fn parse_codex_model_catalog(stdout: &str) -> Result<ProviderModelCatalog, ProviderError> {
-    let Some(json_line) = stdout
-        .lines()
-        .map(str::trim)
-        .find(|line| line.starts_with('{'))
-    else {
-        return Err(ProviderError::OutputParseFailed {
-            message: "Codex model catalog output did not contain JSON.".to_string(),
-        });
-    };
-    let value = serde_json::from_str::<serde_json::Value>(json_line).map_err(|error| {
-        ProviderError::OutputParseFailed {
-            message: error.to_string(),
+    let mut search_start = 0;
+
+    while search_start < stdout.len() {
+        let Some(relative_start) = stdout[search_start..].find('{') else {
+            break;
+        };
+        let start = search_start + relative_start;
+        search_start = start + 1;
+
+        let Some(json_text) = extract_json_object_at(stdout, start) else {
+            continue;
+        };
+        let Ok(value) = serde_json::from_str::<serde_json::Value>(json_text) else {
+            continue;
+        };
+
+        if let Some(catalog) = codex_model_catalog_from_value(&value) {
+            return Ok(catalog);
         }
-    })?;
+    }
+
+    Err(ProviderError::OutputParseFailed {
+        message: "Codex model catalog output did not contain model JSON.".to_string(),
+    })
+}
+
+fn codex_model_catalog_from_value(value: &serde_json::Value) -> Option<ProviderModelCatalog> {
     let Some(model_values) = value.get("models").and_then(serde_json::Value::as_array) else {
-        return Ok(codex_fallback_model_catalog());
+        return None;
     };
 
     let models = model_values
@@ -215,16 +228,49 @@ fn parse_codex_model_catalog(stdout: &str) -> Result<ProviderModelCatalog, Provi
         .collect::<Vec<_>>();
 
     if models.is_empty() {
-        return Ok(codex_fallback_model_catalog());
+        return None;
     }
 
-    Ok(ProviderModelCatalog {
+    Some(ProviderModelCatalog {
         provider: ProviderId::Codex,
         default_model: DEFAULT_CODEX_MODEL.to_string(),
         models,
         supports_custom_model: true,
         source: "cli".to_string(),
     })
+}
+
+fn extract_json_object_at(text: &str, start: usize) -> Option<&str> {
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut escaped = false;
+
+    for (offset, char) in text[start..].char_indices() {
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if char == '\\' {
+                escaped = true;
+            } else if char == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+
+        if char == '"' {
+            in_string = true;
+        } else if char == '{' {
+            depth += 1;
+        } else if char == '}' {
+            depth = depth.saturating_sub(1);
+            if depth == 0 {
+                let end = start + offset + char.len_utf8();
+                return Some(&text[start..end]);
+            }
+        }
+    }
+
+    None
 }
 
 pub fn build_codex_exec_args(model: &str, temp_dir: &Path, output_file: &Path) -> Vec<String> {

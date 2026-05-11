@@ -148,7 +148,7 @@ export type NativeProviderModelsResponse =
       provider: ProviderId;
       error: NativeErrorCode;
       message: string;
-      fallbackCatalog: ProviderModelCatalog;
+      retryable: boolean;
     };
 
 export type NativeTranslateResultResponse =
