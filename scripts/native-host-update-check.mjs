@@ -78,6 +78,7 @@ for (const check of checks) {
 }
 
 const serviceWorkerText = readText("src/background/service-worker.ts");
+const nativeClientText = readText("src/background/nativeClient.ts");
 
 assertMatches(
   serviceWorkerText,
@@ -102,6 +103,18 @@ assertMatches(
   /refreshPostNativeHostUpdateStatus[\s\S]*try[\s\S]*(checkNativeHost|refreshNativeHostUpdateStatus)[\s\S]*catch/u,
   "src/background/service-worker.ts",
   "best-effort post-update try/catch"
+);
+assertMatches(
+  nativeClientText,
+  /checkNativeHostUpdateStatus[\s\S]*response\?\.type === "ERROR"[\s\S]*response\.error === "INVALID_MESSAGE"[\s\S]*error: "INVALID_MESSAGE"[\s\S]*retryable: false[\s\S]*updateNativeHost/u,
+  "src/background/nativeClient.ts",
+  "generic ERROR INVALID_MESSAGE handling in update status path"
+);
+assertMatches(
+  nativeClientText,
+  /updateNativeHost[\s\S]*response\?\.type === "ERROR"[\s\S]*response\.error === "INVALID_MESSAGE"[\s\S]*error: "INVALID_MESSAGE"[\s\S]*retryable: false/u,
+  "src/background/nativeClient.ts",
+  "generic ERROR INVALID_MESSAGE handling in update apply path"
 );
 
 console.log("native-host-update-check: ok");

@@ -752,6 +752,20 @@ export async function checkNativeHostUpdateStatus(
       };
     }
 
+    if (
+      response?.type === "ERROR" &&
+      response.requestId === requestId &&
+      response.error === "INVALID_MESSAGE"
+    ) {
+      return {
+        checkedAt,
+        ok: false,
+        error: "INVALID_MESSAGE",
+        message: response.message || "Native host update status request was invalid.",
+        retryable: false
+      };
+    }
+
     if (!response) {
       return {
         checkedAt,
@@ -857,6 +871,19 @@ export async function updateNativeHost(
         error: "NATIVE_HOST_UPDATE_REQUIRED",
         message:
           "One manual native host update is required before in-app updates are available.",
+        retryable: false
+      };
+    }
+
+    if (
+      response?.type === "ERROR" &&
+      response.requestId === requestId &&
+      response.error === "INVALID_MESSAGE"
+    ) {
+      return {
+        ok: false,
+        error: "INVALID_MESSAGE",
+        message: response.message || "Native host update request was invalid.",
         retryable: false
       };
     }
