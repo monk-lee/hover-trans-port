@@ -21,6 +21,9 @@ const providers = read("src/shared/providers.ts");
 const nativeProtocol = read("src/shared/nativeProtocol.ts");
 const messages = read("src/shared/messages.ts");
 const optionsMain = read("src/options/main.ts");
+const localBridge = read("native-host/src/localBridge.mjs");
+const codexProvider = read("native-host/src/providers/CodexProvider.mjs");
+const providerRegistry = read("native-host/src/providers/providerRegistry.mjs");
 
 assertIncludes(optionsHtml, '<option value="claude">Claude CLI</option>', "src/options.html");
 assertIncludes(optionsHtml, '<select id="provider-model">', "src/options.html");
@@ -49,6 +52,17 @@ assertIncludes(
 );
 assertIncludes(messages, '"GET_PROVIDER_MODELS"', "src/shared/messages.ts");
 assertIncludes(messages, '"PROVIDER_MODELS_RESULT"', "src/shared/messages.ts");
+assertIncludes(localBridge, '"PROVIDER_MODELS"', "native-host/src/localBridge.mjs");
+assertIncludes(
+  codexProvider,
+  '"debug", "models"',
+  "native-host/src/providers/CodexProvider.mjs"
+);
+assertIncludes(
+  providerRegistry,
+  "modelCatalog",
+  "native-host/src/providers/providerRegistry.mjs"
+);
 
 assertIncludes(
   optionsMain,

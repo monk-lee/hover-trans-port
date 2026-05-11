@@ -8,6 +8,42 @@ const PROVIDER_LABELS = {
   gemini: "Gemini CLI"
 };
 
+const PROVIDER_FALLBACK_MODEL_CATALOGS = {
+  codex: {
+    provider: "codex",
+    defaultModel: "gpt-5.4-mini",
+    models: [
+      { value: "gpt-5.5", label: "GPT-5.5" },
+      { value: "gpt-5.4", label: "GPT-5.4" },
+      { value: "gpt-5.4-mini", label: "GPT-5.4 Mini", recommended: true },
+      { value: "gpt-5.3-codex", label: "GPT-5.3 Codex" },
+      { value: "gpt-5.3-codex-spark", label: "GPT-5.3 Codex Spark" },
+      { value: "gpt-5.2", label: "GPT-5.2" }
+    ],
+    supportsCustomModel: true,
+    source: "fallback"
+  },
+  claude: {
+    provider: "claude",
+    defaultModel: "haiku",
+    models: [
+      { value: "haiku", label: "Haiku", recommended: true },
+      { value: "sonnet", label: "Sonnet" },
+      { value: "opus", label: "Opus" },
+      { value: "default", label: "Default (Claude CLI)" }
+    ],
+    supportsCustomModel: true,
+    source: "fallback"
+  },
+  gemini: {
+    provider: "gemini",
+    defaultModel: "",
+    models: [],
+    supportsCustomModel: true,
+    source: "fallback"
+  }
+};
+
 function isProviderId(value) {
   return PROVIDER_IDS.includes(value);
 }
@@ -27,6 +63,13 @@ function createUnavailableProviderStatus(id, error = "PROVIDER_UNAVAILABLE") {
   };
 }
 
+export function createFallbackModelCatalog(providerId) {
+  return (
+    PROVIDER_FALLBACK_MODEL_CATALOGS[providerId] ??
+    PROVIDER_FALLBACK_MODEL_CATALOGS[DEFAULT_PROVIDER_ID]
+  );
+}
+
 function wrapProvider(provider) {
   const unavailableTranslate = async () => {
     const error = new Error("Provider is not available.");
@@ -43,6 +86,10 @@ function wrapProvider(provider) {
       typeof provider.isAvailable === "function"
         ? provider.isAvailable.bind(provider)
         : async () => ({ available: true }),
+    modelCatalog:
+      typeof provider.modelCatalog === "function"
+        ? provider.modelCatalog.bind(provider)
+        : async () => createFallbackModelCatalog(provider.id ?? DEFAULT_PROVIDER_ID),
     translate:
       typeof provider.translate === "function"
         ? provider.translate.bind(provider)
@@ -105,6 +152,16 @@ export class ProviderRegistry {
     }
 
     return entries;
+  }
+
+  async modelCatalog(providerSelection) {
+    const resolved = this.resolveProvider(providerSelection);
+
+    if (!resolved.ok) {
+      return createFallbackModelCatalog(resolved.providerId);
+    }
+
+    return resolved.selectedProvider.modelCatalog();
   }
 }
 

@@ -148,6 +148,13 @@ function isClearCacheRequest(message) {
   return isRequestWithId(message, "CLEAR_TRANSLATION_CACHE");
 }
 
+function isProviderModelsRequest(message) {
+  return (
+    isRequestWithId(message, "PROVIDER_MODELS") &&
+    (message.provider === undefined || typeof message.provider === "string")
+  );
+}
+
 function isTranslateRequest(message) {
   return (
     message.type === "TRANSLATE" &&
@@ -211,6 +218,28 @@ export async function handleNativeRequest(message, dependencies = {}) {
       requestId: message.requestId,
       ok: true,
       providers
+    };
+  }
+
+  if (message.type === "PROVIDER_MODELS") {
+    if (!isProviderModelsRequest(message)) {
+      return {
+        type: "PROVIDER_MODELS_RESULT",
+        requestId: message.requestId,
+        ok: false,
+        provider: "codex",
+        error: "INVALID_MESSAGE",
+        message: "PROVIDER_MODELS message is missing required fields.",
+        retryable: false
+      };
+    }
+
+    const catalog = await providerRegistry.modelCatalog(message.provider);
+    return {
+      type: "PROVIDER_MODELS_RESULT",
+      requestId: message.requestId,
+      ok: true,
+      catalog
     };
   }
 

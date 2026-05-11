@@ -9,6 +9,7 @@ import { spawnWithTimeout } from "./spawnWithTimeout.mjs";
 const DEFAULT_TRANSLATE_TIMEOUT_MS = 30_000;
 const DEFAULT_STATUS_TIMEOUT_MS = 5_000;
 export const DEFAULT_CODEX_MODEL = "gpt-5.4-mini";
+const UNSUPPORTED_CODEX_MODELS = new Set(["gpt-5.4-nano"]);
 
 function createProviderEnv(codexPath) {
   const pathParts = [
@@ -41,12 +42,76 @@ function normalizeProviderFailure(result) {
   };
 }
 
+function createCodexFallbackModelCatalog() {
+  return {
+    provider: "codex",
+    defaultModel: DEFAULT_CODEX_MODEL,
+    models: [
+      { value: "gpt-5.5", label: "GPT-5.5" },
+      { value: "gpt-5.4", label: "GPT-5.4" },
+      { value: "gpt-5.4-mini", label: "GPT-5.4 Mini", recommended: true },
+      { value: "gpt-5.3-codex", label: "GPT-5.3 Codex" },
+      { value: "gpt-5.3-codex-spark", label: "GPT-5.3 Codex Spark" },
+      { value: "gpt-5.2", label: "GPT-5.2" }
+    ],
+    supportsCustomModel: true,
+    source: "fallback"
+  };
+}
+
+function parseCodexModelCatalog(stdout) {
+  const jsonLine = stdout
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .find((line) => line.startsWith("{"));
+
+  if (!jsonLine) {
+    return null;
+  }
+
+  const parsed = JSON.parse(jsonLine);
+  const models = Array.isArray(parsed.models)
+    ? parsed.models
+        .filter((model) => model?.visibility === "list")
+        .map((model) => {
+          const value = typeof model.slug === "string" ? model.slug : "";
+          const label =
+            typeof model.display_name === "string"
+              ? model.display_name
+              : value;
+          return {
+            value,
+            label,
+            recommended: value === DEFAULT_CODEX_MODEL || undefined
+          };
+        })
+        .filter(
+          (model) => model.value && !UNSUPPORTED_CODEX_MODELS.has(model.value)
+        )
+    : [];
+
+  if (!models.length) {
+    return null;
+  }
+
+  return {
+    provider: "codex",
+    defaultModel: DEFAULT_CODEX_MODEL,
+    models,
+    supportsCustomModel: true,
+    source: "cli"
+  };
+}
+
 function resolveCodexModel(model) {
-  return (
+  const selectedModel =
     process.env.HOVER_TRANS_PORT_CODEX_MODEL?.trim() ||
     model?.trim() ||
-    DEFAULT_CODEX_MODEL
-  );
+    DEFAULT_CODEX_MODEL;
+
+  return UNSUPPORTED_CODEX_MODELS.has(selectedModel)
+    ? DEFAULT_CODEX_MODEL
+    : selectedModel;
 }
 
 export class CodexProvider {
@@ -108,6 +173,27 @@ export class CodexProvider {
       binaryPath,
       version: compactVersion(version.stdout)
     };
+  }
+
+  async modelCatalog() {
+    const fallbackCatalog = createCodexFallbackModelCatalog();
+    const binaryPath = this.findBinary();
+
+    if (!binaryPath) {
+      return fallbackCatalog;
+    }
+
+    const result = await spawnWithTimeout(binaryPath, ["debug", "models"], {
+      env: createProviderEnv(binaryPath),
+      stdin: "",
+      timeoutMs: this.statusTimeoutMs
+    });
+
+    if (!result.ok) {
+      return fallbackCatalog;
+    }
+
+    return parseCodexModelCatalog(result.stdout) ?? fallbackCatalog;
   }
 
   async translate({
