@@ -47,6 +47,8 @@ curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download
 
 The installer downloads the architecture-specific helper, verifies `checksums.txt`, writes the stable launcher, and registers Chrome's Native Messaging manifest. Codex CLI and Claude CLI are separate prerequisites; each local CLI must already be installed and authenticated before selecting it in Options.
 
+When an older native host cannot update itself yet, the extension shows a manual update prompt in Popup or Options. Run the same `curl` command once, then reload the extension; later update-capable hosts can be updated from Options.
+
 Inspect-first form:
 
 ```bash

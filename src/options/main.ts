@@ -4,6 +4,7 @@ import type {
   ExtensionResponse,
   NativeHostUpdateStoredStatus
 } from "../shared/messages";
+import { formatNativeHostUpdateStatusForUser } from "../shared/nativeHostUpdate";
 import {
   getDefaultModelForProvider,
   getFallbackModelCatalog,
@@ -873,22 +874,18 @@ function renderNativeHostUpdateStatus(
   }
 
   if (!status.ok) {
-    setNativeHostUpdateStatus(status.message);
+    setNativeHostUpdateStatus(formatNativeHostUpdateStatusForUser(status).detail);
     setNativeHostUpdateApplyEnabled(false);
     return;
   }
 
   if (status.updateAvailable) {
-    setNativeHostUpdateStatus(
-      `Update available: ${status.installedVersion} -> ${status.latestVersion}.`
-    );
+    setNativeHostUpdateStatus(formatNativeHostUpdateStatusForUser(status).detail);
     setNativeHostUpdateApplyEnabled(true);
     return;
   }
 
-  setNativeHostUpdateStatus(
-    `Native Host is up to date: ${status.installedVersion}.`
-  );
+  setNativeHostUpdateStatus(formatNativeHostUpdateStatusForUser(status).detail);
   setNativeHostUpdateApplyEnabled(false);
 }
 

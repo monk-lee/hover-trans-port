@@ -79,19 +79,19 @@ jobs:
           - install-macos-native-host.sh: one-line native host installer
           - checksums.txt: SHA-256 checksums for native host assets
           - hover-trans-port-helper-macos-arm64: macOS ARM64 native helper
-          - hover-trans-port-native-host-macos-0.2.2.tar.gz: inspect-first native host package
+          - hover-trans-port-native-host-macos-0.2.3.tar.gz: inspect-first native host package
           - hover-trans-port-extension-${TAG_NAME}.zip: unpacked Chrome extension package built from dist/
 
           Highlights:
-          - Adds provider model catalog loading so Codex models can come from Codex CLI instead of only fallback aliases.
-          - Shows whether provider models were loaded from the CLI or fallback aliases in Options.
-          - Fixes native helper process output handling for large CLI responses and provider timeouts.
+          - Adds native host/helper update checks from the extension, including daily background checks and Options controls.
+          - Shows a Popup and Options prompt with the one-time manual update command when an older native host cannot update itself yet.
+          - Persists the macOS updater script with the installed native host so future update-capable hosts can run user-confirmed updates from Options.
 
           Native host update required:
-          - This release includes native helper changes. If you use the macOS native host, update it with the latest install script or run install-macos-native-host.sh update.
+          - Existing v0.2.2 native hosts do not understand update messages. Run the latest install script once, then reload the extension.
 
           Next:
-          - A future release is planned to add native host/helper auto-update support, starting with Options-based version checks and a user-confirmed update flow.
+          - Future update-capable native host releases can be installed from Options with user confirmation.
 
           Install docs: https://github.com/monk-lee/hover-trans-port/blob/${TAG_NAME}/docs/native-host-install.md
           Privacy: https://github.com/monk-lee/hover-trans-port/blob/${TAG_NAME}/PRIVACY.md
@@ -108,7 +108,7 @@ jobs:
           test -f "$NATIVE_DIR/install-macos-native-host.sh"
           test -f "$NATIVE_DIR/checksums.txt"
           test -f "$NATIVE_DIR/hover-trans-port-helper-macos-arm64"
-          test -f "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.2.tar.gz"
+          test -f "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.3.tar.gz"
           test -f "$EXTENSION_ZIP"
           test -f build/release/release-notes.md
 
@@ -127,7 +127,7 @@ jobs:
             "$NATIVE_DIR/install-macos-native-host.sh" \
             "$NATIVE_DIR/checksums.txt" \
             "$NATIVE_DIR/hover-trans-port-helper-macos-arm64" \
-            "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.2.tar.gz" \
+            "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.3.tar.gz" \
             "$EXTENSION_ZIP" \
             --verify-tag \
             --latest \

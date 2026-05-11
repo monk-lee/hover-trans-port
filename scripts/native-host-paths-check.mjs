@@ -23,7 +23,7 @@ try {
     HOVER_TRANS_PORT_INSTALL_ROOT: installRoot
   };
 
-  assert.equal(NATIVE_HOST_VERSION, "0.2.2");
+  assert.equal(NATIVE_HOST_VERSION, "0.2.3");
   assert.equal(getNativeHostInstallRoot("darwin", env), installRoot);
   assert.equal(
     getInstalledNativeHostVersionDir(NATIVE_HOST_VERSION, "darwin", env),

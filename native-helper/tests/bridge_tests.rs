@@ -20,7 +20,7 @@ fn ping_returns_pong_with_same_request_id() {
     assert!(response["bridgeVersion"]
         .as_str()
         .unwrap()
-        .starts_with("0.2.2"));
+        .starts_with("0.2.3"));
 }
 
 #[test]
@@ -292,10 +292,10 @@ fn native_host_update_status_reports_available_release() {
     write_release_fixture(
         &releases_path,
         r#"[{
-          "tag_name": "v0.2.3",
+          "tag_name": "v0.2.4",
           "prerelease": false,
           "draft": false,
-          "html_url": "https://github.com/monk-lee/hover-trans-port/releases/tag/v0.2.3",
+          "html_url": "https://github.com/monk-lee/hover-trans-port/releases/tag/v0.2.4",
           "assets": [
             {"name": "install-macos-native-host.sh"},
             {"name": "checksums.txt"},
@@ -323,9 +323,9 @@ fn native_host_update_status_reports_available_release() {
     assert_eq!(response["type"], "NATIVE_HOST_UPDATE_STATUS_RESULT");
     assert_eq!(response["requestId"], "req-update-status");
     assert_eq!(response["ok"], true);
-    assert_eq!(response["installedVersion"], "0.2.2");
-    assert_eq!(response["latestVersion"], "0.2.3");
-    assert_eq!(response["latestTag"], "v0.2.3");
+    assert_eq!(response["installedVersion"], "0.2.3");
+    assert_eq!(response["latestVersion"], "0.2.4");
+    assert_eq!(response["latestTag"], "v0.2.4");
     assert_eq!(response["updateAvailable"], true);
 }
 
@@ -333,14 +333,14 @@ fn native_host_update_status_reports_available_release() {
 fn native_host_update_invokes_persisted_updater() {
     let temp = tempdir().unwrap();
     let install_root = temp.path().join("Hover Trans Port");
-    let current_dir = install_root.join("native-hosts/0.2.2");
+    let current_dir = install_root.join("native-hosts/0.2.3");
     fs::create_dir_all(&current_dir).unwrap();
     symlink(&current_dir, install_root.join("current")).unwrap();
 
     let updater_path = current_dir.join("install-macos-native-host.sh");
     fs::write(
         &updater_path,
-        "#!/bin/sh\nprintf '%s\n' '{\"command\":\"update\",\"ok\":true,\"previousVersion\":\"0.2.2\",\"installedVersion\":\"0.2.3\",\"installRoot\":\"/tmp/install\",\"currentLink\":\"/tmp/install/current\",\"helperPath\":\"/tmp/install/native-hosts/0.2.3/hover-trans-port-helper\",\"updaterPath\":\"/tmp/install/native-hosts/0.2.3/install-macos-native-host.sh\",\"manifests\":[]}'\n",
+        "#!/bin/sh\nprintf '%s\n' '{\"command\":\"update\",\"ok\":true,\"previousVersion\":\"0.2.3\",\"installedVersion\":\"0.2.4\",\"installRoot\":\"/tmp/install\",\"currentLink\":\"/tmp/install/current\",\"helperPath\":\"/tmp/install/native-hosts/0.2.4/hover-trans-port-helper\",\"updaterPath\":\"/tmp/install/native-hosts/0.2.4/install-macos-native-host.sh\",\"manifests\":[]}'\n",
     )
     .unwrap();
     make_executable(&updater_path);
@@ -348,7 +348,7 @@ fn native_host_update_invokes_persisted_updater() {
     fs::write(
         install_root.join("current").join("metadata.json"),
         format!(
-            "{{\"hostVersion\":\"0.2.2\",\"protocolVersion\":1,\"source\":\"macos-script-installer\",\"updaterPath\":\"{}\"}}",
+            "{{\"hostVersion\":\"0.2.3\",\"protocolVersion\":1,\"source\":\"macos-script-installer\",\"updaterPath\":\"{}\"}}",
             updater_path.display()
         ),
     )
@@ -364,8 +364,8 @@ fn native_host_update_invokes_persisted_updater() {
         json!({
             "type":"NATIVE_HOST_UPDATE",
             "requestId":"req-update",
-            "targetTag":"v0.2.3",
-            "targetVersion":"0.2.3"
+            "targetTag":"v0.2.4",
+            "targetVersion":"0.2.4"
         }),
         BridgeDeps::with_env(env),
     );
@@ -373,8 +373,8 @@ fn native_host_update_invokes_persisted_updater() {
     assert_eq!(response["type"], "NATIVE_HOST_UPDATE_RESULT");
     assert_eq!(response["requestId"], "req-update");
     assert_eq!(response["ok"], true);
-    assert_eq!(response["previousVersion"], "0.2.2");
-    assert_eq!(response["installedVersion"], "0.2.3");
+    assert_eq!(response["previousVersion"], "0.2.3");
+    assert_eq!(response["installedVersion"], "0.2.4");
 }
 
 #[test]
@@ -463,7 +463,7 @@ fn write_release_fixture(path: &Path, body: &str) {
 
 fn update_fixture_with_marker(temp_path: &Path) -> (BTreeMap<String, String>, PathBuf) {
     let install_root = temp_path.join("Hover Trans Port");
-    let current_dir = install_root.join("native-hosts/0.2.2");
+    let current_dir = install_root.join("native-hosts/0.2.3");
     fs::create_dir_all(&current_dir).unwrap();
     symlink(&current_dir, install_root.join("current")).unwrap();
 
@@ -472,7 +472,7 @@ fn update_fixture_with_marker(temp_path: &Path) -> (BTreeMap<String, String>, Pa
     fs::write(
         &updater_path,
         format!(
-            "#!/bin/sh\nprintf invoked > '{}'\nprintf '%s\n' '{{\"command\":\"update\",\"ok\":true,\"previousVersion\":\"0.2.2\",\"installedVersion\":\"0.2.3\",\"helperPath\":\"/tmp/install/native-hosts/0.2.3/hover-trans-port-helper\"}}'\n",
+            "#!/bin/sh\nprintf invoked > '{}'\nprintf '%s\n' '{{\"command\":\"update\",\"ok\":true,\"previousVersion\":\"0.2.3\",\"installedVersion\":\"0.2.4\",\"helperPath\":\"/tmp/install/native-hosts/0.2.4/hover-trans-port-helper\"}}'\n",
             marker_path.display()
         ),
     )
@@ -482,7 +482,7 @@ fn update_fixture_with_marker(temp_path: &Path) -> (BTreeMap<String, String>, Pa
     fs::write(
         install_root.join("current").join("metadata.json"),
         format!(
-            "{{\"hostVersion\":\"0.2.2\",\"protocolVersion\":1,\"source\":\"macos-script-installer\",\"updaterPath\":\"{}\"}}",
+            "{{\"hostVersion\":\"0.2.3\",\"protocolVersion\":1,\"source\":\"macos-script-installer\",\"updaterPath\":\"{}\"}}",
             updater_path.display()
         ),
     )

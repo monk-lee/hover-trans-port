@@ -3,6 +3,7 @@ import type {
   ExtensionResponse,
   NativeHostUpdateStoredStatus
 } from "../shared/messages";
+import { nativeHostUpdateNeedsAttention } from "../shared/nativeHostUpdate";
 import {
   getFallbackModelCatalog,
   resolveProviderForModel
@@ -64,6 +65,7 @@ async function storeNativeHostUpdateStatus(
   await chrome.storage.local.set({
     [NATIVE_HOST_UPDATE_STORAGE_KEY]: status
   });
+  syncNativeHostUpdateBadge(status);
 }
 
 async function refreshNativeHostUpdateStatus(
@@ -74,10 +76,45 @@ async function refreshNativeHostUpdateStatus(
   return status;
 }
 
+async function maybeRefreshNativeHostUpdateStatus(
+  requestId: string
+): Promise<NativeHostUpdateStoredStatus | undefined> {
+  const stored = (await chrome.storage.local.get(
+    NATIVE_HOST_UPDATE_STORAGE_KEY
+  )) as NativeHostUpdateStorage;
+  const status = stored.hoverTransPortNativeHostUpdate;
+
+  if (
+    isNativeHostUpdateStatusStale(status) &&
+    (await shouldAutoCheckNativeHostUpdate())
+  ) {
+    return refreshNativeHostUpdateStatus(requestId);
+  }
+
+  syncNativeHostUpdateBadge(status);
+  return status;
+}
+
 function isNativeHostUpdateStatusStale(
   status: NativeHostUpdateStoredStatus | undefined
 ): boolean {
   return !status || Date.now() - status.checkedAt > NATIVE_HOST_UPDATE_STALE_MS;
+}
+
+function syncNativeHostUpdateBadge(
+  status: NativeHostUpdateStoredStatus | undefined
+): void {
+  const attention = nativeHostUpdateNeedsAttention(status);
+
+  chrome.action.setBadgeText({
+    text: attention ? "!" : ""
+  });
+
+  if (attention) {
+    chrome.action.setBadgeBackgroundColor({
+      color: "#b45309"
+    });
+  }
 }
 
 function didNativeHostUpdateAutoCheckChange(
@@ -105,6 +142,12 @@ async function refreshPostNativeHostUpdateStatus(
   }
 }
 
+function scheduleNativeHostUpdateStatusRefresh(requestId: string): void {
+  void maybeRefreshNativeHostUpdateStatus(requestId).catch(() => {
+    // Opportunistic update checks must never block extension startup or use.
+  });
+}
+
 chrome.runtime.onInstalled.addListener(async ({ reason }) => {
   if (reason === chrome.runtime.OnInstalledReason.INSTALL) {
     await chrome.storage.local.set({
@@ -118,10 +161,12 @@ chrome.runtime.onInstalled.addListener(async ({ reason }) => {
   }
 
   await ensureNativeHostUpdateAlarm();
+  scheduleNativeHostUpdateStatusRefresh(`runtime-installed:${Date.now()}`);
 });
 
 chrome.runtime.onStartup.addListener(() => {
   void ensureNativeHostUpdateAlarm();
+  scheduleNativeHostUpdateStatusRefresh(`runtime-startup:${Date.now()}`);
 });
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
@@ -178,30 +223,18 @@ chrome.runtime.onMessage.addListener(
     }
 
     if (message.type === "GET_STORED_NATIVE_HOST_UPDATE_STATUS") {
-      void chrome.storage.local
-        .get(NATIVE_HOST_UPDATE_STORAGE_KEY)
-        .then(async (stored: NativeHostUpdateStorage) => {
-          const status = stored.hoverTransPortNativeHostUpdate;
-
-          if (
-            isNativeHostUpdateStatusStale(status) &&
-            (await shouldAutoCheckNativeHostUpdate())
-          ) {
-            const refreshedStatus = await refreshNativeHostUpdateStatus(
-              message.requestId
-            );
-            sendResponse({
-              type: "NATIVE_HOST_UPDATE_STATUS",
-              requestId: message.requestId,
-              status: refreshedStatus
-            });
-            return;
-          }
-
+      void maybeRefreshNativeHostUpdateStatus(message.requestId)
+        .then((status) => {
           sendResponse({
             type: "NATIVE_HOST_UPDATE_STATUS",
             requestId: message.requestId,
             status
+          });
+        })
+        .catch(() => {
+          sendResponse({
+            type: "NATIVE_HOST_UPDATE_STATUS",
+            requestId: message.requestId
           });
         });
 
@@ -484,6 +517,9 @@ chrome.runtime.onMessage.addListener(
     }
 
     if (message.type === "TRANSLATE_CURRENT_TARGET") {
+      scheduleNativeHostUpdateStatusRefresh(
+        `${message.requestId}:native-host-update`
+      );
       void translateWithNativeHost(message.requestId, message.target).then(
         (result) => {
           sendResponse({

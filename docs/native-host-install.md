@@ -32,8 +32,8 @@ The release must include these individual assets so the curl installer can fetch
 The tarball form is also supported:
 
 ```bash
-tar -xzf hover-trans-port-native-host-macos-0.2.2.tar.gz
-cd hover-trans-port-native-host-macos-0.2.2
+tar -xzf hover-trans-port-native-host-macos-0.2.3.tar.gz
+cd hover-trans-port-native-host-macos-0.2.3
 bash install-macos-native-host.sh install
 ```
 
@@ -61,6 +61,12 @@ Codex CLI and Claude CLI are separate prerequisites. The installer does not stor
 Hover Trans Port can check for native host updates in the background and show the result in Options.
 
 The first update-capable native host must be installed manually because older native hosts do not understand update messages. After that one-time update, open Options > Diagnostics > Native Host and use `Check for Updates` or `Update Native Host`.
+
+The extension also checks occasionally when it is opened or used. If it detects an older native host that cannot update itself, Popup and Options show the one-time manual update command:
+
+```bash
+curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh | bash
+```
 
 Updates are user-confirmed. The extension does not silently replace the native helper.
 

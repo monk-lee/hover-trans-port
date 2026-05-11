@@ -160,6 +160,11 @@ assertIncludes(
 );
 assertIncludes(
   nativeHostInstall,
+  "Popup and Options show the one-time manual update command",
+  "docs/native-host-install.md"
+);
+assertIncludes(
+  nativeHostInstall,
   "The extension does not silently replace the native helper",
   "docs/native-host-install.md"
 );

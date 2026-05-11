@@ -360,7 +360,7 @@ mod tests {
         let curl_path = temp.path().join("curl");
         fs::write(
             &curl_path,
-            "#!/bin/sh\ncat <<'JSON'\n[{\"tag_name\":\"v0.2.3\",\"prerelease\":false,\"draft\":false,\"html_url\":\"https://github.com/monk-lee/hover-trans-port/releases/tag/v0.2.3\",\"assets\":[{\"name\":\"install-macos-native-host.sh\"},{\"name\":\"checksums.txt\"},{\"name\":\"hover-trans-port-helper-macos-arm64\"}]}]\nJSON\n",
+            "#!/bin/sh\ncat <<'JSON'\n[{\"tag_name\":\"v0.2.4\",\"prerelease\":false,\"draft\":false,\"html_url\":\"https://github.com/monk-lee/hover-trans-port/releases/tag/v0.2.4\",\"assets\":[{\"name\":\"install-macos-native-host.sh\"},{\"name\":\"checksums.txt\"},{\"name\":\"hover-trans-port-helper-macos-arm64\"}]}]\nJSON\n",
         )
         .unwrap();
         let mut permissions = fs::metadata(&curl_path).unwrap().permissions();
@@ -382,10 +382,10 @@ mod tests {
         );
         env.insert("HOVER_TRANS_PORT_TEST_OS".to_string(), "macos".to_string());
 
-        let status = check_update(&env, "0.2.2").unwrap();
+        let status = check_update(&env, "0.2.3").unwrap();
 
-        assert_eq!(status.latest_version, "0.2.3");
-        assert_eq!(status.latest_tag, "v0.2.3");
+        assert_eq!(status.latest_version, "0.2.4");
+        assert_eq!(status.latest_tag, "v0.2.4");
         assert!(status.update_available);
     }
 }

@@ -24,6 +24,14 @@ if (!Array.isArray(manifest.permissions) || !manifest.permissions.includes("alar
 
 const checks = [
   {
+    path: "src/shared/nativeHostUpdate.ts",
+    needles: [
+      "MANUAL_NATIVE_HOST_UPDATE_COMMAND",
+      "formatNativeHostUpdateStatusForUser",
+      "nativeHostUpdateNeedsAttention"
+    ]
+  },
+  {
     path: "src/shared/nativeProtocol.ts",
     needles: [
       'type: "NATIVE_HOST_UPDATE_STATUS"',
@@ -59,8 +67,11 @@ const checks = [
     path: "src/background/service-worker.ts",
     needles: [
       "chrome.alarms.create",
+      "chrome.action.setBadgeText",
       "native-host-update-check",
       "hoverTransPortNativeHostUpdate",
+      "maybeRefreshNativeHostUpdateStatus",
+      "scheduleNativeHostUpdateStatusRefresh",
       "shouldAutoCheckNativeHostUpdate",
       "chrome.storage.onChanged",
       "refreshPostNativeHostUpdateStatus",
@@ -81,6 +92,7 @@ const serviceWorkerText = readText("src/background/service-worker.ts");
 const nativeClientText = readText("src/background/nativeClient.ts");
 const optionsHtml = readText("src/options.html");
 const optionsMain = readText("src/options/main.ts");
+const popupMain = readText("src/popup/main.ts");
 
 assertMatches(
   serviceWorkerText,
@@ -93,6 +105,18 @@ assertMatches(
   /chrome\.storage\.onChanged[\s\S]*ensureNativeHostUpdateAlarm/u,
   "src/background/service-worker.ts",
   "alarm rescheduling from chrome.storage.onChanged"
+);
+assertMatches(
+  serviceWorkerText,
+  /function syncNativeHostUpdateBadge[\s\S]*nativeHostUpdateNeedsAttention[\s\S]*chrome\.action\.setBadgeText/u,
+  "src/background/service-worker.ts",
+  "native host update attention badge"
+);
+assertMatches(
+  serviceWorkerText,
+  /if \(message\.type === "TRANSLATE_CURRENT_TARGET"\)[\s\S]*scheduleNativeHostUpdateStatusRefresh[\s\S]*translateWithNativeHost/u,
+  "src/background/service-worker.ts",
+  "opportunistic update check when translation is used"
 );
 assertMatches(
   serviceWorkerText,
@@ -138,6 +162,16 @@ assertIncludes(
   optionsHtml,
   'id="native-host-update-apply"',
   "Options update apply button"
+);
+assertIncludes(
+  optionsMain,
+  "formatNativeHostUpdateStatusForUser",
+  "Options formats manual update guidance"
+);
+assertIncludes(
+  popupMain,
+  "formatNativeHostUpdateStatusForUser",
+  "Popup formats manual update guidance"
 );
 assertIncludes(
   optionsMain,
