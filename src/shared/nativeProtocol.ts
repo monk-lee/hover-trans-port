@@ -82,6 +82,18 @@ export type NativeDebugLogWriteRequest = {
   fields?: NativeDebugLogFields;
 };
 
+export type NativeHostUpdateStatusRequest = {
+  type: "NATIVE_HOST_UPDATE_STATUS";
+  requestId: string;
+};
+
+export type NativeHostUpdateRequest = {
+  type: "NATIVE_HOST_UPDATE";
+  requestId: string;
+  targetTag: string;
+  targetVersion: string;
+};
+
 export type NativeRequest =
   | NativePingRequest
   | NativeHostInfoRequest
@@ -92,7 +104,9 @@ export type NativeRequest =
   | NativeDebugLogInfoRequest
   | NativeDebugLogClearRequest
   | NativeDebugLogContentRequest
-  | NativeDebugLogWriteRequest;
+  | NativeDebugLogWriteRequest
+  | NativeHostUpdateStatusRequest
+  | NativeHostUpdateRequest;
 
 export type NativePongResponse = {
   type: "PONG";
@@ -260,6 +274,53 @@ export type NativeDebugLogWriteResponse =
       retryable: boolean;
     };
 
+export type NativeHostUpdateErrorCode =
+  | "UPDATE_UNSUPPORTED_PLATFORM"
+  | "UPDATE_CHECK_FAILED"
+  | "UPDATE_NOT_AVAILABLE"
+  | "UPDATE_DOWNLOAD_FAILED"
+  | "UPDATE_CHECKSUM_FAILED"
+  | "UPDATE_INSTALL_FAILED"
+  | "UPDATE_RECONNECT_FAILED";
+
+export type NativeHostUpdateStatusResponse =
+  | {
+      type: "NATIVE_HOST_UPDATE_STATUS_RESULT";
+      requestId: string;
+      ok: true;
+      installedVersion: string;
+      latestVersion: string;
+      latestTag: string;
+      updateAvailable: boolean;
+      releaseUrl: string;
+    }
+  | {
+      type: "NATIVE_HOST_UPDATE_STATUS_RESULT";
+      requestId: string;
+      ok: false;
+      error: NativeHostUpdateErrorCode | "INVALID_MESSAGE" | "UNSUPPORTED_MESSAGE";
+      message: string;
+      retryable: boolean;
+    };
+
+export type NativeHostUpdateResponse =
+  | {
+      type: "NATIVE_HOST_UPDATE_RESULT";
+      requestId: string;
+      ok: true;
+      previousVersion: string;
+      installedVersion: string;
+      installedPath: string;
+    }
+  | {
+      type: "NATIVE_HOST_UPDATE_RESULT";
+      requestId: string;
+      ok: false;
+      error: NativeHostUpdateErrorCode | "INVALID_MESSAGE" | "UNSUPPORTED_MESSAGE";
+      message: string;
+      retryable: boolean;
+    };
+
 export type NativeErrorCode =
   | "INVALID_MESSAGE"
   | "UNSUPPORTED_MESSAGE"
@@ -292,4 +353,6 @@ export type NativeResponse =
   | NativeDebugLogClearResponse
   | NativeDebugLogContentResponse
   | NativeDebugLogWriteResponse
+  | NativeHostUpdateStatusResponse
+  | NativeHostUpdateResponse
   | NativeErrorResponse;

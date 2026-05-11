@@ -1,4 +1,8 @@
-import type { ExtensionRequest, ExtensionResponse } from "../shared/messages";
+import type {
+  ExtensionRequest,
+  ExtensionResponse,
+  NativeHostUpdateStoredStatus
+} from "../shared/messages";
 import {
   getFallbackModelCatalog,
   resolveProviderForModel
@@ -7,10 +11,13 @@ import {
   DEFAULT_CACHE_ENABLED,
   DEFAULT_DEBUG_LOGGING,
   DEFAULT_EXTENSION_ENABLED,
-  DEFAULT_TIMEOUT_MS
+  DEFAULT_TIMEOUT_MS,
+  normalizeNativeHostUpdateAutoCheck,
+  type StoredOptions
 } from "../shared/options";
 import {
   checkNativeHost,
+  checkNativeHostUpdateStatus,
   checkProviderStatus,
   clearDebugLog,
   clearTranslationCache,
@@ -18,22 +25,86 @@ import {
   getDebugLogInfo,
   getProviderModels,
   translateWithNativeHost,
+  updateNativeHost,
   writeDebugLogEvent
 } from "./nativeClient";
 
-chrome.runtime.onInstalled.addListener(async ({ reason }) => {
-  if (reason !== chrome.runtime.OnInstalledReason.INSTALL) {
+const NATIVE_HOST_UPDATE_ALARM = "native-host-update-check";
+const NATIVE_HOST_UPDATE_STORAGE_KEY = "hoverTransPortNativeHostUpdate";
+const NATIVE_HOST_UPDATE_CHECK_INTERVAL_MINUTES = 24 * 60;
+const NATIVE_HOST_UPDATE_STALE_MS = 24 * 60 * 60 * 1000;
+
+type NativeHostUpdateStorage = {
+  hoverTransPortNativeHostUpdate?: NativeHostUpdateStoredStatus;
+};
+
+async function shouldAutoCheckNativeHostUpdate(): Promise<boolean> {
+  const stored = (await chrome.storage.local.get("hoverTransPort")) as StoredOptions;
+  return normalizeNativeHostUpdateAutoCheck(
+    stored.hoverTransPort?.nativeHostUpdateAutoCheck
+  );
+}
+
+async function ensureNativeHostUpdateAlarm(): Promise<void> {
+  const autoCheckEnabled = await shouldAutoCheckNativeHostUpdate();
+
+  if (!autoCheckEnabled) {
+    await chrome.alarms.clear(NATIVE_HOST_UPDATE_ALARM);
     return;
   }
 
-  await chrome.storage.local.set({
-    hoverTransPort: {
-      enabled: DEFAULT_EXTENSION_ENABLED,
-      timeoutMs: DEFAULT_TIMEOUT_MS,
-      cacheEnabled: DEFAULT_CACHE_ENABLED,
-      debugLogging: DEFAULT_DEBUG_LOGGING
-    }
+  await chrome.alarms.create(NATIVE_HOST_UPDATE_ALARM, {
+    periodInMinutes: NATIVE_HOST_UPDATE_CHECK_INTERVAL_MINUTES
   });
+}
+
+async function storeNativeHostUpdateStatus(
+  status: NativeHostUpdateStoredStatus
+): Promise<void> {
+  await chrome.storage.local.set({
+    [NATIVE_HOST_UPDATE_STORAGE_KEY]: status
+  });
+}
+
+async function refreshNativeHostUpdateStatus(
+  requestId: string
+): Promise<NativeHostUpdateStoredStatus> {
+  const status = await checkNativeHostUpdateStatus(requestId);
+  await storeNativeHostUpdateStatus(status);
+  return status;
+}
+
+function isNativeHostUpdateStatusStale(
+  status: NativeHostUpdateStoredStatus | undefined
+): boolean {
+  return !status || Date.now() - status.checkedAt > NATIVE_HOST_UPDATE_STALE_MS;
+}
+
+chrome.runtime.onInstalled.addListener(async ({ reason }) => {
+  if (reason === chrome.runtime.OnInstalledReason.INSTALL) {
+    await chrome.storage.local.set({
+      hoverTransPort: {
+        enabled: DEFAULT_EXTENSION_ENABLED,
+        timeoutMs: DEFAULT_TIMEOUT_MS,
+        cacheEnabled: DEFAULT_CACHE_ENABLED,
+        debugLogging: DEFAULT_DEBUG_LOGGING
+      }
+    });
+  }
+
+  await ensureNativeHostUpdateAlarm();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  void ensureNativeHostUpdateAlarm();
+});
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name !== NATIVE_HOST_UPDATE_ALARM) {
+    return;
+  }
+
+  void refreshNativeHostUpdateStatus(`${NATIVE_HOST_UPDATE_ALARM}:${Date.now()}`);
 });
 
 chrome.runtime.onMessage.addListener(
@@ -56,6 +127,66 @@ chrome.runtime.onMessage.addListener(
           type: "NATIVE_HOST_STATUS",
           requestId: message.requestId,
           ...status
+        });
+      });
+      return true;
+    }
+
+    if (message.type === "GET_STORED_NATIVE_HOST_UPDATE_STATUS") {
+      void chrome.storage.local
+        .get(NATIVE_HOST_UPDATE_STORAGE_KEY)
+        .then(async (stored: NativeHostUpdateStorage) => {
+          const status = stored.hoverTransPortNativeHostUpdate;
+
+          if (
+            isNativeHostUpdateStatusStale(status) &&
+            (await shouldAutoCheckNativeHostUpdate())
+          ) {
+            const refreshedStatus = await refreshNativeHostUpdateStatus(
+              message.requestId
+            );
+            sendResponse({
+              type: "NATIVE_HOST_UPDATE_STATUS",
+              requestId: message.requestId,
+              status: refreshedStatus
+            });
+            return;
+          }
+
+          sendResponse({
+            type: "NATIVE_HOST_UPDATE_STATUS",
+            requestId: message.requestId,
+            status
+          });
+        });
+
+      return true;
+    }
+
+    if (message.type === "CHECK_NATIVE_HOST_UPDATE") {
+      void refreshNativeHostUpdateStatus(message.requestId).then((status) => {
+        sendResponse({
+          type: "NATIVE_HOST_UPDATE_STATUS",
+          requestId: message.requestId,
+          status
+        });
+      });
+      return true;
+    }
+
+    if (message.type === "UPDATE_NATIVE_HOST") {
+      void updateNativeHost(
+        message.requestId,
+        message.targetTag,
+        message.targetVersion
+      ).then(async (result) => {
+        await checkNativeHost(`${message.requestId}:host-info`);
+        await refreshNativeHostUpdateStatus(`${message.requestId}:status`);
+
+        sendResponse({
+          type: "NATIVE_HOST_UPDATE_RESULT",
+          requestId: message.requestId,
+          ...result
         });
       });
       return true;
