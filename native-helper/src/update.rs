@@ -62,25 +62,7 @@ pub fn check_update(
         });
     }
 
-    let releases_path = env
-        .get("HOVER_TRANS_PORT_RELEASES_JSON_PATH")
-        .ok_or_else(|| UpdateFailure {
-            code: "UPDATE_CHECK_FAILED",
-            message: "Release metadata source was not configured.".to_string(),
-            retryable: true,
-        })?;
-
-    let releases = fs::read_to_string(releases_path).map_err(|error| UpdateFailure {
-        code: "UPDATE_CHECK_FAILED",
-        message: format!("Release metadata could not be read: {error}"),
-        retryable: true,
-    })?;
-    let releases: Vec<ReleaseEntry> =
-        serde_json::from_str(&releases).map_err(|error| UpdateFailure {
-            code: "UPDATE_CHECK_FAILED",
-            message: format!("Release metadata could not be parsed: {error}"),
-            retryable: true,
-        })?;
+    let releases = load_releases(env)?;
 
     let required_helper_asset = required_helper_asset(env).ok_or_else(|| UpdateFailure {
         code: "UPDATE_UNSUPPORTED_PLATFORM",
@@ -119,6 +101,58 @@ pub fn check_update(
         latest_tag: latest.tag_name.clone(),
         update_available: latest_key > installed_key,
         release_url: latest.html_url.clone(),
+    })
+}
+
+fn load_releases(env: &BTreeMap<String, String>) -> Result<Vec<ReleaseEntry>, UpdateFailure> {
+    if let Some(path) = env.get("HOVER_TRANS_PORT_RELEASES_JSON_PATH") {
+        let body = fs::read_to_string(path).map_err(|error| UpdateFailure {
+            code: "UPDATE_CHECK_FAILED",
+            message: error.to_string(),
+            retryable: true,
+        })?;
+        return parse_releases(&body);
+    }
+
+    let api_url = env
+        .get("HOVER_TRANS_PORT_RELEASES_API_URL")
+        .cloned()
+        .unwrap_or_else(|| {
+            "https://api.github.com/repos/monk-lee/hover-trans-port/releases?per_page=10"
+                .to_string()
+        });
+    let curl = env
+        .get("HOVER_TRANS_PORT_CURL_PATH")
+        .cloned()
+        .unwrap_or_else(|| "/usr/bin/curl".to_string());
+    let args = vec![
+        "-fsSL".to_string(),
+        "-H".to_string(),
+        "Accept: application/vnd.github+json".to_string(),
+        api_url,
+    ];
+    let output = run_process(ProcessRequest {
+        executable: PathBuf::from(curl),
+        args,
+        cwd: None,
+        env: env.clone(),
+        stdin: String::new(),
+        timeout_ms: 10_000,
+    })
+    .map_err(|error| UpdateFailure {
+        code: "UPDATE_CHECK_FAILED",
+        message: error.to_string(),
+        retryable: true,
+    })?;
+
+    parse_releases(&output.stdout)
+}
+
+fn parse_releases(body: &str) -> Result<Vec<ReleaseEntry>, UpdateFailure> {
+    serde_json::from_str(body).map_err(|error| UpdateFailure {
+        code: "UPDATE_CHECK_FAILED",
+        message: error.to_string(),
+        retryable: true,
     })
 }
 
@@ -310,4 +344,48 @@ fn required_string_field(value: &Value, field: &'static str) -> Result<String, U
             message: format!("Native host update output did not include {field}."),
             retryable: true,
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[cfg(unix)]
+    #[test]
+    fn check_update_loads_release_metadata_with_curl_when_fixture_path_is_absent() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = tempdir().unwrap();
+        let curl_path = temp.path().join("curl");
+        fs::write(
+            &curl_path,
+            "#!/bin/sh\ncat <<'JSON'\n[{\"tag_name\":\"v0.2.3\",\"prerelease\":false,\"draft\":false,\"html_url\":\"https://github.com/monk-lee/hover-trans-port/releases/tag/v0.2.3\",\"assets\":[{\"name\":\"install-macos-native-host.sh\"},{\"name\":\"checksums.txt\"},{\"name\":\"hover-trans-port-helper-macos-arm64\"}]}]\nJSON\n",
+        )
+        .unwrap();
+        let mut permissions = fs::metadata(&curl_path).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&curl_path, permissions).unwrap();
+
+        let mut env = BTreeMap::new();
+        env.insert(
+            "HOVER_TRANS_PORT_CURL_PATH".to_string(),
+            curl_path.to_string_lossy().into_owned(),
+        );
+        env.insert(
+            "HOVER_TRANS_PORT_RELEASES_API_URL".to_string(),
+            "https://example.invalid/releases".to_string(),
+        );
+        env.insert(
+            "HOVER_TRANS_PORT_TEST_ARCH".to_string(),
+            "arm64".to_string(),
+        );
+        env.insert("HOVER_TRANS_PORT_TEST_OS".to_string(), "macos".to_string());
+
+        let status = check_update(&env, "0.2.2").unwrap();
+
+        assert_eq!(status.latest_version, "0.2.3");
+        assert_eq!(status.latest_tag, "v0.2.3");
+        assert!(status.update_available);
+    }
 }

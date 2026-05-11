@@ -153,6 +153,16 @@ assertIncludes(
   "Claude authentication is verified by Claude CLI when a translation runs",
   "docs/native-host-install.md"
 );
+assertIncludes(
+  nativeHostInstall,
+  "The first update-capable native host must be installed manually",
+  "docs/native-host-install.md"
+);
+assertIncludes(
+  nativeHostInstall,
+  "The extension does not silently replace the native helper",
+  "docs/native-host-install.md"
+);
 
 const optionsHtml = read("src/options.html");
 assertIncludes(optionsHtml, "Trigger not working?", "src/options.html");

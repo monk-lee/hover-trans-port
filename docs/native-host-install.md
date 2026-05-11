@@ -56,6 +56,14 @@ The installer writes the helper to `~/Library/Application Support/Hover Trans Po
 
 Codex CLI and Claude CLI are separate prerequisites. The installer does not store provider credentials, API keys, or browser session data.
 
+## Updating From Options
+
+Hover Trans Port can check for native host updates in the background and show the result in Options.
+
+The first update-capable native host must be installed manually because older native hosts do not understand update messages. After that one-time update, open Options > Diagnostics > Native Host and use `Check for Updates` or `Update Native Host`.
+
+Updates are user-confirmed. The extension does not silently replace the native helper.
+
 ## Developer Install
 
 From the repository root:
