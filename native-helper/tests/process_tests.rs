@@ -41,6 +41,13 @@ fn timeout_maps_to_provider_timeout() {
 }
 
 #[test]
+fn large_stdout_does_not_block_process_completion() {
+    let output = run_fixture("large-stdout", vec![], "", 5_000).unwrap();
+
+    assert_eq!(output.stdout.len(), 262_144);
+}
+
+#[test]
 fn arguments_are_passed_without_shell_interpolation() {
     let output = run_fixture("echo-args", vec!["hello; exit 9".to_string()], "", 5_000).unwrap();
 

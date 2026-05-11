@@ -1,8 +1,9 @@
 use std::collections::BTreeMap;
 use std::fmt;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::{ChildStderr, ChildStdout, Command, Stdio};
+use std::thread;
 use std::time::Instant;
 
 use wait_timeout::ChildExt;
@@ -119,6 +120,22 @@ pub fn run_process(request: ProcessRequest) -> Result<ProcessOutput, ProviderErr
         .map_err(|error| ProviderError::SpawnFailed {
             message: error.to_string(),
         })?;
+    let stdout_reader = read_stdout(
+        child
+            .stdout
+            .take()
+            .ok_or_else(|| {
+                ProviderError::Output(output_error("Provider stdout pipe was not available."))
+            })?,
+    );
+    let stderr_reader = read_stderr(
+        child
+            .stderr
+            .take()
+            .ok_or_else(|| {
+                ProviderError::Output(output_error("Provider stderr pipe was not available."))
+            })?,
+    );
 
     if let Some(mut stdin) = child.stdin.take() {
         stdin
@@ -132,19 +149,21 @@ pub fn run_process(request: ProcessRequest) -> Result<ProcessOutput, ProviderErr
     if status.is_none() {
         let _ = child.kill();
         let _ = child.wait();
+        let _ = collect_reader(stdout_reader);
+        let _ = collect_reader(stderr_reader);
         return Err(ProviderError::Timeout {
             elapsed_ms: elapsed_ms(started),
         });
     }
 
-    let output = child.wait_with_output().map_err(ProviderError::Output)?;
     let elapsed_ms = elapsed_ms(started);
-    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
-    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    let stdout = String::from_utf8_lossy(&collect_reader(stdout_reader)?).into_owned();
+    let stderr = String::from_utf8_lossy(&collect_reader(stderr_reader)?).into_owned();
+    let status = status.expect("checked status above");
 
-    if !output.status.success() {
+    if !status.success() {
         return Err(ProviderError::ExitNonzero {
-            exit_code: output.status.code(),
+            exit_code: status.code(),
             stdout,
             stderr,
             elapsed_ms,
@@ -156,6 +175,38 @@ pub fn run_process(request: ProcessRequest) -> Result<ProcessOutput, ProviderErr
         stderr,
         elapsed_ms,
     })
+}
+
+fn read_stdout(pipe: ChildStdout) -> thread::JoinHandle<std::io::Result<Vec<u8>>> {
+    read_pipe(pipe)
+}
+
+fn read_stderr(pipe: ChildStderr) -> thread::JoinHandle<std::io::Result<Vec<u8>>> {
+    read_pipe(pipe)
+}
+
+fn read_pipe<R>(mut pipe: R) -> thread::JoinHandle<std::io::Result<Vec<u8>>>
+where
+    R: Read + Send + 'static,
+{
+    thread::spawn(move || {
+        let mut output = Vec::new();
+        pipe.read_to_end(&mut output)?;
+        Ok(output)
+    })
+}
+
+fn collect_reader(
+    reader: thread::JoinHandle<std::io::Result<Vec<u8>>>,
+) -> Result<Vec<u8>, ProviderError> {
+    reader
+        .join()
+        .map_err(|_| ProviderError::Output(output_error("Provider output reader panicked.")))?
+        .map_err(ProviderError::Output)
+}
+
+fn output_error(message: &str) -> std::io::Error {
+    std::io::Error::new(std::io::ErrorKind::Other, message)
 }
 
 fn elapsed_ms(started: Instant) -> u64 {
