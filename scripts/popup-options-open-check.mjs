@@ -71,8 +71,37 @@ async function settlePromises() {
 const tempDir = mkdtempSync(join(tmpdir(), "hover-trans-port-popup-"));
 const tempSharedDir = join(tempDir, "src/shared");
 const tempPopupDir = join(tempDir, "src/popup");
+const optionsMainTs = readFileSync("src/options/main.ts", "utf8");
+const nativeClientTs = readFileSync("src/background/nativeClient.ts", "utf8");
+const serviceWorkerTs = readFileSync("src/background/service-worker.ts", "utf8");
 mkdirSync(tempSharedDir, { recursive: true });
 mkdirSync(tempPopupDir, { recursive: true });
+
+assertEqual(
+  optionsMainTs.includes("loadProviderModelCatalog"),
+  true,
+  "options model catalog loader is present"
+);
+assertEqual(
+  optionsMainTs.includes('"GET_PROVIDER_MODELS"'),
+  true,
+  "options requests provider model catalogs"
+);
+assertEqual(
+  nativeClientTs.includes("getProviderModels"),
+  true,
+  "background native client exposes provider model catalog helper"
+);
+assertEqual(
+  nativeClientTs.includes('"PROVIDER_MODELS"'),
+  true,
+  "background native client sends provider model catalog request"
+);
+assertEqual(
+  serviceWorkerTs.includes('"GET_PROVIDER_MODELS"'),
+  true,
+  "service worker handles provider model catalog requests"
+);
 
 writeFileSync(
   join(tempSharedDir, "providers.js"),

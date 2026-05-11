@@ -57,6 +57,10 @@ export type StoredOptions = {
   hoverTransPort?: HoverTransPortOptions;
 };
 
+const UNSUPPORTED_PROVIDER_MODELS: Partial<Record<ProviderId, readonly string[]>> = {
+  codex: ["gpt-5.4-nano"]
+};
+
 export {
   DEFAULT_PROVIDER,
   DEFAULT_TRIGGER_HOTKEY,
@@ -76,7 +80,13 @@ export function normalizeProviderModel(
 ): string {
   const trimmed = model?.trim();
   const fallback = PROVIDER_DEFAULT_MODELS[provider];
-  return trimmed || fallback;
+  const unsupportedModels = UNSUPPORTED_PROVIDER_MODELS[provider] ?? [];
+
+  if (!trimmed || unsupportedModels.includes(trimmed)) {
+    return fallback;
+  }
+
+  return trimmed;
 }
 
 export function normalizeModelsByProvider(

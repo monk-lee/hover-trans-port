@@ -1,5 +1,9 @@
 import type { ExtensionRequest, ExtensionResponse } from "../shared/messages";
 import {
+  getFallbackModelCatalog,
+  resolveProviderForModel
+} from "../shared/providers";
+import {
   DEFAULT_CACHE_ENABLED,
   DEFAULT_DEBUG_LOGGING,
   DEFAULT_EXTENSION_ENABLED,
@@ -12,6 +16,7 @@ import {
   clearTranslationCache,
   getDebugLogContent,
   getDebugLogInfo,
+  getProviderModels,
   translateWithNativeHost,
   writeDebugLogEvent
 } from "./nativeClient";
@@ -64,6 +69,47 @@ chrome.runtime.onMessage.addListener(
           ...status
         });
       });
+      return true;
+    }
+
+    if (message.type === "GET_PROVIDER_MODELS") {
+      void getProviderModels(message.requestId, message.provider)
+        .then((result) => {
+          if (result.ok) {
+            sendResponse({
+              type: "PROVIDER_MODELS_RESULT",
+              requestId: message.requestId,
+              ok: true,
+              catalog: result.catalog
+            });
+            return;
+          }
+
+          sendResponse({
+            type: "PROVIDER_MODELS_RESULT",
+            requestId: message.requestId,
+            ok: false,
+            provider: result.provider,
+            error: result.error,
+            message: result.message,
+            retryable: result.retryable,
+            fallbackCatalog: result.fallbackCatalog
+          });
+        })
+        .catch((error: unknown) => {
+          const providerId = resolveProviderForModel(message.provider);
+          sendResponse({
+            type: "PROVIDER_MODELS_RESULT",
+            requestId: message.requestId,
+            ok: false,
+            provider: providerId,
+            error: "UNKNOWN_ERROR",
+            message: error instanceof Error ? error.message : "Unknown error",
+            retryable: true,
+            fallbackCatalog: getFallbackModelCatalog(providerId)
+          });
+        });
+
       return true;
     }
 

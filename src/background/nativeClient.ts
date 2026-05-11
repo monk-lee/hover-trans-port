@@ -6,6 +6,7 @@ import {
   type NativeDebugLogInfoResponse,
   type NativeDebugLogWriteResponse,
   type NativeHostInfoResponse,
+  type NativeProviderModelsResponse,
   type NativeProviderStatusResponse,
   type NativePongResponse,
   type NativeRequest,
@@ -14,8 +15,16 @@ import {
 } from "../shared/nativeProtocol";
 import type { TranslationTarget } from "../shared/messages";
 import { evaluateNativeHostCompatibility } from "../shared/nativeHostCompatibility";
-import type { ProviderId, ProviderSelection } from "../shared/providers";
-import { getProviderLabel } from "../shared/providers";
+import type {
+  ProviderId,
+  ProviderModelCatalog,
+  ProviderSelection
+} from "../shared/providers";
+import {
+  getFallbackModelCatalog,
+  getProviderLabel,
+  resolveProviderForModel
+} from "../shared/providers";
 import {
   DEFAULT_CACHE_ENABLED,
   DEFAULT_DEBUG_LOGGING,
@@ -86,6 +95,20 @@ export type ProviderStatus =
       error: "NATIVE_HOST_UNAVAILABLE" | "UNKNOWN_ERROR";
       message: string;
       retryable: boolean;
+    };
+
+export type ProviderModelsStatus =
+  | {
+      ok: true;
+      catalog: ProviderModelCatalog;
+    }
+  | {
+      ok: false;
+      provider: ProviderId;
+      error: "NATIVE_HOST_UNAVAILABLE" | "PROVIDER_UNAVAILABLE" | "UNKNOWN_ERROR";
+      message: string;
+      retryable: boolean;
+      fallbackCatalog: ProviderModelCatalog;
     };
 
 export type NativeTranslationStatus =
@@ -196,6 +219,12 @@ function isProviderStatus(
   response: NativeResponse
 ): response is NativeProviderStatusResponse {
   return response.type === "PROVIDER_STATUS_RESULT" && response.ok === true;
+}
+
+function isProviderModelsResult(
+  response: NativeResponse
+): response is NativeProviderModelsResponse {
+  return response.type === "PROVIDER_MODELS_RESULT";
 }
 
 function isTranslateResult(
@@ -560,6 +589,69 @@ export async function checkProviderStatus(
       error instanceof Error ? error.message : "Native host unavailable.";
 
     return createProviderStatusUnavailable(message);
+  }
+}
+
+export async function getProviderModels(
+  requestId: string,
+  provider: ProviderSelection
+): Promise<ProviderModelsStatus> {
+  const providerId = resolveProviderForModel(provider);
+  const fallbackCatalog = getFallbackModelCatalog(providerId);
+  const request: NativeRequest = {
+    type: "PROVIDER_MODELS",
+    requestId,
+    provider
+  };
+
+  try {
+    const response = await sendStatusCheckMessageWithRetry(request);
+
+    if (
+      response &&
+      isProviderModelsResult(response) &&
+      response.ok &&
+      response.requestId === requestId &&
+      response.catalog.provider === providerId
+    ) {
+      return {
+        ok: true,
+        catalog: response.catalog
+      };
+    }
+
+    if (!response) {
+      return {
+        ok: false,
+        provider: providerId,
+        error: "NATIVE_HOST_UNAVAILABLE",
+        message: "Native host did not respond. Showing fallback model aliases.",
+        retryable: true,
+        fallbackCatalog
+      };
+    }
+
+    return {
+      ok: false,
+      provider: providerId,
+      error: "PROVIDER_UNAVAILABLE",
+      message:
+        "Provider model catalog is not available. Showing fallback model aliases.",
+      retryable: true,
+      fallbackCatalog
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      provider: providerId,
+      error: "NATIVE_HOST_UNAVAILABLE",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Native host is not available. Showing fallback model aliases.",
+      retryable: true,
+      fallbackCatalog
+    };
   }
 }
 

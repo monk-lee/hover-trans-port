@@ -2,9 +2,11 @@ import "./options.css";
 import type { ExtensionRequest, ExtensionResponse } from "../shared/messages";
 import {
   getDefaultModelForProvider,
-  getModelOptionsForProvider,
+  getFallbackModelCatalog,
   getProviderLabel,
   resolveProviderForModel,
+  type ProviderId,
+  type ProviderModelCatalog,
   type ProviderSelection
 } from "../shared/providers";
 import {
@@ -96,6 +98,8 @@ const DEBUG_LOG_MAX_LINES = 200;
 let currentTriggerHotkey: TriggerHotkey = DEFAULT_TRIGGER_HOTKEY;
 let isRecordingTriggerHotkey = false;
 const pendingModifierCodes = new Set<ModifierTriggerCode>();
+let currentModelCatalog: ProviderModelCatalog | undefined;
+const providerModelCatalogCache = new Map<ProviderId, ProviderModelCatalog>();
 
 function setSaveState(message: string) {
   if (saveState) {
@@ -289,7 +293,8 @@ function setTargetLanguageInputs(targetLang: string) {
 
 function populateProviderModelOptions(
   provider: ProviderSelection,
-  selectedModel: string | undefined
+  selectedModel: string | undefined,
+  catalog = getProviderModelCatalog(provider)
 ) {
   if (!providerModelInput) {
     return;
@@ -297,17 +302,20 @@ function populateProviderModelOptions(
 
   const providerId = resolveProviderForModel(provider);
   const normalizedModel = normalizeProviderModel(providerId, selectedModel);
-  const modelOptions = getModelOptionsForProvider(providerId);
+  const modelOptions = catalog.models;
   providerModelInput.replaceChildren();
 
   for (const modelOption of modelOptions) {
     const option = document.createElement("option");
     option.value = modelOption.value;
-    option.textContent = modelOption.label;
+    option.textContent = modelOption.recommended
+      ? `${modelOption.label} (Recommended)`
+      : modelOption.label;
     providerModelInput.append(option);
   }
 
   if (
+    catalog.supportsCustomModel &&
     normalizedModel &&
     !modelOptions.some((modelOption) => modelOption.value === normalizedModel)
   ) {
@@ -325,6 +333,57 @@ function populateProviderModelOptions(
   }
 
   providerModelInput.value = normalizedModel;
+}
+
+function getProviderModelCatalog(provider: ProviderSelection): ProviderModelCatalog {
+  const providerId = resolveProviderForModel(provider);
+
+  if (currentModelCatalog?.provider === providerId) {
+    return currentModelCatalog;
+  }
+
+  return (
+    providerModelCatalogCache.get(providerId) ??
+    getFallbackModelCatalog(providerId)
+  );
+}
+
+async function loadProviderModelCatalog(provider: ProviderSelection) {
+  const providerId = resolveProviderForModel(provider);
+  const stored = (await chrome.storage.local.get(
+    "hoverTransPort"
+  )) as StoredOptions;
+  currentModelCatalog =
+    providerModelCatalogCache.get(providerId) ??
+    getFallbackModelCatalog(providerId);
+
+  try {
+    const response = await chrome.runtime.sendMessage<
+      ExtensionRequest,
+      ExtensionResponse
+    >({
+      type: "GET_PROVIDER_MODELS",
+      requestId: createRequestId(),
+      provider
+    });
+
+    currentModelCatalog =
+      response?.type === "PROVIDER_MODELS_RESULT" && response.ok
+        ? response.catalog
+        : response?.type === "PROVIDER_MODELS_RESULT"
+          ? response.fallbackCatalog
+          : getFallbackModelCatalog(providerId);
+    providerModelCatalogCache.set(providerId, currentModelCatalog);
+  } catch {
+    currentModelCatalog = getFallbackModelCatalog(providerId);
+    providerModelCatalogCache.set(providerId, currentModelCatalog);
+  } finally {
+    populateProviderModelOptions(
+      provider,
+      getModelForProvider(stored.hoverTransPort, provider),
+      currentModelCatalog
+    );
+  }
 }
 
 function setProviderModelInputForProvider(
@@ -773,6 +832,8 @@ async function checkProviderStatus() {
   const details = [selectedStatus.version, selectedStatus.binaryPath]
     .filter(Boolean)
     .join(" · ");
+  await loadProviderModelCatalog(selectedProvider);
+
   if (providerId === "claude") {
     setProviderStatus(
       details
