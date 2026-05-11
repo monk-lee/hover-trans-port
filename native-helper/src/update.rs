@@ -127,6 +127,8 @@ pub fn run_update(
     target_tag: &str,
     target_version: &str,
 ) -> Result<UpdateInstallResult, UpdateFailure> {
+    validate_update_target(target_tag, target_version)?;
+
     let metadata_path = active_metadata_path(env);
     let metadata = fs::read_to_string(&metadata_path).map_err(|error| UpdateFailure {
         code: "UPDATE_INSTALL_FAILED",
@@ -236,6 +238,42 @@ fn parse_version(version: &str) -> Option<(u64, u64, u64)> {
     }
 
     Some((major, minor, patch))
+}
+
+fn validate_update_target(target_tag: &str, target_version: &str) -> Result<(), UpdateFailure> {
+    if !is_strict_three_part_version(target_version) || target_tag != format!("v{target_version}") {
+        return Err(UpdateFailure {
+            code: "INVALID_MESSAGE",
+            message:
+                "NATIVE_HOST_UPDATE targetVersion must be x.y.z and targetTag must match v{targetVersion}."
+                    .to_string(),
+            retryable: false,
+        });
+    }
+
+    Ok(())
+}
+
+fn is_strict_three_part_version(version: &str) -> bool {
+    let mut parts = version.split('.');
+    let Some(major) = parts.next() else {
+        return false;
+    };
+    let Some(minor) = parts.next() else {
+        return false;
+    };
+    let Some(patch) = parts.next() else {
+        return false;
+    };
+
+    parts.next().is_none()
+        && is_numeric_version_part(major)
+        && is_numeric_version_part(minor)
+        && is_numeric_version_part(patch)
+}
+
+fn is_numeric_version_part(part: &str) -> bool {
+    !part.is_empty() && part.chars().all(|character| character.is_ascii_digit())
 }
 
 fn active_metadata_path(env: &BTreeMap<String, String>) -> PathBuf {

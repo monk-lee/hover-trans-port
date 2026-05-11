@@ -2,8 +2,8 @@ use hover_trans_port_helper::bridge::{handle_request, BridgeDeps};
 use serde_json::json;
 use std::collections::BTreeMap;
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::os::unix::fs::symlink;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use tempfile::tempdir;
 
@@ -377,6 +377,52 @@ fn native_host_update_invokes_persisted_updater() {
     assert_eq!(response["installedVersion"], "0.2.3");
 }
 
+#[test]
+fn native_host_update_rejects_path_like_target_version_without_invoking_updater() {
+    let temp = tempdir().unwrap();
+    let (env, marker_path) = update_fixture_with_marker(temp.path());
+
+    let response = handle_request(
+        json!({
+            "type":"NATIVE_HOST_UPDATE",
+            "requestId":"req-update-invalid-version",
+            "targetTag":"v../0.2.3",
+            "targetVersion":"../0.2.3"
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "NATIVE_HOST_UPDATE_RESULT");
+    assert_eq!(response["requestId"], "req-update-invalid-version");
+    assert_eq!(response["ok"], false);
+    assert_eq!(response["error"], "INVALID_MESSAGE");
+    assert!(!marker_path.exists());
+}
+
+#[test]
+fn native_host_update_rejects_mismatched_target_tag_without_invoking_updater() {
+    for target_tag in ["0.2.3", "v0.2.4"] {
+        let temp = tempdir().unwrap();
+        let (env, marker_path) = update_fixture_with_marker(temp.path());
+
+        let response = handle_request(
+            json!({
+                "type":"NATIVE_HOST_UPDATE",
+                "requestId":"req-update-invalid-tag",
+                "targetTag": target_tag,
+                "targetVersion":"0.2.3"
+            }),
+            BridgeDeps::with_env(env),
+        );
+
+        assert_eq!(response["type"], "NATIVE_HOST_UPDATE_RESULT");
+        assert_eq!(response["requestId"], "req-update-invalid-tag");
+        assert_eq!(response["ok"], false);
+        assert_eq!(response["error"], "INVALID_MESSAGE");
+        assert!(!marker_path.exists());
+    }
+}
+
 fn translate_with_provider(
     request_id: &str,
     provider: &str,
@@ -413,4 +459,40 @@ fn make_executable(path: &Path) {
 
 fn write_release_fixture(path: &Path, body: &str) {
     fs::write(path, body).unwrap();
+}
+
+fn update_fixture_with_marker(temp_path: &Path) -> (BTreeMap<String, String>, PathBuf) {
+    let install_root = temp_path.join("Hover Trans Port");
+    let current_dir = install_root.join("native-hosts/0.2.2");
+    fs::create_dir_all(&current_dir).unwrap();
+    symlink(&current_dir, install_root.join("current")).unwrap();
+
+    let marker_path = temp_path.join("updater-invoked");
+    let updater_path = current_dir.join("install-macos-native-host.sh");
+    fs::write(
+        &updater_path,
+        format!(
+            "#!/bin/sh\nprintf invoked > '{}'\nprintf '%s\n' '{{\"command\":\"update\",\"ok\":true,\"previousVersion\":\"0.2.2\",\"installedVersion\":\"0.2.3\",\"helperPath\":\"/tmp/install/native-hosts/0.2.3/hover-trans-port-helper\"}}'\n",
+            marker_path.display()
+        ),
+    )
+    .unwrap();
+    make_executable(&updater_path);
+
+    fs::write(
+        install_root.join("current").join("metadata.json"),
+        format!(
+            "{{\"hostVersion\":\"0.2.2\",\"protocolVersion\":1,\"source\":\"macos-script-installer\",\"updaterPath\":\"{}\"}}",
+            updater_path.display()
+        ),
+    )
+    .unwrap();
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_INSTALL_ROOT".to_string(),
+        install_root.to_string_lossy().into_owned(),
+    );
+
+    (env, marker_path)
 }
