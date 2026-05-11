@@ -19,7 +19,7 @@ fn ping_returns_pong_with_same_request_id() {
     assert!(response["bridgeVersion"]
         .as_str()
         .unwrap()
-        .starts_with("0.2.0"));
+        .starts_with("0.2.2"));
 }
 
 #[test]

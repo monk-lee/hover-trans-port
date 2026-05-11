@@ -84,10 +84,10 @@ withTempRoot("install", (root) => {
   const helper = makeFixtureHelper(root);
 
   const output = run(["install", "--helper-source", helper], env);
-  assert(output.includes("installed native host 0.2.0"), "install output should name host version");
+  assert(output.includes("installed native host 0.2.2"), "install output should name host version");
 
   const installRoot = env.HOVER_TRANS_PORT_INSTALL_ROOT;
-  const versionDir = join(installRoot, "native-hosts/0.2.0");
+  const versionDir = join(installRoot, "native-hosts/0.2.2");
   const installedHelper = join(versionDir, "hover-trans-port-helper");
   const launcher = join(installRoot, "launcher");
   const current = join(installRoot, "current");
@@ -135,13 +135,13 @@ withTempRoot("update", (root) => {
   const helperV2 = makeFixtureHelper(root, "v2");
 
   run(["install", "--host-version", "0.1.0", "--helper-source", helperV1], env);
-  run(["install", "--host-version", "0.2.0", "--helper-source", helperV2], env);
+  run(["install", "--host-version", "0.2.2", "--helper-source", helperV2], env);
 
   const installRoot = env.HOVER_TRANS_PORT_INSTALL_ROOT;
   assert(existsSync(join(installRoot, "native-hosts/0.1.0/hover-trans-port-helper")), "old version should remain");
-  assert(existsSync(join(installRoot, "native-hosts/0.2.0/hover-trans-port-helper")), "new version should exist");
+  assert(existsSync(join(installRoot, "native-hosts/0.2.2/hover-trans-port-helper")), "new version should exist");
   assert(
-    readlinkSync(join(installRoot, "current")) === join(installRoot, "native-hosts/0.2.0"),
+    readlinkSync(join(installRoot, "current")) === join(installRoot, "native-hosts/0.2.2"),
     "current should point at updated version"
   );
 });
@@ -155,7 +155,7 @@ withTempRoot("status-uninstall", (root) => {
 
   run(["install", "--helper-source", helper], env);
   const status = run(["status"], env);
-  assert(status.includes("installed native host 0.2.0"), "status should report installed version");
+  assert(status.includes("installed native host 0.2.2"), "status should report installed version");
 
   run(["uninstall"], env);
   assert(!existsSync(env.HOVER_TRANS_PORT_INSTALL_ROOT), "uninstall should remove install root");
