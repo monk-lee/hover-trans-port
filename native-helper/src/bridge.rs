@@ -9,11 +9,13 @@ use crate::debug_log::{
     write_debug_log_event,
 };
 use crate::messages::{
-    BaseRequest, DebugLogContentRequest, DebugLogWriteRequest, ProviderModelsRequest,
-    TranslateRequest, NATIVE_BRIDGE_VERSION, NATIVE_HOST_PROTOCOL_VERSION, NATIVE_HOST_VERSION,
+    BaseRequest, DebugLogContentRequest, DebugLogWriteRequest, NativeHostUpdateRequest,
+    ProviderModelsRequest, TranslateRequest, NATIVE_BRIDGE_VERSION, NATIVE_HOST_PROTOCOL_VERSION,
+    NATIVE_HOST_VERSION,
 };
 use crate::process::ProviderError;
 use crate::providers::{resolve_provider_id, ProviderRegistry, ProviderTranslateRequest};
+use crate::update::{check_update, run_update, UpdateFailure};
 
 #[derive(Clone, Debug)]
 pub struct BridgeDeps {
@@ -65,6 +67,8 @@ pub fn handle_request(value: Value, deps: BridgeDeps) -> Value {
         Some("CLEAR_DEBUG_LOG") => debug_log_clear(request_id, deps),
         Some("GET_DEBUG_LOG_CONTENT") => debug_log_content(value, request_id, deps),
         Some("WRITE_DEBUG_LOG") => debug_log_write(value, request_id, deps),
+        Some("NATIVE_HOST_UPDATE_STATUS") => native_host_update_status(request_id, deps),
+        Some("NATIVE_HOST_UPDATE") => native_host_update(value, request_id, deps),
         _ => error_response(
             request_id,
             "UNSUPPORTED_MESSAGE",
@@ -127,6 +131,52 @@ fn provider_models(value: Value, request_id: Option<String>, deps: BridgeDeps) -
         "ok": true,
         "catalog": catalog
     })
+}
+
+fn native_host_update_status(request_id: Option<String>, deps: BridgeDeps) -> Value {
+    match check_update(&deps.env, NATIVE_HOST_VERSION) {
+        Ok(status) => json!({
+            "type": "NATIVE_HOST_UPDATE_STATUS_RESULT",
+            "requestId": request_id.unwrap_or_default(),
+            "ok": true,
+            "installedVersion": status.installed_version,
+            "latestVersion": status.latest_version,
+            "latestTag": status.latest_tag,
+            "updateAvailable": status.update_available,
+            "releaseUrl": status.release_url
+        }),
+        Err(error) => update_error_response(
+            "NATIVE_HOST_UPDATE_STATUS_RESULT",
+            request_id.unwrap_or_default(),
+            error,
+        ),
+    }
+}
+
+fn native_host_update(value: Value, request_id: Option<String>, deps: BridgeDeps) -> Value {
+    let request = serde_json::from_value::<NativeHostUpdateRequest>(value);
+    let Ok(request) = request else {
+        return json!({
+            "type": "NATIVE_HOST_UPDATE_RESULT",
+            "requestId": request_id.unwrap_or_default(),
+            "ok": false,
+            "error": "INVALID_MESSAGE",
+            "message": "NATIVE_HOST_UPDATE message is missing required fields.",
+            "retryable": false
+        });
+    };
+
+    match run_update(&deps.env, &request.target_tag, &request.target_version) {
+        Ok(result) => json!({
+            "type": "NATIVE_HOST_UPDATE_RESULT",
+            "requestId": request.request_id,
+            "ok": true,
+            "previousVersion": result.previous_version,
+            "installedVersion": result.installed_version,
+            "installedPath": result.installed_path
+        }),
+        Err(error) => update_error_response("NATIVE_HOST_UPDATE_RESULT", request.request_id, error),
+    }
 }
 
 fn translate(value: Value, request_id: Option<String>, deps: BridgeDeps) -> Value {
@@ -524,6 +574,17 @@ fn debug_log_error_response(
         "error": "DEBUG_LOG_ERROR",
         "message": message,
         "retryable": true
+    })
+}
+
+fn update_error_response(message_type: &str, request_id: String, error: UpdateFailure) -> Value {
+    json!({
+        "type": message_type,
+        "requestId": request_id,
+        "ok": false,
+        "error": error.code,
+        "message": error.message,
+        "retryable": error.retryable
     })
 }
 

@@ -74,6 +74,14 @@ pub struct ProviderModelsRequest {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct NativeHostUpdateRequest {
+    pub request_id: String,
+    pub target_tag: String,
+    pub target_version: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DebugLogContentRequest {
     pub request_id: String,
     #[serde(default)]
