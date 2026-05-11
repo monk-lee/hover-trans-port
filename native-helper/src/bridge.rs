@@ -9,8 +9,8 @@ use crate::debug_log::{
     write_debug_log_event,
 };
 use crate::messages::{
-    BaseRequest, DebugLogContentRequest, DebugLogWriteRequest, TranslateRequest,
-    NATIVE_BRIDGE_VERSION, NATIVE_HOST_PROTOCOL_VERSION, NATIVE_HOST_VERSION,
+    BaseRequest, DebugLogContentRequest, DebugLogWriteRequest, ProviderModelsRequest,
+    TranslateRequest, NATIVE_BRIDGE_VERSION, NATIVE_HOST_PROTOCOL_VERSION, NATIVE_HOST_VERSION,
 };
 use crate::process::ProviderError;
 use crate::providers::{resolve_provider_id, ProviderRegistry, ProviderTranslateRequest};
@@ -58,6 +58,7 @@ pub fn handle_request(value: Value, deps: BridgeDeps) -> Value {
         Some("PING") => pong(request_id),
         Some("HOST_INFO") => host_info(request_id),
         Some("PROVIDER_STATUS") => provider_status(request_id, deps),
+        Some("PROVIDER_MODELS") => provider_models(value, request_id, deps),
         Some("TRANSLATE") => translate(value, request_id, deps),
         Some("CLEAR_TRANSLATION_CACHE") => cache_clear(request_id),
         Some("GET_DEBUG_LOG_INFO") => debug_log_info(request_id, deps),
@@ -100,6 +101,31 @@ fn provider_status(request_id: Option<String>, deps: BridgeDeps) -> Value {
         "requestId": request_id.unwrap_or_default(),
         "ok": true,
         "providers": registry.status_entries()
+    })
+}
+
+fn provider_models(value: Value, request_id: Option<String>, deps: BridgeDeps) -> Value {
+    let request = serde_json::from_value::<ProviderModelsRequest>(value);
+    let Ok(request) = request else {
+        return json!({
+            "type": "PROVIDER_MODELS_RESULT",
+            "requestId": request_id.unwrap_or_default(),
+            "ok": false,
+            "provider": "codex",
+            "error": "INVALID_MESSAGE",
+            "message": "PROVIDER_MODELS message is missing required fields.",
+            "retryable": false
+        });
+    };
+    let registry = ProviderRegistry::new(deps.env);
+    let provider_id = registry.provider_id_for_selection(request.provider.as_deref());
+    let catalog = registry.model_catalog(provider_id);
+
+    json!({
+        "type": "PROVIDER_MODELS_RESULT",
+        "requestId": request.request_id,
+        "ok": true,
+        "catalog": catalog
     })
 }
 

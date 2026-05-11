@@ -66,6 +66,14 @@ pub struct TranslateRequest {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ProviderModelsRequest {
+    pub request_id: String,
+    #[serde(default)]
+    pub provider: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DebugLogContentRequest {
     pub request_id: String,
     #[serde(default)]

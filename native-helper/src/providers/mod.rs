@@ -79,6 +79,14 @@ impl ProviderRegistry {
         }
     }
 
+    pub fn model_catalog(&self, provider_id: ProviderId) -> ProviderModelCatalog {
+        match provider_id {
+            ProviderId::Codex => codex::CodexProvider::new(self.env.clone()).model_catalog(),
+            ProviderId::Claude => claude::ClaudeProvider::new(self.env.clone()).model_catalog(),
+            ProviderId::Gemini => gemini::GeminiProvider::new(self.env.clone()).model_catalog(),
+        }
+    }
+
     pub fn translate(
         &self,
         selection: Option<&str>,

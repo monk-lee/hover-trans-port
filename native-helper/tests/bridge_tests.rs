@@ -71,6 +71,39 @@ fn provider_status_returns_all_provider_ids() {
 }
 
 #[test]
+fn provider_models_returns_catalog_for_selected_provider() {
+    let codex = fixture_path("codex");
+    make_executable(&codex);
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CODEX_PATH".to_string(),
+        codex.to_string_lossy().into_owned(),
+    );
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+
+    let response = handle_request(
+        json!({
+            "type": "PROVIDER_MODELS",
+            "requestId": "req-models",
+            "provider": "codex"
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "PROVIDER_MODELS_RESULT");
+    assert_eq!(response["requestId"], "req-models");
+    assert_eq!(response["ok"], true);
+    assert_eq!(response["catalog"]["provider"], "codex");
+    assert_eq!(response["catalog"]["defaultModel"], "gpt-5.4-mini");
+    assert!(response["catalog"]["models"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|model| model["value"] == "gpt-5.4-mini"));
+}
+
+#[test]
 fn cached_claude_and_codex_translations_do_not_collide() {
     let codex = fixture_path("codex");
     let claude = fixture_path("claude");
