@@ -178,17 +178,20 @@ fn codex_fallback_model_catalog() -> ProviderModelCatalog {
 }
 
 fn parse_codex_model_catalog(stdout: &str) -> Result<ProviderModelCatalog, ProviderError> {
-    let Some(json_line) = stdout.lines().map(str::trim).find(|line| line.starts_with('{')) else {
+    let Some(json_line) = stdout
+        .lines()
+        .map(str::trim)
+        .find(|line| line.starts_with('{'))
+    else {
         return Err(ProviderError::OutputParseFailed {
             message: "Codex model catalog output did not contain JSON.".to_string(),
         });
     };
-    let value =
-        serde_json::from_str::<serde_json::Value>(json_line).map_err(|error| {
-            ProviderError::OutputParseFailed {
-                message: error.to_string(),
-            }
-        })?;
+    let value = serde_json::from_str::<serde_json::Value>(json_line).map_err(|error| {
+        ProviderError::OutputParseFailed {
+            message: error.to_string(),
+        }
+    })?;
     let Some(model_values) = value.get("models").and_then(serde_json::Value::as_array) else {
         return Ok(codex_fallback_model_catalog());
     };

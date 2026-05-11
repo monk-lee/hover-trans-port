@@ -164,9 +164,10 @@ pub fn build_claude_args(model: Option<&str>) -> Vec<String> {
         "--tools".to_string(),
         String::new(),
     ];
-    if let Some(model) = model.map(str::trim).filter(|value| {
-        !value.is_empty() && !value.eq_ignore_ascii_case("default")
-    }) {
+    if let Some(model) = model
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && !value.eq_ignore_ascii_case("default"))
+    {
         args.push("--model".to_string());
         args.push(model.to_string());
     }
