@@ -5,7 +5,6 @@ use std::path::PathBuf;
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::messages::NATIVE_HOST_VERSION;
 use crate::process::{run_process, ProcessRequest, ProviderError};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -240,17 +239,7 @@ fn parse_version(version: &str) -> Option<(u64, u64, u64)> {
 }
 
 fn active_metadata_path(env: &BTreeMap<String, String>) -> PathBuf {
-    let install_root = install_root(env);
-    let current_metadata = install_root.join("current").join("metadata.json");
-
-    if current_metadata.exists() {
-        return current_metadata;
-    }
-
-    install_root
-        .join("native-hosts")
-        .join(NATIVE_HOST_VERSION)
-        .join("metadata.json")
+    install_root(env).join("current").join("metadata.json")
 }
 
 fn install_root(env: &BTreeMap<String, String>) -> PathBuf {

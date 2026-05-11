@@ -3,6 +3,7 @@ use serde_json::json;
 use std::collections::BTreeMap;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::symlink;
 use std::path::{Path, PathBuf};
 use tempfile::tempdir;
 
@@ -334,6 +335,7 @@ fn native_host_update_invokes_persisted_updater() {
     let install_root = temp.path().join("Hover Trans Port");
     let current_dir = install_root.join("native-hosts/0.2.2");
     fs::create_dir_all(&current_dir).unwrap();
+    symlink(&current_dir, install_root.join("current")).unwrap();
 
     let updater_path = current_dir.join("install-macos-native-host.sh");
     fs::write(
@@ -344,7 +346,7 @@ fn native_host_update_invokes_persisted_updater() {
     make_executable(&updater_path);
 
     fs::write(
-        current_dir.join("metadata.json"),
+        install_root.join("current").join("metadata.json"),
         format!(
             "{{\"hostVersion\":\"0.2.2\",\"protocolVersion\":1,\"source\":\"macos-script-installer\",\"updaterPath\":\"{}\"}}",
             updater_path.display()
