@@ -215,4 +215,16 @@ withTempRoot("status-uninstall", (root) => {
   );
 });
 
+withTempRoot("status-current-version", (root) => {
+  const env = makeEnv(root);
+  const helper = makeFixtureHelper(root);
+
+  run(["install", "--host-version", "0.1.0", "--helper-source", helper], env);
+  const status = run(["status"], env);
+  assert(
+    status.includes("installed native host 0.1.0"),
+    "status should report the current symlink version"
+  );
+});
+
 console.log("macos-script-installer-check: install, update, status, and uninstall are valid.");

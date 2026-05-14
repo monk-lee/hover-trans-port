@@ -358,7 +358,8 @@ all_manifests_exist() {
 status_host() {
   if [ -x "$CURRENT_LINK/$HELPER_EXECUTABLE_NAME" ] && all_manifests_exist; then
     resolved="$(readlink "$CURRENT_LINK" 2>/dev/null || printf '%s' "$CURRENT_LINK")"
-    echo "installed native host $HOST_VERSION"
+    installed_version="$(basename "$resolved")"
+    echo "installed native host $installed_version"
     for manifest_path in "${MANIFEST_PATHS[@]}"; do
       echo "manifest: $manifest_path"
     done
