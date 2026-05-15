@@ -3,7 +3,10 @@ import type {
   ExtensionResponse,
   NativeHostUpdateStoredStatus
 } from "../shared/messages";
-import { nativeHostUpdateNeedsAttention } from "../shared/nativeHostUpdate";
+import {
+  isNativeHostUpdateRefreshDue,
+  nativeHostUpdateNeedsAttention
+} from "../shared/nativeHostUpdate";
 import {
   getFallbackModelCatalog,
   resolveProviderForModel
@@ -33,7 +36,6 @@ import {
 const NATIVE_HOST_UPDATE_ALARM = "native-host-update-check";
 const NATIVE_HOST_UPDATE_STORAGE_KEY = "hoverTransPortNativeHostUpdate";
 const NATIVE_HOST_UPDATE_CHECK_INTERVAL_MINUTES = 24 * 60;
-const NATIVE_HOST_UPDATE_STALE_MS = 24 * 60 * 60 * 1000;
 
 type NativeHostUpdateStorage = {
   hoverTransPortNativeHostUpdate?: NativeHostUpdateStoredStatus;
@@ -69,9 +71,10 @@ async function storeNativeHostUpdateStatus(
 }
 
 async function refreshNativeHostUpdateStatus(
-  requestId: string
+  requestId: string,
+  previousStatus?: NativeHostUpdateStoredStatus
 ): Promise<NativeHostUpdateStoredStatus> {
-  const status = await checkNativeHostUpdateStatus(requestId);
+  const status = await checkNativeHostUpdateStatus(requestId, previousStatus);
   await storeNativeHostUpdateStatus(status);
   return status;
 }
@@ -83,39 +86,34 @@ async function maybeRefreshNativeHostUpdateStatus(
     NATIVE_HOST_UPDATE_STORAGE_KEY
   )) as NativeHostUpdateStorage;
   const status = stored.hoverTransPortNativeHostUpdate;
+  const nextCheckAt = status?.nextCheckAt;
 
   if (
-    shouldRefreshNativeHostUpdateStatus(status) &&
+    (nextCheckAt === undefined || shouldRefreshNativeHostUpdateStatus(status)) &&
     (await shouldAutoCheckNativeHostUpdate())
   ) {
-    return refreshNativeHostUpdateStatus(requestId);
+    return refreshNativeHostUpdateStatus(requestId, status);
   }
 
   syncNativeHostUpdateBadge(status);
   return status;
 }
 
-function isNativeHostUpdateStatusStale(
-  status: NativeHostUpdateStoredStatus | undefined
-): boolean {
-  return !status || Date.now() - status.checkedAt > NATIVE_HOST_UPDATE_STALE_MS;
-}
-
 function shouldRefreshNativeHostUpdateStatus(
   status: NativeHostUpdateStoredStatus | undefined
 ): boolean {
-  if (isNativeHostUpdateStatusStale(status)) {
+  if (isNativeHostUpdateRefreshDue(status)) {
     return true;
   }
 
-  if (!status || status.ok) {
-    return false;
+  if (status && !status.ok) {
+    return (
+      status.manualUpdateRequired === true ||
+      status.error === "NATIVE_HOST_UPDATE_REQUIRED"
+    );
   }
 
-  return (
-    status.manualUpdateRequired === true ||
-    status.error === "NATIVE_HOST_UPDATE_REQUIRED"
-  );
+  return false;
 }
 
 function syncNativeHostUpdateBadge(
@@ -208,7 +206,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
       return;
     }
 
-    return refreshNativeHostUpdateStatus(
+    return maybeRefreshNativeHostUpdateStatus(
       `${NATIVE_HOST_UPDATE_ALARM}:${Date.now()}`
     );
   });

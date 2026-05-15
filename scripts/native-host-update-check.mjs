@@ -82,7 +82,10 @@ const checks = [
       "chrome.action.setBadgeText",
       "native-host-update-check",
       "hoverTransPortNativeHostUpdate",
+      "isNativeHostUpdateRefreshDue",
       "maybeRefreshNativeHostUpdateStatus",
+      "previousStatus",
+      "nextCheckAt",
       "shouldRefreshNativeHostUpdateStatus",
       "scheduleNativeHostUpdateStatusRefresh",
       "shouldAutoCheckNativeHostUpdate",
@@ -121,9 +124,9 @@ assertMatches(
 );
 assertMatches(
   serviceWorkerText,
-  /function shouldRefreshNativeHostUpdateStatus[\s\S]*manualUpdateRequired[\s\S]*NATIVE_HOST_UPDATE_REQUIRED/u,
+  /function shouldRefreshNativeHostUpdateStatus[\s\S]*isNativeHostUpdateRefreshDue\(status\)/u,
   "src/background/service-worker.ts",
-  "manual update required status refreshes on extension use"
+  "native host update refresh uses nextCheckAt backoff"
 );
 assertMatches(
   serviceWorkerText,
