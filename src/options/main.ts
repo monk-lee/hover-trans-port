@@ -130,6 +130,7 @@ let currentModelCatalog: ProviderModelCatalog | undefined;
 const providerModelCatalogCache = new Map<ProviderId, ProviderModelCatalog>();
 let providerStatusCheckSequence = 0;
 let nativeHostUpdateApplyAvailable = false;
+let isApplyingNativeHostUpdate = false;
 
 function setSaveState(message: string) {
   if (saveState) {
@@ -226,14 +227,24 @@ function setNativeHostUpdateMeta(
 }
 
 function formatNativeHostUpdateDateTime(timestamp: number | undefined): string {
-  if (!Number.isFinite(timestamp)) {
+  if (typeof timestamp !== "number" || !Number.isFinite(timestamp)) {
     return "Unknown";
   }
 
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short"
-  }).format(timestamp);
+  const date = new Date(timestamp);
+
+  if (!Number.isFinite(date.getTime())) {
+    return "Unknown";
+  }
+
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short"
+    }).format(date);
+  } catch {
+    return "Unknown";
+  }
 }
 
 function setProviderStatus(message: string) {
@@ -1037,19 +1048,25 @@ async function getStoredNativeHostUpdateStatus() {
 }
 
 async function applyNativeHostUpdate() {
-  const status = await getStoredNativeHostUpdateStatus();
-
-  if (!status?.ok || !status.updateAvailable) {
-    setNativeHostUpdateStatus("No native host update is available.");
-    setNativeHostUpdateApplyEnabled(false);
+  if (isApplyingNativeHostUpdate) {
     return;
   }
 
-  const requestId = createRequestId();
-  setNativeHostUpdateStatus("Updating native host...");
+  isApplyingNativeHostUpdate = true;
   setNativeHostUpdateApplying(true);
+  setNativeHostUpdateApplyEnabled(false);
 
   try {
+    const status = await getStoredNativeHostUpdateStatus();
+
+    if (!status?.ok || !status.updateAvailable) {
+      setNativeHostUpdateStatus("No native host update is available.");
+      setNativeHostUpdateApplyEnabled(false);
+      return;
+    }
+
+    const requestId = createRequestId();
+    setNativeHostUpdateStatus("Updating native host...");
     const response = await chrome.runtime.sendMessage<
       ExtensionRequest,
       ExtensionResponse
@@ -1084,6 +1101,7 @@ async function applyNativeHostUpdate() {
 
     setNativeHostUpdateStatus("Native host update failed.");
   } finally {
+    isApplyingNativeHostUpdate = false;
     setNativeHostUpdateApplying(false);
   }
 }
