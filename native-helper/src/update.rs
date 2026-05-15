@@ -388,4 +388,34 @@ mod tests {
         assert_eq!(status.latest_tag, "v0.2.4");
         assert!(status.update_available);
     }
+
+    #[test]
+    fn check_update_ignores_releases_without_required_assets() {
+        let temp = tempdir().unwrap();
+        let releases_path = temp.path().join("releases.json");
+        fs::write(
+            &releases_path,
+            r#"[
+          {"tag_name":"v9.9.9","prerelease":false,"draft":false,"html_url":"https://example.invalid/bad","assets":[{"name":"install-macos-native-host.sh"}]},
+          {"tag_name":"v0.2.4","prerelease":false,"draft":false,"html_url":"https://example.invalid/good","assets":[{"name":"install-macos-native-host.sh"},{"name":"checksums.txt"},{"name":"hover-trans-port-helper-macos-arm64"}]}
+        ]"#,
+        )
+        .unwrap();
+
+        let mut env = BTreeMap::new();
+        env.insert(
+            "HOVER_TRANS_PORT_RELEASES_JSON_PATH".to_string(),
+            releases_path.to_string_lossy().into_owned(),
+        );
+        env.insert(
+            "HOVER_TRANS_PORT_TEST_ARCH".to_string(),
+            "arm64".to_string(),
+        );
+        env.insert("HOVER_TRANS_PORT_TEST_OS".to_string(), "macos".to_string());
+
+        let status = check_update(&env, "0.2.3").unwrap();
+
+        assert_eq!(status.latest_version, "0.2.4");
+        assert_eq!(status.release_url, "https://example.invalid/good");
+    }
 }
