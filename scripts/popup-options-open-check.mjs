@@ -176,6 +176,9 @@ global.chrome = {
           requestId: message.requestId,
           status: {
             checkedAt: Date.now(),
+            nextCheckAt: Date.now() + 60 * 60 * 1000,
+            failureCount: 1,
+            lastErrorCode: "NATIVE_HOST_UPDATE_REQUIRED",
             ok: false,
             error: "NATIVE_HOST_UPDATE_REQUIRED",
             message:
