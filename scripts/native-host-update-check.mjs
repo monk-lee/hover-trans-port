@@ -16,6 +16,35 @@ function assertMatches(text, pattern, path, message) {
   }
 }
 
+function extractBlock(text, startNeedle, path) {
+  const startIndex = text.indexOf(startNeedle);
+  if (startIndex === -1) {
+    throw new Error(`${path} must include ${startNeedle}`);
+  }
+
+  const openBraceIndex = text.indexOf("{", startIndex);
+  if (openBraceIndex === -1) {
+    throw new Error(`${path} must include block for ${startNeedle}`);
+  }
+
+  let depth = 0;
+  for (let index = openBraceIndex; index < text.length; index += 1) {
+    const char = text[index];
+
+    if (char === "{") {
+      depth += 1;
+    } else if (char === "}") {
+      depth -= 1;
+
+      if (depth === 0) {
+        return text.slice(startIndex, index + 1);
+      }
+    }
+  }
+
+  throw new Error(`${path} must include complete block for ${startNeedle}`);
+}
+
 const manifest = JSON.parse(readText("public/manifest.json"));
 
 if (!Array.isArray(manifest.permissions) || !manifest.permissions.includes("alarms")) {
@@ -106,14 +135,19 @@ for (const check of checks) {
 }
 
 const serviceWorkerText = readText("src/background/service-worker.ts");
+const alarmListenerText = extractBlock(
+  serviceWorkerText,
+  "chrome.alarms.onAlarm.addListener",
+  "src/background/service-worker.ts"
+);
 const nativeClientText = readText("src/background/nativeClient.ts");
 const optionsHtml = readText("src/options.html");
 const optionsMain = readText("src/options/main.ts");
 const popupMain = readText("src/popup/main.ts");
 
 assertMatches(
-  serviceWorkerText,
-  /chrome\.alarms\.onAlarm[\s\S]*shouldAutoCheckNativeHostUpdate[\s\S]*refreshNativeHostUpdateStatus/u,
+  alarmListenerText,
+  /shouldAutoCheckNativeHostUpdate[\s\S]*maybeRefreshNativeHostUpdateStatus/u,
   "src/background/service-worker.ts",
   "auto-check gating inside chrome.alarms.onAlarm"
 );

@@ -42,11 +42,12 @@ export function createNativeHostUpdateMetadata({
   previousStatus,
   error
 }: NativeHostUpdateMetadataInput = {}) {
-  const failureCount = error
-    ? previousStatus?.ok === false
-      ? previousStatus.failureCount + 1
-      : 1
-    : 0;
+  const previousFailureCount =
+    previousStatus?.ok === false && Number.isFinite(previousStatus.failureCount)
+      ? previousStatus.failureCount
+      : 0;
+
+  const failureCount = error ? previousFailureCount + 1 : 0;
 
   return {
     checkedAt,
