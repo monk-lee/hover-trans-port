@@ -189,6 +189,12 @@ assertMatches(
 );
 assertMatches(
   serviceWorkerText,
+  /refreshPostNativeHostUpdateStatus[\s\S]*const hostStatus = await checkNativeHost[\s\S]*if \(!hostStatus\.ok\)[\s\S]*createNativeHostUpdateReconnectFailedStatus\(previousStatus\)[\s\S]*return;[\s\S]*refreshNativeHostUpdateStatus/u,
+  "src/background/service-worker.ts",
+  "post-update host status ok result is checked before update status refresh"
+);
+assertMatches(
+  serviceWorkerText,
   /function createNativeHostUpdateReconnectFailedStatus[\s\S]*UPDATE_RECONNECT_FAILED[\s\S]*storeNativeHostUpdateStatus/u,
   "src/background/service-worker.ts",
   "post-update reconnect failure is stored"

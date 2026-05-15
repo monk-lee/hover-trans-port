@@ -170,7 +170,15 @@ async function refreshPostNativeHostUpdateStatus(
   const previousStatus = stored.hoverTransPortNativeHostUpdate;
 
   try {
-    await checkNativeHost(`${requestId}:host-info`);
+    const hostStatus = await checkNativeHost(`${requestId}:host-info`);
+
+    if (!hostStatus.ok) {
+      await storeNativeHostUpdateStatus(
+        createNativeHostUpdateReconnectFailedStatus(previousStatus)
+      );
+      return;
+    }
+
     await refreshNativeHostUpdateStatus(`${requestId}:status`, previousStatus);
   } catch {
     await storeNativeHostUpdateStatus(
