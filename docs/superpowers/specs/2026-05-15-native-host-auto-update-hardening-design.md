@@ -39,11 +39,11 @@ This keeps update discovery automatic while avoiding silent replacement of a loc
 
 ## Reliability Design
 
-Stored update status should become more useful for both UI and retry decisions. The status should continue to support the existing success/error split, with additional metadata where practical:
+Stored update status should become more useful for both UI and retry decisions. The status should continue to support the existing success/error split, with these required metadata fields:
 
 - `checkedAt`: when the most recent check completed.
-- `nextCheckAt`: when the next automatic check is expected.
-- `failureCount`: consecutive failed checks or apply attempts for the same update flow.
+- `nextCheckAt`: the earliest expected automatic re-check time. Chrome alarms are not exact, so UI copy should treat this as "next check after" rather than a precise scheduled time.
+- `failureCount`: consecutive failed update status checks. User-initiated install failures should update the latest error/message but should not increase the background-check backoff counter.
 - `lastErrorCode`: the last update-related error code when present.
 - `releaseUrl`: retained for successful update checks so users can inspect the GitHub release.
 
@@ -59,6 +59,8 @@ Failure handling should distinguish these cases:
 
 The installer already uses staging and backup directories when replacing a version directory. The extension should preserve this model and focus on reporting clear failures, retry eligibility, and post-update verification.
 
+Install failures and check failures should remain separate in stored state. A failed manual install attempt should not make future background update checks wait behind the check-failure backoff. It may update the visible status message and `lastErrorCode` so Options can explain what happened immediately after the user action.
+
 ## UX Design
 
 Options remains the primary update surface. The Native Host diagnostics section should show:
@@ -66,7 +68,7 @@ Options remains the primary update surface. The Native Host diagnostics section 
 - Current installed native host version when known.
 - Latest compatible release version when known.
 - Last successful or failed check time.
-- Next automatic check time when auto-check is enabled.
+- Next automatic check lower bound when auto-check is enabled.
 - A short status message tailored to the current state.
 
 Button behavior should reflect the current operation:
@@ -82,7 +84,7 @@ User-facing messages should avoid implying that the browser extension itself upd
 
 ## Automation Design
 
-The existing 24-hour alarm remains the normal successful-check cadence. Failed checks should use a conservative backoff:
+The existing 24-hour alarm remains the normal successful-check cadence. Failed update status checks should use a conservative backoff:
 
 - First failure: retry no sooner than 1 hour.
 - Repeated failures: retry no sooner than 6 hours.
@@ -113,14 +115,17 @@ Transient network failures should not create a badge unless they leave the user 
 7. If the user clicks `Update Native Host`, Options sends `UPDATE_NATIVE_HOST` with the stored target tag and version.
 8. Background forwards the update request to the native host.
 9. Native host runs the persisted installer for the target release.
-10. Background performs best-effort post-update host info and update status refresh.
-11. Options reports success, reconnect failure, or install failure.
+10. Background returns the install result to Options.
+11. Background performs post-update host info and update status refresh.
+12. If post-update verification succeeds, stored status is refreshed to the new host state.
+13. If install succeeds but post-update verification fails, the install response remains successful and stored update status is updated with `UPDATE_RECONNECT_FAILED` so the UI can explain that Chrome or the extension may need a reload.
+14. Options reports install success, reconnect warning, or install failure.
 
 ## Error Handling
 
 Errors should be mapped once in `nativeClient` and rendered through shared formatting helpers. UI code should not duplicate low-level error-code interpretation.
 
-Post-update verification is important. If the install result is successful but follow-up verification fails, the user should see that installation may have completed but Chrome or the extension may need a reload. This is different from a checksum or install failure.
+Post-update verification is important. If the install result is successful but follow-up verification fails, the update apply response should remain successful because the installer completed. The background should then store an `UPDATE_RECONNECT_FAILED` status/message so the user sees that installation may have completed but Chrome or the extension may need a reload. This is different from a checksum or install failure.
 
 Manual update guidance must remain deterministic. When the native host does not support update messages, the extension should keep showing the one-time command:
 
