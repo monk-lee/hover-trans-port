@@ -180,9 +180,9 @@ assertMatches(
 );
 assertMatches(
   serviceWorkerText,
-  /async function storeNativeHostUpdateStatus[\s\S]*enqueueNativeHostUpdateStatusWrite[\s\S]*writeNativeHostUpdateStatus\(status\)/u,
+  /async function storeNativeHostUpdateStatus[\s\S]*enqueueNativeHostUpdateStatusWrite[\s\S]*currentStatus\.checkedAt > status\.checkedAt[\s\S]*writeNativeHostUpdateStatus\(status\)/u,
   "src/background/service-worker.ts",
-  "native host update status store uses write queue"
+  "native host update status store uses queued monotonic write"
 );
 assertMatches(
   serviceWorkerText,

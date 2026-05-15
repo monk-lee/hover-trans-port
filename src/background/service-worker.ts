@@ -86,9 +86,19 @@ async function writeNativeHostUpdateStatus(
 async function storeNativeHostUpdateStatus(
   status: NativeHostUpdateStoredStatus
 ): Promise<void> {
-  await enqueueNativeHostUpdateStatusWrite(() =>
-    writeNativeHostUpdateStatus(status)
-  );
+  await enqueueNativeHostUpdateStatusWrite(async () => {
+    const stored = (await chrome.storage.local.get(
+      NATIVE_HOST_UPDATE_STORAGE_KEY
+    )) as NativeHostUpdateStorage;
+    const currentStatus = stored.hoverTransPortNativeHostUpdate;
+
+    if (currentStatus && currentStatus.checkedAt > status.checkedAt) {
+      syncNativeHostUpdateBadge(currentStatus);
+      return;
+    }
+
+    await writeNativeHostUpdateStatus(status);
+  });
 }
 
 function createNativeHostUpdateReconnectFailedStatus(
