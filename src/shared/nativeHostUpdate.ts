@@ -1,13 +1,67 @@
-import type { NativeHostUpdateStoredStatus } from "./messages";
+import type {
+  NativeHostUpdateStoredErrorCode,
+  NativeHostUpdateStoredStatus
+} from "./messages";
 
 export const MANUAL_NATIVE_HOST_UPDATE_COMMAND =
   "curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh | bash";
+
+export const NATIVE_HOST_UPDATE_NORMAL_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
+export const NATIVE_HOST_UPDATE_FIRST_FAILURE_RETRY_MS = 60 * 60 * 1000;
+export const NATIVE_HOST_UPDATE_REPEATED_FAILURE_RETRY_MS = 6 * 60 * 60 * 1000;
+
+type NativeHostUpdateMetadataInput = {
+  checkedAt?: number;
+  previousStatus?: NativeHostUpdateStoredStatus;
+  error?: NativeHostUpdateStoredErrorCode;
+};
 
 export type NativeHostUpdateUserMessage = {
   title: string;
   detail: string;
   attention: boolean;
 };
+
+export function getNativeHostUpdateNextCheckAt(
+  checkedAt: number,
+  failureCount: number
+): number {
+  if (failureCount <= 0) {
+    return checkedAt + NATIVE_HOST_UPDATE_NORMAL_CHECK_INTERVAL_MS;
+  }
+
+  if (failureCount === 1) {
+    return checkedAt + NATIVE_HOST_UPDATE_FIRST_FAILURE_RETRY_MS;
+  }
+
+  return checkedAt + NATIVE_HOST_UPDATE_REPEATED_FAILURE_RETRY_MS;
+}
+
+export function createNativeHostUpdateMetadata({
+  checkedAt = Date.now(),
+  previousStatus,
+  error
+}: NativeHostUpdateMetadataInput = {}) {
+  const failureCount = error
+    ? previousStatus?.ok === false
+      ? previousStatus.failureCount + 1
+      : 1
+    : 0;
+
+  return {
+    checkedAt,
+    nextCheckAt: getNativeHostUpdateNextCheckAt(checkedAt, failureCount),
+    failureCount,
+    lastErrorCode: error
+  };
+}
+
+export function isNativeHostUpdateRefreshDue(
+  status: NativeHostUpdateStoredStatus | undefined,
+  now = Date.now()
+): boolean {
+  return !status || now >= status.nextCheckAt;
+}
 
 export function nativeHostUpdateNeedsAttention(
   status: NativeHostUpdateStoredStatus | undefined
@@ -62,6 +116,23 @@ export function formatNativeHostUpdateStatusForUser(
       title: "Extension update required",
       detail: status.message,
       attention: true
+    };
+  }
+
+  if (status.error === "UPDATE_RECONNECT_FAILED") {
+    return {
+      title: "Native Host update verification needed",
+      detail:
+        "The update may have installed, but the extension could not reconnect to verify it. Reload the extension or Chrome, then check again.",
+      attention: false
+    };
+  }
+
+  if (status.retryable) {
+    return {
+      title: "Native Host update check failed",
+      detail: `${status.message} You can retry from Options.`,
+      attention: false
     };
   }
 

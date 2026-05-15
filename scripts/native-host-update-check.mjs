@@ -27,6 +27,12 @@ const checks = [
     path: "src/shared/nativeHostUpdate.ts",
     needles: [
       "MANUAL_NATIVE_HOST_UPDATE_COMMAND",
+      "NATIVE_HOST_UPDATE_NORMAL_CHECK_INTERVAL_MS",
+      "NATIVE_HOST_UPDATE_FIRST_FAILURE_RETRY_MS",
+      "NATIVE_HOST_UPDATE_REPEATED_FAILURE_RETRY_MS",
+      "createNativeHostUpdateMetadata",
+      "getNativeHostUpdateNextCheckAt",
+      "isNativeHostUpdateRefreshDue",
       "formatNativeHostUpdateStatusForUser",
       "nativeHostUpdateNeedsAttention"
     ]
@@ -45,6 +51,9 @@ const checks = [
       'type: "CHECK_NATIVE_HOST_UPDATE"',
       'type: "UPDATE_NATIVE_HOST"',
       'type: "NATIVE_HOST_UPDATE_STATUS"',
+      "nextCheckAt",
+      "failureCount",
+      "lastErrorCode",
       '"INVALID_MESSAGE"'
     ]
   },
@@ -59,6 +68,8 @@ const checks = [
     path: "src/background/nativeClient.ts",
     needles: [
       "NATIVE_HOST_UPDATE_STATUS_TIMEOUT_MS",
+      "createNativeHostUpdateMetadata",
+      "previousStatus?: NativeHostUpdateStoredStatus",
       "checkNativeHostUpdateStatus",
       "updateNativeHost",
       'case "INVALID_MESSAGE"'
@@ -155,6 +166,12 @@ assertMatches(
   /updateNativeHost[\s\S]*response\?\.type === "ERROR"[\s\S]*response\.error === "INVALID_MESSAGE"[\s\S]*error: "INVALID_MESSAGE"[\s\S]*retryable: false/u,
   "src/background/nativeClient.ts",
   "generic ERROR INVALID_MESSAGE handling in update apply path"
+);
+assertMatches(
+  nativeClientText,
+  /checkNativeHostUpdateStatus\(\s*requestId: string,\s*previousStatus\?: NativeHostUpdateStoredStatus\s*\)[\s\S]*createNativeHostUpdateMetadata/u,
+  "src/background/nativeClient.ts",
+  "update status metadata is created in native client"
 );
 
 assertIncludes(

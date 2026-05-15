@@ -182,36 +182,43 @@ export type NativeHostStatusResponse =
       retryable: boolean;
     };
 
+export type NativeHostUpdateMetadata = {
+  checkedAt: number;
+  nextCheckAt: number;
+  failureCount: number;
+  lastErrorCode?: NativeHostUpdateStoredErrorCode;
+};
+
+export type NativeHostUpdateStoredErrorCode =
+  | "NATIVE_HOST_UNAVAILABLE"
+  | "NATIVE_HOST_UPDATE_REQUIRED"
+  | "NATIVE_HOST_UNSUPPORTED"
+  | "UPDATE_UNSUPPORTED_PLATFORM"
+  | "UPDATE_CHECK_FAILED"
+  | "UPDATE_NOT_AVAILABLE"
+  | "UPDATE_DOWNLOAD_FAILED"
+  | "UPDATE_CHECKSUM_FAILED"
+  | "UPDATE_INSTALL_FAILED"
+  | "UPDATE_RECONNECT_FAILED"
+  | "INVALID_MESSAGE"
+  | "UNKNOWN_ERROR";
+
 export type NativeHostUpdateStoredStatus =
-  | {
-      checkedAt: number;
+  | (NativeHostUpdateMetadata & {
       ok: true;
       installedVersion: string;
       latestVersion: string;
       latestTag: string;
       updateAvailable: boolean;
       releaseUrl: string;
-    }
-  | {
-      checkedAt: number;
+    })
+  | (NativeHostUpdateMetadata & {
       ok: false;
-      error:
-        | "NATIVE_HOST_UNAVAILABLE"
-        | "NATIVE_HOST_UPDATE_REQUIRED"
-        | "NATIVE_HOST_UNSUPPORTED"
-        | "UPDATE_UNSUPPORTED_PLATFORM"
-        | "UPDATE_CHECK_FAILED"
-        | "UPDATE_NOT_AVAILABLE"
-        | "UPDATE_DOWNLOAD_FAILED"
-        | "UPDATE_CHECKSUM_FAILED"
-        | "UPDATE_INSTALL_FAILED"
-        | "UPDATE_RECONNECT_FAILED"
-        | "INVALID_MESSAGE"
-        | "UNKNOWN_ERROR";
+      error: NativeHostUpdateStoredErrorCode;
       message: string;
       retryable: boolean;
       manualUpdateRequired?: boolean;
-    };
+    });
 
 export type NativeHostUpdateStatusExtensionResponse = {
   type: "NATIVE_HOST_UPDATE_STATUS";

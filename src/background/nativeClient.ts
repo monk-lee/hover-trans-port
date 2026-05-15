@@ -22,6 +22,7 @@ import type {
   TranslationTarget
 } from "../shared/messages";
 import { evaluateNativeHostCompatibility } from "../shared/nativeHostCompatibility";
+import { createNativeHostUpdateMetadata } from "../shared/nativeHostUpdate";
 import type {
   ProviderId,
   ProviderModelCatalog,
@@ -673,7 +674,8 @@ export async function checkProviderStatus(
 }
 
 export async function checkNativeHostUpdateStatus(
-  requestId: string
+  requestId: string,
+  previousStatus?: NativeHostUpdateStoredStatus
 ): Promise<NativeHostUpdateStoredStatus> {
   const checkedAt = Date.now();
   const request: NativeRequest = {
@@ -694,7 +696,7 @@ export async function checkNativeHostUpdateStatus(
       response.ok
     ) {
       return {
-        checkedAt,
+        ...createNativeHostUpdateMetadata({ checkedAt, previousStatus }),
         ok: true,
         installedVersion: response.installedVersion,
         latestVersion: response.latestVersion,
@@ -712,7 +714,11 @@ export async function checkNativeHostUpdateStatus(
     ) {
       if (response.error === "UNSUPPORTED_MESSAGE") {
         return {
-          checkedAt,
+          ...createNativeHostUpdateMetadata({
+            checkedAt,
+            previousStatus,
+            error: "NATIVE_HOST_UPDATE_REQUIRED"
+          }),
           ok: false,
           error: "NATIVE_HOST_UPDATE_REQUIRED",
           message:
@@ -724,7 +730,11 @@ export async function checkNativeHostUpdateStatus(
 
       if (response.error === "INVALID_MESSAGE") {
         return {
-          checkedAt,
+          ...createNativeHostUpdateMetadata({
+            checkedAt,
+            previousStatus,
+            error: "INVALID_MESSAGE"
+          }),
           ok: false,
           error: "INVALID_MESSAGE",
           message: response.message || "Native host update status request was invalid.",
@@ -732,10 +742,11 @@ export async function checkNativeHostUpdateStatus(
         };
       }
 
+      const error = toNativeHostUpdateStoredError(response.error);
       return {
-        checkedAt,
+        ...createNativeHostUpdateMetadata({ checkedAt, previousStatus, error }),
         ok: false,
-        error: toNativeHostUpdateStoredError(response.error),
+        error,
         message: response.message,
         retryable: response.retryable
       };
@@ -747,7 +758,11 @@ export async function checkNativeHostUpdateStatus(
       response.error === "UNSUPPORTED_MESSAGE"
     ) {
       return {
-        checkedAt,
+        ...createNativeHostUpdateMetadata({
+          checkedAt,
+          previousStatus,
+          error: "NATIVE_HOST_UPDATE_REQUIRED"
+        }),
         ok: false,
         error: "NATIVE_HOST_UPDATE_REQUIRED",
         message:
@@ -763,7 +778,11 @@ export async function checkNativeHostUpdateStatus(
       response.error === "INVALID_MESSAGE"
     ) {
       return {
-        checkedAt,
+        ...createNativeHostUpdateMetadata({
+          checkedAt,
+          previousStatus,
+          error: "INVALID_MESSAGE"
+        }),
         ok: false,
         error: "INVALID_MESSAGE",
         message: response.message || "Native host update status request was invalid.",
@@ -773,7 +792,11 @@ export async function checkNativeHostUpdateStatus(
 
     if (!response) {
       return {
-        checkedAt,
+        ...createNativeHostUpdateMetadata({
+          checkedAt,
+          previousStatus,
+          error: "NATIVE_HOST_UNAVAILABLE"
+        }),
         ok: false,
         error: "NATIVE_HOST_UNAVAILABLE",
         message: "Native host did not respond.",
@@ -782,7 +805,11 @@ export async function checkNativeHostUpdateStatus(
     }
 
     return {
-      checkedAt,
+      ...createNativeHostUpdateMetadata({
+        checkedAt,
+        previousStatus,
+        error: "UNKNOWN_ERROR"
+      }),
       ok: false,
       error: "UNKNOWN_ERROR",
       message: "Native host returned an invalid update status response.",
@@ -790,7 +817,11 @@ export async function checkNativeHostUpdateStatus(
     };
   } catch (error) {
     return {
-      checkedAt,
+      ...createNativeHostUpdateMetadata({
+        checkedAt,
+        previousStatus,
+        error: "NATIVE_HOST_UNAVAILABLE"
+      }),
       ok: false,
       error: "NATIVE_HOST_UNAVAILABLE",
       message: error instanceof Error ? error.message : "Native host unavailable.",
