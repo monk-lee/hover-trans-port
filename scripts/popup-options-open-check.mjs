@@ -115,8 +115,13 @@ writeFileSync(
     .replace("./hotkeys", "./hotkeys.js")
 );
 writeFileSync(
+  join(tempSharedDir, "nativeHostUpdate.js"),
+  transpile("src/shared/nativeHostUpdate.ts")
+);
+writeFileSync(
   join(tempPopupDir, "main.js"),
   transpile("src/popup/main.ts")
+    .replace("../shared/nativeHostUpdate", "../shared/nativeHostUpdate.js")
     .replace("../shared/providers", "../shared/providers.js")
     .replace("../shared/options", "../shared/options.js")
     .replace('import "./popup.css";', "")
@@ -139,6 +144,7 @@ global.document = {
 let openOptionsPageCalls = 0;
 const createdTabs = [];
 const unhandledRejections = [];
+const sentMessageTypes = [];
 
 global.chrome = {
   storage: {
@@ -163,6 +169,23 @@ global.chrome = {
       throw new Error("Could not create an options page.");
     },
     async sendMessage(message) {
+      sentMessageTypes.push(message.type);
+      if (message.type === "GET_STORED_NATIVE_HOST_UPDATE_STATUS") {
+        return {
+          type: "NATIVE_HOST_UPDATE_STATUS",
+          requestId: message.requestId,
+          status: {
+            checkedAt: Date.now(),
+            ok: false,
+            error: "NATIVE_HOST_UPDATE_REQUIRED",
+            message:
+              "One manual native host update is required before in-app updates are available.",
+            retryable: false,
+            manualUpdateRequired: true
+          }
+        };
+      }
+
       return {
         type: "PROVIDER_STATUS",
         requestId: message.requestId,
@@ -188,6 +211,26 @@ process.on("unhandledRejection", onUnhandledRejection);
 try {
   await import(pathToFileURL(join(tempPopupDir, "main.js")).href);
   await settlePromises();
+
+  assertDeepEqual(
+    sentMessageTypes,
+    ["GET_STORED_NATIVE_HOST_UPDATE_STATUS"],
+    "manual native host update guidance prevents provider status check"
+  );
+  assertEqual(
+    elements.get("#status-title").textContent,
+    "Native Host update required",
+    "popup manual update title"
+  );
+  assertEqual(
+    elements
+      .get("#status-detail")
+      .textContent.includes(
+        "curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh | bash"
+      ),
+    true,
+    "popup shows manual update command"
+  );
 
   elements.get("#open-options").dispatch("click");
   await settlePromises();

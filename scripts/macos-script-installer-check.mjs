@@ -30,6 +30,10 @@ function run(args, env) {
   });
 }
 
+function runJson(args, env) {
+  return JSON.parse(run(args.concat("--json"), env));
+}
+
 function makeFixtureHelper(root, label = "fixture") {
   const helper = join(root, `hover-trans-port-helper-${label}`);
   writeFileSync(helper, "#!/bin/sh\nprintf 'fixture helper\\n'\n");
@@ -70,6 +74,10 @@ function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
+function readMetadata(installRoot, version) {
+  return readJson(join(installRoot, "native-hosts", version, "metadata.json"));
+}
+
 function withTempRoot(name, fn) {
   const root = mkdtempSync(join(tmpdir(), `hover-trans-port-${name}-`));
   try {
@@ -84,10 +92,10 @@ withTempRoot("install", (root) => {
   const helper = makeFixtureHelper(root);
 
   const output = run(["install", "--helper-source", helper], env);
-  assert(output.includes("installed native host 0.2.2"), "install output should name host version");
+  assert(output.includes("installed native host 0.2.3"), "install output should name host version");
 
   const installRoot = env.HOVER_TRANS_PORT_INSTALL_ROOT;
-  const versionDir = join(installRoot, "native-hosts/0.2.2");
+  const versionDir = join(installRoot, "native-hosts/0.2.3");
   const installedHelper = join(versionDir, "hover-trans-port-helper");
   const launcher = join(installRoot, "launcher");
   const current = join(installRoot, "current");
@@ -106,6 +114,13 @@ withTempRoot("install", (root) => {
 
   assert(existsSync(installedHelper), "helper should be copied into version directory");
   assert((lstatSync(installedHelper).mode & 0o111) !== 0, "installed helper should be executable");
+  const metadata = readMetadata(installRoot, "0.2.3");
+  assert(metadata.hostVersion === "0.2.3", "metadata should name host version");
+  assert(metadata.protocolVersion === 1, "metadata should name protocol version");
+  assert(metadata.source === "macos-script-installer", "metadata should name installer source");
+  assert(metadata.updaterPath === join(versionDir, "install-macos-native-host.sh"), "metadata should name updater path");
+  assert(existsSync(metadata.updaterPath), "version directory should contain updater script");
+  assert((lstatSync(metadata.updaterPath).mode & 0o111) !== 0, "updater script should be executable");
   assert(existsSync(launcher), "launcher should be written");
   assert((lstatSync(launcher).mode & 0o111) !== 0, "launcher should be executable");
   assert(lstatSync(current).isSymbolicLink(), "current should be a symlink");
@@ -129,19 +144,46 @@ withTempRoot("install", (root) => {
   );
 });
 
+withTempRoot("json-update", (root) => {
+  const env = makeEnv(root);
+  const helperV1 = makeFixtureHelper(root, "json-v1");
+  const helperV2 = makeFixtureHelper(root, "json-v2");
+
+  const install = runJson(["install", "--host-version", "0.1.0", "--helper-source", helperV1], env);
+  assert(install.ok === true, "json install should report ok");
+  assert(install.command === "install", "json install should name command");
+  assert(install.previousVersion === "", "json install should report no previous version");
+  assert(install.installedVersion === "0.1.0", "json install should name installed version");
+  assert(
+    install.currentLink === join(env.HOVER_TRANS_PORT_INSTALL_ROOT, "current"),
+    "json install should name current link"
+  );
+  assert(Array.isArray(install.manifests), "json install should list manifests");
+
+  const update = runJson(["update", "--host-version", "0.2.3", "--helper-source", helperV2], env);
+  assert(update.ok === true, "json update should report ok");
+  assert(update.command === "update", "json update should name command");
+  assert(update.previousVersion === "0.1.0", "json update should name previous version");
+  assert(update.installedVersion === "0.2.3", "json update should name installed version");
+  assert(
+    update.currentLink === join(env.HOVER_TRANS_PORT_INSTALL_ROOT, "current"),
+    "json update should name current link"
+  );
+});
+
 withTempRoot("update", (root) => {
   const env = makeEnv(root);
   const helperV1 = makeFixtureHelper(root, "v1");
   const helperV2 = makeFixtureHelper(root, "v2");
 
   run(["install", "--host-version", "0.1.0", "--helper-source", helperV1], env);
-  run(["install", "--host-version", "0.2.2", "--helper-source", helperV2], env);
+  run(["install", "--host-version", "0.2.3", "--helper-source", helperV2], env);
 
   const installRoot = env.HOVER_TRANS_PORT_INSTALL_ROOT;
   assert(existsSync(join(installRoot, "native-hosts/0.1.0/hover-trans-port-helper")), "old version should remain");
-  assert(existsSync(join(installRoot, "native-hosts/0.2.2/hover-trans-port-helper")), "new version should exist");
+  assert(existsSync(join(installRoot, "native-hosts/0.2.3/hover-trans-port-helper")), "new version should exist");
   assert(
-    readlinkSync(join(installRoot, "current")) === join(installRoot, "native-hosts/0.2.2"),
+    readlinkSync(join(installRoot, "current")) === join(installRoot, "native-hosts/0.2.3"),
     "current should point at updated version"
   );
 });
@@ -155,7 +197,7 @@ withTempRoot("status-uninstall", (root) => {
 
   run(["install", "--helper-source", helper], env);
   const status = run(["status"], env);
-  assert(status.includes("installed native host 0.2.2"), "status should report installed version");
+  assert(status.includes("installed native host 0.2.3"), "status should report installed version");
 
   run(["uninstall"], env);
   assert(!existsSync(env.HOVER_TRANS_PORT_INSTALL_ROOT), "uninstall should remove install root");
@@ -170,6 +212,18 @@ withTempRoot("status-uninstall", (root) => {
   assert(
     !existsSync(join(env.HOVER_TRANS_PORT_ATLAS_NATIVE_HOSTS_DIR, "com.monklabs.hover_trans_port.json")),
     "uninstall should remove Atlas manifest"
+  );
+});
+
+withTempRoot("status-current-version", (root) => {
+  const env = makeEnv(root);
+  const helper = makeFixtureHelper(root);
+
+  run(["install", "--host-version", "0.1.0", "--helper-source", helper], env);
+  const status = run(["status"], env);
+  assert(
+    status.includes("installed native host 0.1.0"),
+    "status should report the current symlink version"
   );
 });
 

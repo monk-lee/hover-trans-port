@@ -6,6 +6,9 @@ import {
   type NativeDebugLogInfoResponse,
   type NativeDebugLogWriteResponse,
   type NativeHostInfoResponse,
+  type NativeHostUpdateErrorCode,
+  type NativeHostUpdateResponse,
+  type NativeHostUpdateStatusResponse,
   type NativeProviderModelsResponse,
   type NativeProviderStatusResponse,
   type NativePongResponse,
@@ -13,7 +16,11 @@ import {
   type NativeResponse,
   type NativeTranslateResultResponse
 } from "../shared/nativeProtocol";
-import type { TranslationTarget } from "../shared/messages";
+import type {
+  NativeHostUpdateApplyResponse,
+  NativeHostUpdateStoredStatus,
+  TranslationTarget
+} from "../shared/messages";
 import { evaluateNativeHostCompatibility } from "../shared/nativeHostCompatibility";
 import type {
   ProviderId,
@@ -40,6 +47,8 @@ import {
 } from "../shared/options";
 
 const NATIVE_HOST_TIMEOUT_MS = 5000;
+const NATIVE_HOST_UPDATE_STATUS_TIMEOUT_MS = 15000;
+const NATIVE_HOST_UPDATE_TIMEOUT_MS = 130000;
 const NATIVE_TRANSLATION_OVERHEAD_MS = 5000;
 const STATUS_CHECK_MAX_ATTEMPTS = 3;
 const STATUS_CHECK_INITIAL_RETRY_DELAY_MS = 300;
@@ -177,6 +186,10 @@ export type DebugLogWriteStatus =
       retryable: boolean;
     };
 
+type NativeHostUpdateApplyStatus =
+  | Omit<Extract<NativeHostUpdateApplyResponse, { ok: true }>, "type" | "requestId">
+  | Omit<Extract<NativeHostUpdateApplyResponse, { ok: false }>, "type" | "requestId">;
+
 function createUnavailableStatus(message: string): NativeHostStatus {
   return {
     ok: false,
@@ -263,6 +276,18 @@ function isDebugLogWriteResult(
   return response.type === "DEBUG_LOG_WRITE_RESULT";
 }
 
+function isNativeHostUpdateStatusResult(
+  response: NativeResponse
+): response is NativeHostUpdateStatusResponse {
+  return response.type === "NATIVE_HOST_UPDATE_STATUS_RESULT";
+}
+
+function isNativeHostUpdateResult(
+  response: NativeResponse
+): response is NativeHostUpdateResponse {
+  return response.type === "NATIVE_HOST_UPDATE_RESULT";
+}
+
 function isUnsupportedHostInfoError(response: NativeResponse): boolean {
   return response.type === "ERROR" && response.error === "UNSUPPORTED_MESSAGE";
 }
@@ -338,6 +363,60 @@ function toExtensionTranslationError(error: string): ExtensionTranslationError {
 
 function toExtensionDebugLogError(error: string): DebugLogError {
   return error === "DEBUG_LOG_ERROR" ? "DEBUG_LOG_ERROR" : "UNKNOWN_ERROR";
+}
+
+function toNativeHostUpdateStoredError(
+  error: string
+): Extract<NativeHostUpdateStoredStatus, { ok: false }>["error"] {
+  switch (error) {
+    case "UPDATE_UNSUPPORTED_PLATFORM":
+    case "UPDATE_CHECK_FAILED":
+    case "UPDATE_NOT_AVAILABLE":
+    case "UPDATE_DOWNLOAD_FAILED":
+    case "UPDATE_CHECKSUM_FAILED":
+    case "UPDATE_INSTALL_FAILED":
+    case "UPDATE_RECONNECT_FAILED":
+    case "INVALID_MESSAGE":
+      return error;
+    case "UNSUPPORTED_MESSAGE":
+      return "NATIVE_HOST_UPDATE_REQUIRED";
+    default:
+      return "UNKNOWN_ERROR";
+  }
+}
+
+function toNativeHostUpdateApplyError(
+  error: string
+): Extract<NativeHostUpdateApplyResponse, { ok: false }>["error"] {
+  switch (error) {
+    case "UPDATE_UNSUPPORTED_PLATFORM":
+    case "UPDATE_CHECK_FAILED":
+    case "UPDATE_NOT_AVAILABLE":
+    case "UPDATE_DOWNLOAD_FAILED":
+    case "UPDATE_CHECKSUM_FAILED":
+    case "UPDATE_INSTALL_FAILED":
+    case "UPDATE_RECONNECT_FAILED":
+    case "INVALID_MESSAGE":
+      return error;
+    case "UNSUPPORTED_MESSAGE":
+      return "NATIVE_HOST_UPDATE_REQUIRED";
+    default:
+      return "UNKNOWN_ERROR";
+  }
+}
+
+function isNativeHostUpdateErrorCode(
+  error: string
+): error is NativeHostUpdateErrorCode {
+  return (
+    error === "UPDATE_UNSUPPORTED_PLATFORM" ||
+    error === "UPDATE_CHECK_FAILED" ||
+    error === "UPDATE_NOT_AVAILABLE" ||
+    error === "UPDATE_DOWNLOAD_FAILED" ||
+    error === "UPDATE_CHECKSUM_FAILED" ||
+    error === "UPDATE_INSTALL_FAILED" ||
+    error === "UPDATE_RECONNECT_FAILED"
+  );
 }
 
 function nativeHostStatusFromHostInfo(
@@ -480,13 +559,14 @@ function isRetryableStatusCheckFailure(error: unknown): boolean {
 }
 
 async function sendStatusCheckMessageWithRetry(
-  request: NativeRequest
+  request: NativeRequest,
+  timeoutMs = NATIVE_HOST_TIMEOUT_MS
 ): Promise<NativeResponse | undefined> {
   let retryDelayMs = STATUS_CHECK_INITIAL_RETRY_DELAY_MS;
 
   for (let attempt = 1; attempt <= STATUS_CHECK_MAX_ATTEMPTS; attempt += 1) {
     try {
-      const response = await sendNativeHostMessage(request);
+      const response = await sendNativeHostMessage(request, timeoutMs);
 
       if (response || attempt === STATUS_CHECK_MAX_ATTEMPTS) {
         return response;
@@ -589,6 +669,252 @@ export async function checkProviderStatus(
       error instanceof Error ? error.message : "Native host unavailable.";
 
     return createProviderStatusUnavailable(message);
+  }
+}
+
+export async function checkNativeHostUpdateStatus(
+  requestId: string
+): Promise<NativeHostUpdateStoredStatus> {
+  const checkedAt = Date.now();
+  const request: NativeRequest = {
+    type: "NATIVE_HOST_UPDATE_STATUS",
+    requestId
+  };
+
+  try {
+    const response = await sendStatusCheckMessageWithRetry(
+      request,
+      NATIVE_HOST_UPDATE_STATUS_TIMEOUT_MS
+    );
+
+    if (
+      response &&
+      isNativeHostUpdateStatusResult(response) &&
+      response.requestId === requestId &&
+      response.ok
+    ) {
+      return {
+        checkedAt,
+        ok: true,
+        installedVersion: response.installedVersion,
+        latestVersion: response.latestVersion,
+        latestTag: response.latestTag,
+        updateAvailable: response.updateAvailable,
+        releaseUrl: response.releaseUrl
+      };
+    }
+
+    if (
+      response &&
+      isNativeHostUpdateStatusResult(response) &&
+      response.requestId === requestId &&
+      !response.ok
+    ) {
+      if (response.error === "UNSUPPORTED_MESSAGE") {
+        return {
+          checkedAt,
+          ok: false,
+          error: "NATIVE_HOST_UPDATE_REQUIRED",
+          message:
+            "One manual native host update is required before in-app updates are available.",
+          retryable: false,
+          manualUpdateRequired: true
+        };
+      }
+
+      if (response.error === "INVALID_MESSAGE") {
+        return {
+          checkedAt,
+          ok: false,
+          error: "INVALID_MESSAGE",
+          message: response.message || "Native host update status request was invalid.",
+          retryable: false
+        };
+      }
+
+      return {
+        checkedAt,
+        ok: false,
+        error: toNativeHostUpdateStoredError(response.error),
+        message: response.message,
+        retryable: response.retryable
+      };
+    }
+
+    if (
+      response?.type === "ERROR" &&
+      response.requestId === requestId &&
+      response.error === "UNSUPPORTED_MESSAGE"
+    ) {
+      return {
+        checkedAt,
+        ok: false,
+        error: "NATIVE_HOST_UPDATE_REQUIRED",
+        message:
+          "One manual native host update is required before in-app updates are available.",
+        retryable: false,
+        manualUpdateRequired: true
+      };
+    }
+
+    if (
+      response?.type === "ERROR" &&
+      response.requestId === requestId &&
+      response.error === "INVALID_MESSAGE"
+    ) {
+      return {
+        checkedAt,
+        ok: false,
+        error: "INVALID_MESSAGE",
+        message: response.message || "Native host update status request was invalid.",
+        retryable: false
+      };
+    }
+
+    if (!response) {
+      return {
+        checkedAt,
+        ok: false,
+        error: "NATIVE_HOST_UNAVAILABLE",
+        message: "Native host did not respond.",
+        retryable: true
+      };
+    }
+
+    return {
+      checkedAt,
+      ok: false,
+      error: "UNKNOWN_ERROR",
+      message: "Native host returned an invalid update status response.",
+      retryable: true
+    };
+  } catch (error) {
+    return {
+      checkedAt,
+      ok: false,
+      error: "NATIVE_HOST_UNAVAILABLE",
+      message: error instanceof Error ? error.message : "Native host unavailable.",
+      retryable: true
+    };
+  }
+}
+
+export async function updateNativeHost(
+  requestId: string,
+  targetTag: string,
+  targetVersion: string
+): Promise<NativeHostUpdateApplyStatus> {
+  const request: NativeRequest = {
+    type: "NATIVE_HOST_UPDATE",
+    requestId,
+    targetTag,
+    targetVersion
+  };
+
+  try {
+    const response = await sendNativeHostMessage(
+      request,
+      NATIVE_HOST_UPDATE_TIMEOUT_MS
+    );
+
+    if (
+      response &&
+      isNativeHostUpdateResult(response) &&
+      response.requestId === requestId &&
+      response.ok
+    ) {
+      return {
+        ok: true,
+        previousVersion: response.previousVersion,
+        installedVersion: response.installedVersion,
+        installedPath: response.installedPath
+      };
+    }
+
+    if (
+      response &&
+      isNativeHostUpdateResult(response) &&
+      response.requestId === requestId &&
+      !response.ok
+    ) {
+      if (response.error === "UNSUPPORTED_MESSAGE") {
+        return {
+          ok: false,
+          error: "NATIVE_HOST_UPDATE_REQUIRED",
+          message:
+            "One manual native host update is required before in-app updates are available.",
+          retryable: false
+        };
+      }
+
+      if (response.error === "INVALID_MESSAGE") {
+        return {
+          ok: false,
+          error: "INVALID_MESSAGE",
+          message: response.message || "Native host update request was invalid.",
+          retryable: false
+        };
+      }
+
+      return {
+        ok: false,
+        error: isNativeHostUpdateErrorCode(response.error)
+          ? response.error
+          : toNativeHostUpdateApplyError(response.error),
+        message: response.message,
+        retryable: response.retryable
+      };
+    }
+
+    if (
+      response?.type === "ERROR" &&
+      response.requestId === requestId &&
+      response.error === "UNSUPPORTED_MESSAGE"
+    ) {
+      return {
+        ok: false,
+        error: "NATIVE_HOST_UPDATE_REQUIRED",
+        message:
+          "One manual native host update is required before in-app updates are available.",
+        retryable: false
+      };
+    }
+
+    if (
+      response?.type === "ERROR" &&
+      response.requestId === requestId &&
+      response.error === "INVALID_MESSAGE"
+    ) {
+      return {
+        ok: false,
+        error: "INVALID_MESSAGE",
+        message: response.message || "Native host update request was invalid.",
+        retryable: false
+      };
+    }
+
+    if (!response) {
+      return {
+        ok: false,
+        error: "NATIVE_HOST_UNAVAILABLE",
+        message: "Native host did not respond.",
+        retryable: true
+      };
+    }
+
+    return {
+      ok: false,
+      error: "UNKNOWN_ERROR",
+      message: "Native host returned an invalid update response.",
+      retryable: true
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: "NATIVE_HOST_UNAVAILABLE",
+      message: error instanceof Error ? error.message : "Native host unavailable.",
+      retryable: true
+    };
   }
 }
 

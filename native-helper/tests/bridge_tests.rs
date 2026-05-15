@@ -2,6 +2,7 @@ use hover_trans_port_helper::bridge::{handle_request, BridgeDeps};
 use serde_json::json;
 use std::collections::BTreeMap;
 use std::fs;
+use std::os::unix::fs::symlink;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use tempfile::tempdir;
@@ -19,7 +20,7 @@ fn ping_returns_pong_with_same_request_id() {
     assert!(response["bridgeVersion"]
         .as_str()
         .unwrap()
-        .starts_with("0.2.2"));
+        .starts_with("0.2.3"));
 }
 
 #[test]
@@ -284,6 +285,144 @@ fn translation_debug_logging_records_provider_execution_events() {
     assert!(!log_content.contains("Hello"));
 }
 
+#[test]
+fn native_host_update_status_reports_available_release() {
+    let temp = tempdir().unwrap();
+    let releases_path = temp.path().join("releases.json");
+    write_release_fixture(
+        &releases_path,
+        r#"[{
+          "tag_name": "v0.2.4",
+          "prerelease": false,
+          "draft": false,
+          "html_url": "https://github.com/monk-lee/hover-trans-port/releases/tag/v0.2.4",
+          "assets": [
+            {"name": "install-macos-native-host.sh"},
+            {"name": "checksums.txt"},
+            {"name": "hover-trans-port-helper-macos-arm64"}
+          ]
+        }]"#,
+    );
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_RELEASES_JSON_PATH".to_string(),
+        releases_path.to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "HOVER_TRANS_PORT_TEST_ARCH".to_string(),
+        "arm64".to_string(),
+    );
+    env.insert("HOVER_TRANS_PORT_TEST_OS".to_string(), "macos".to_string());
+
+    let response = handle_request(
+        json!({"type":"NATIVE_HOST_UPDATE_STATUS","requestId":"req-update-status"}),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "NATIVE_HOST_UPDATE_STATUS_RESULT");
+    assert_eq!(response["requestId"], "req-update-status");
+    assert_eq!(response["ok"], true);
+    assert_eq!(response["installedVersion"], "0.2.3");
+    assert_eq!(response["latestVersion"], "0.2.4");
+    assert_eq!(response["latestTag"], "v0.2.4");
+    assert_eq!(response["updateAvailable"], true);
+}
+
+#[test]
+fn native_host_update_invokes_persisted_updater() {
+    let temp = tempdir().unwrap();
+    let install_root = temp.path().join("Hover Trans Port");
+    let current_dir = install_root.join("native-hosts/0.2.3");
+    fs::create_dir_all(&current_dir).unwrap();
+    symlink(&current_dir, install_root.join("current")).unwrap();
+
+    let updater_path = current_dir.join("install-macos-native-host.sh");
+    fs::write(
+        &updater_path,
+        "#!/bin/sh\nprintf '%s\n' '{\"command\":\"update\",\"ok\":true,\"previousVersion\":\"0.2.3\",\"installedVersion\":\"0.2.4\",\"installRoot\":\"/tmp/install\",\"currentLink\":\"/tmp/install/current\",\"helperPath\":\"/tmp/install/native-hosts/0.2.4/hover-trans-port-helper\",\"updaterPath\":\"/tmp/install/native-hosts/0.2.4/install-macos-native-host.sh\",\"manifests\":[]}'\n",
+    )
+    .unwrap();
+    make_executable(&updater_path);
+
+    fs::write(
+        install_root.join("current").join("metadata.json"),
+        format!(
+            "{{\"hostVersion\":\"0.2.3\",\"protocolVersion\":1,\"source\":\"macos-script-installer\",\"updaterPath\":\"{}\"}}",
+            updater_path.display()
+        ),
+    )
+    .unwrap();
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_INSTALL_ROOT".to_string(),
+        install_root.to_string_lossy().into_owned(),
+    );
+
+    let response = handle_request(
+        json!({
+            "type":"NATIVE_HOST_UPDATE",
+            "requestId":"req-update",
+            "targetTag":"v0.2.4",
+            "targetVersion":"0.2.4"
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "NATIVE_HOST_UPDATE_RESULT");
+    assert_eq!(response["requestId"], "req-update");
+    assert_eq!(response["ok"], true);
+    assert_eq!(response["previousVersion"], "0.2.3");
+    assert_eq!(response["installedVersion"], "0.2.4");
+}
+
+#[test]
+fn native_host_update_rejects_path_like_target_version_without_invoking_updater() {
+    let temp = tempdir().unwrap();
+    let (env, marker_path) = update_fixture_with_marker(temp.path());
+
+    let response = handle_request(
+        json!({
+            "type":"NATIVE_HOST_UPDATE",
+            "requestId":"req-update-invalid-version",
+            "targetTag":"v../0.2.3",
+            "targetVersion":"../0.2.3"
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "NATIVE_HOST_UPDATE_RESULT");
+    assert_eq!(response["requestId"], "req-update-invalid-version");
+    assert_eq!(response["ok"], false);
+    assert_eq!(response["error"], "INVALID_MESSAGE");
+    assert!(!marker_path.exists());
+}
+
+#[test]
+fn native_host_update_rejects_mismatched_target_tag_without_invoking_updater() {
+    for target_tag in ["0.2.3", "v0.2.4"] {
+        let temp = tempdir().unwrap();
+        let (env, marker_path) = update_fixture_with_marker(temp.path());
+
+        let response = handle_request(
+            json!({
+                "type":"NATIVE_HOST_UPDATE",
+                "requestId":"req-update-invalid-tag",
+                "targetTag": target_tag,
+                "targetVersion":"0.2.3"
+            }),
+            BridgeDeps::with_env(env),
+        );
+
+        assert_eq!(response["type"], "NATIVE_HOST_UPDATE_RESULT");
+        assert_eq!(response["requestId"], "req-update-invalid-tag");
+        assert_eq!(response["ok"], false);
+        assert_eq!(response["error"], "INVALID_MESSAGE");
+        assert!(!marker_path.exists());
+    }
+}
+
 fn translate_with_provider(
     request_id: &str,
     provider: &str,
@@ -316,4 +455,44 @@ fn make_executable(path: &Path) {
     let mut permissions = fs::metadata(path).unwrap().permissions();
     permissions.set_mode(0o755);
     fs::set_permissions(path, permissions).unwrap();
+}
+
+fn write_release_fixture(path: &Path, body: &str) {
+    fs::write(path, body).unwrap();
+}
+
+fn update_fixture_with_marker(temp_path: &Path) -> (BTreeMap<String, String>, PathBuf) {
+    let install_root = temp_path.join("Hover Trans Port");
+    let current_dir = install_root.join("native-hosts/0.2.3");
+    fs::create_dir_all(&current_dir).unwrap();
+    symlink(&current_dir, install_root.join("current")).unwrap();
+
+    let marker_path = temp_path.join("updater-invoked");
+    let updater_path = current_dir.join("install-macos-native-host.sh");
+    fs::write(
+        &updater_path,
+        format!(
+            "#!/bin/sh\nprintf invoked > '{}'\nprintf '%s\n' '{{\"command\":\"update\",\"ok\":true,\"previousVersion\":\"0.2.3\",\"installedVersion\":\"0.2.4\",\"helperPath\":\"/tmp/install/native-hosts/0.2.4/hover-trans-port-helper\"}}'\n",
+            marker_path.display()
+        ),
+    )
+    .unwrap();
+    make_executable(&updater_path);
+
+    fs::write(
+        install_root.join("current").join("metadata.json"),
+        format!(
+            "{{\"hostVersion\":\"0.2.3\",\"protocolVersion\":1,\"source\":\"macos-script-installer\",\"updaterPath\":\"{}\"}}",
+            updater_path.display()
+        ),
+    )
+    .unwrap();
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_INSTALL_ROOT".to_string(),
+        install_root.to_string_lossy().into_owned(),
+    );
+
+    (env, marker_path)
 }

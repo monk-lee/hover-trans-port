@@ -1,6 +1,6 @@
 {
   "name": "hover-trans-port",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Chrome MV3 extension that translates selected or hovered text through a local AI CLI native host.",
   "type": "module",
   "license": "MIT",
@@ -35,6 +35,7 @@
     "native:protocol-check": "node scripts/native-host-protocol-check.mjs",
     "native:compatibility-check": "node scripts/native-host-compatibility-check.mjs",
     "native:paths-check": "node scripts/native-host-paths-check.mjs",
+    "native-host-update:check": "node scripts/native-host-update-check.mjs",
     "provider-model-options:check": "node scripts/provider-model-options-check.mjs",
     "popup-options:check": "node scripts/popup-options-open-check.mjs",
     "inline-renderer:check": "node scripts/inline-renderer-check.mjs",
@@ -44,7 +45,7 @@
     "release:workflow-check": "node scripts/release-workflow-check.mjs",
     "provider-model-source-status:check": "node scripts/provider-model-source-status-check.mjs",
     "provider-model-catalog:check": "node scripts/provider-model-catalog-check.mjs",
-    "verify": "pnpm typecheck && pnpm build && pnpm validate && pnpm hotkey && pnpm provider-options:check && pnpm provider-model-options:check && pnpm provider-model-source-status:check && pnpm provider-model-catalog:check && pnpm popup-options:check && pnpm inline-renderer:check && pnpm helper:test && pnpm macos:script-installer:test && pnpm native:compatibility-check && pnpm native:paths-check && pnpm release:workflow-check && pnpm open-source:check",
+    "verify": "pnpm typecheck && pnpm build && pnpm validate && pnpm hotkey && pnpm provider-options:check && pnpm provider-model-options:check && pnpm provider-model-source-status:check && pnpm provider-model-catalog:check && pnpm popup-options:check && pnpm inline-renderer:check && pnpm helper:test && pnpm macos:script-installer:test && pnpm native:compatibility-check && pnpm native:paths-check && pnpm native-host-update:check && pnpm release:workflow-check && pnpm open-source:check",
     "test": "pnpm verify"
   },
   "devDependencies": {

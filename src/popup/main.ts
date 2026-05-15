@@ -1,4 +1,12 @@
-import type { ExtensionRequest, ExtensionResponse } from "../shared/messages";
+import type {
+  ExtensionRequest,
+  ExtensionResponse,
+  NativeHostUpdateStoredStatus
+} from "../shared/messages";
+import {
+  formatNativeHostUpdateStatusForUser,
+  nativeHostUpdateNeedsAttention
+} from "../shared/nativeHostUpdate";
 import { getProviderLabel, resolveProviderForModel } from "../shared/providers";
 import {
   DEFAULT_EXTENSION_ENABLED,
@@ -73,6 +81,28 @@ async function openExtensionOptions(): Promise<void> {
   });
 }
 
+async function getNativeHostUpdateStatus(): Promise<
+  NativeHostUpdateStoredStatus | undefined
+> {
+  const requestId = createRequestId();
+  const response = await chrome.runtime.sendMessage<
+    ExtensionRequest,
+    ExtensionResponse
+  >({
+    type: "GET_STORED_NATIVE_HOST_UPDATE_STATUS",
+    requestId
+  });
+
+  if (
+    response?.type === "NATIVE_HOST_UPDATE_STATUS" &&
+    response.requestId === requestId
+  ) {
+    return response.status;
+  }
+
+  return undefined;
+}
+
 async function checkSelectedProviderStatus(options: StoredOptions): Promise<void> {
   const selectedProvider = normalizeProvider(options.hoverTransPort?.provider);
   const providerId = resolveProviderForModel(selectedProvider);
@@ -138,6 +168,14 @@ async function refreshPopup(): Promise<void> {
   const selectedProvider = normalizeProvider(options.hoverTransPort?.provider);
   const providerLabel = getProviderLabel(resolveProviderForModel(selectedProvider));
   setStatus("Checking", `Checking ${providerLabel}...`, "checking");
+
+  const updateStatus = await getNativeHostUpdateStatus();
+  if (nativeHostUpdateNeedsAttention(updateStatus)) {
+    const message = formatNativeHostUpdateStatusForUser(updateStatus);
+    setStatus(message.title, message.detail, "warning");
+    return;
+  }
+
   await checkSelectedProviderStatus(options);
 }
 

@@ -150,6 +150,21 @@ h2 {
   max-width: 560px;
 }
 
+.native-host-update-status {
+  margin: 8px 0 0;
+  color: #374151;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.native-host-update-toggle {
+  margin-top: 12px;
+}
+
+.native-host-update-actions {
+  margin-top: 12px;
+}
+
 .save-state {
   min-width: 120px;
   padding-top: 5px;

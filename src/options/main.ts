@@ -1,5 +1,10 @@
 import "./options.css";
-import type { ExtensionRequest, ExtensionResponse } from "../shared/messages";
+import type {
+  ExtensionRequest,
+  ExtensionResponse,
+  NativeHostUpdateStoredStatus
+} from "../shared/messages";
+import { formatNativeHostUpdateStatusForUser } from "../shared/nativeHostUpdate";
 import {
   getDefaultModelForProvider,
   getFallbackModelCatalog,
@@ -23,6 +28,7 @@ import {
   normalizeCacheEnabled,
   normalizeDebugLogging,
   normalizeEnabled,
+  normalizeNativeHostUpdateAutoCheck,
   normalizeProvider,
   normalizeProviderModel,
   normalizeTargetLang,
@@ -65,6 +71,16 @@ const nativeHostPingButton =
   document.querySelector<HTMLButtonElement>("#native-host-ping");
 const nativeHostStatus =
   document.querySelector<HTMLParagraphElement>("#native-host-status");
+const nativeHostUpdateAutoCheckInput = document.querySelector<HTMLInputElement>(
+  "#native-host-update-auto-check"
+);
+const nativeHostUpdateStatus = document.querySelector<HTMLParagraphElement>(
+  "#native-host-update-status"
+);
+const nativeHostUpdateCheckButton =
+  document.querySelector<HTMLButtonElement>("#native-host-update-check");
+const nativeHostUpdateApplyButton =
+  document.querySelector<HTMLButtonElement>("#native-host-update-apply");
 const providerInput = document.querySelector<HTMLSelectElement>("#provider");
 const providerStatusCheckButton =
   document.querySelector<HTMLButtonElement>("#provider-status-check");
@@ -137,6 +153,18 @@ function setTriggerHotkeyRecordingState(recording: boolean) {
 function setNativeHostStatus(message: string) {
   if (nativeHostStatus) {
     nativeHostStatus.textContent = message;
+  }
+}
+
+function setNativeHostUpdateStatus(message: string) {
+  if (nativeHostUpdateStatus) {
+    nativeHostUpdateStatus.textContent = message;
+  }
+}
+
+function setNativeHostUpdateApplyEnabled(enabled: boolean) {
+  if (nativeHostUpdateApplyButton) {
+    nativeHostUpdateApplyButton.disabled = !enabled;
   }
 }
 
@@ -628,6 +656,12 @@ async function loadOptions() {
       options.hoverTransPort?.debugLogging
     );
   }
+
+  if (nativeHostUpdateAutoCheckInput) {
+    nativeHostUpdateAutoCheckInput.checked = normalizeNativeHostUpdateAutoCheck(
+      options.hoverTransPort?.nativeHostUpdateAutoCheck
+    );
+  }
 }
 
 async function loadDebugLogInfo() {
@@ -721,7 +755,10 @@ async function saveOptions(
     triggerHotkey: currentTriggerHotkey,
     timeoutMs: timeoutSecondsInputToMs(timeoutInput?.value),
     cacheEnabled: cacheEnabledInput?.checked ?? DEFAULT_CACHE_ENABLED,
-    debugLogging: debugLoggingInput?.checked ?? DEFAULT_DEBUG_LOGGING
+    debugLogging: debugLoggingInput?.checked ?? DEFAULT_DEBUG_LOGGING,
+    nativeHostUpdateAutoCheck: normalizeNativeHostUpdateAutoCheck(
+      nativeHostUpdateAutoCheckInput?.checked
+    )
   };
 
   if (persistProviderModel) {
@@ -825,6 +862,139 @@ async function checkNativeHost() {
   }
 
   setNativeHostStatus(response.message);
+}
+
+function renderNativeHostUpdateStatus(
+  status: NativeHostUpdateStoredStatus | undefined
+) {
+  if (!status) {
+    setNativeHostUpdateStatus("Update status not checked.");
+    setNativeHostUpdateApplyEnabled(false);
+    return;
+  }
+
+  if (!status.ok) {
+    setNativeHostUpdateStatus(formatNativeHostUpdateStatusForUser(status).detail);
+    setNativeHostUpdateApplyEnabled(false);
+    return;
+  }
+
+  if (status.updateAvailable) {
+    setNativeHostUpdateStatus(formatNativeHostUpdateStatusForUser(status).detail);
+    setNativeHostUpdateApplyEnabled(true);
+    return;
+  }
+
+  setNativeHostUpdateStatus(formatNativeHostUpdateStatusForUser(status).detail);
+  setNativeHostUpdateApplyEnabled(false);
+}
+
+async function loadNativeHostUpdateStatus() {
+  const requestId = createRequestId();
+  const response = await chrome.runtime.sendMessage<
+    ExtensionRequest,
+    ExtensionResponse
+  >({
+    type: "GET_STORED_NATIVE_HOST_UPDATE_STATUS",
+    requestId
+  });
+
+  if (
+    response?.type === "NATIVE_HOST_UPDATE_STATUS" &&
+    response.requestId === requestId
+  ) {
+    renderNativeHostUpdateStatus(response.status);
+  }
+}
+
+async function checkNativeHostUpdate() {
+  const requestId = createRequestId();
+  setNativeHostUpdateStatus("Checking for updates.");
+  setNativeHostUpdateApplyEnabled(false);
+
+  const response = await chrome.runtime.sendMessage<
+    ExtensionRequest,
+    ExtensionResponse
+  >({
+    type: "CHECK_NATIVE_HOST_UPDATE",
+    requestId
+  });
+
+  if (
+    response?.type === "NATIVE_HOST_UPDATE_STATUS" &&
+    response.requestId === requestId
+  ) {
+    renderNativeHostUpdateStatus(response.status);
+    return;
+  }
+
+  setNativeHostUpdateStatus("Could not check for updates.");
+}
+
+async function getStoredNativeHostUpdateStatus() {
+  const requestId = createRequestId();
+  const response = await chrome.runtime.sendMessage<
+    ExtensionRequest,
+    ExtensionResponse
+  >({
+    type: "GET_STORED_NATIVE_HOST_UPDATE_STATUS",
+    requestId
+  });
+
+  if (
+    response?.type === "NATIVE_HOST_UPDATE_STATUS" &&
+    response.requestId === requestId
+  ) {
+    return response.status;
+  }
+
+  return undefined;
+}
+
+async function applyNativeHostUpdate() {
+  const status = await getStoredNativeHostUpdateStatus();
+
+  if (!status?.ok || !status.updateAvailable) {
+    setNativeHostUpdateStatus("No native host update is available.");
+    setNativeHostUpdateApplyEnabled(false);
+    return;
+  }
+
+  const requestId = createRequestId();
+  setNativeHostUpdateStatus("Updating native host.");
+  setNativeHostUpdateApplyEnabled(false);
+
+  const response = await chrome.runtime.sendMessage<
+    ExtensionRequest,
+    ExtensionResponse
+  >({
+    type: "UPDATE_NATIVE_HOST",
+    requestId,
+    targetTag: status.latestTag,
+    targetVersion: status.latestVersion
+  });
+
+  if (
+    response?.type === "NATIVE_HOST_UPDATE_RESULT" &&
+    response.requestId === requestId &&
+    response.ok
+  ) {
+    setNativeHostUpdateStatus(`Updated native host to ${response.installedVersion}.`);
+    await checkNativeHost();
+    await checkNativeHostUpdate();
+    return;
+  }
+
+  if (
+    response?.type === "NATIVE_HOST_UPDATE_RESULT" &&
+    response.requestId === requestId &&
+    !response.ok
+  ) {
+    setNativeHostUpdateStatus(response.message);
+    return;
+  }
+
+  setNativeHostUpdateStatus("Native host update failed.");
 }
 
 async function checkProviderStatus() {
@@ -1040,6 +1210,16 @@ cacheEnabledInput?.addEventListener("change", () => {
   });
 });
 
+nativeHostUpdateAutoCheckInput?.addEventListener("change", () => {
+  saveOptions()
+    .then(loadNativeHostUpdateStatus)
+    .catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      setSaveState(message);
+      setNativeHostUpdateStatus(message);
+    });
+});
+
 triggerHotkeyRecordButton?.addEventListener("click", () => {
   if (isRecordingTriggerHotkey) {
     stopTriggerHotkeyRecording("Canceled.");
@@ -1087,6 +1267,22 @@ nativeHostPingButton?.addEventListener("click", () => {
   });
 });
 
+nativeHostUpdateCheckButton?.addEventListener("click", () => {
+  checkNativeHostUpdate().catch((error: unknown) => {
+    setNativeHostUpdateStatus(
+      error instanceof Error ? error.message : "Could not check for updates."
+    );
+  });
+});
+
+nativeHostUpdateApplyButton?.addEventListener("click", () => {
+  applyNativeHostUpdate().catch((error: unknown) => {
+    setNativeHostUpdateStatus(
+      error instanceof Error ? error.message : "Native host update failed."
+    );
+  });
+});
+
 providerStatusCheckButton?.addEventListener("click", () => {
   checkProviderStatus().catch((error: unknown) => {
     const message = error instanceof Error ? error.message : "Unknown error";
@@ -1119,6 +1315,7 @@ debugLogRefreshButton?.addEventListener("click", () => {
 
 loadOptions()
   .then(checkProviderStatus)
+  .then(loadNativeHostUpdateStatus)
   .then(loadDebugLogInfo)
   .then(loadDebugLogContent)
   .catch((error: unknown) => {

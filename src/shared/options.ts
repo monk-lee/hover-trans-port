@@ -19,6 +19,7 @@ export const MAX_TIMEOUT_MS = 120000;
 export const DEFAULT_EXTENSION_ENABLED = true;
 export const DEFAULT_CACHE_ENABLED = true;
 export const DEFAULT_DEBUG_LOGGING = false;
+export const DEFAULT_NATIVE_HOST_UPDATE_AUTO_CHECK = true;
 export const DEFAULT_TARGET_LANG = "Korean";
 export const COMMON_TARGET_LANGUAGES = [
   "Korean",
@@ -51,6 +52,7 @@ export type HoverTransPortOptions = {
   timeoutMs?: number;
   cacheEnabled?: boolean;
   debugLogging?: boolean;
+  nativeHostUpdateAutoCheck?: boolean;
 };
 
 export type StoredOptions = {
@@ -182,4 +184,12 @@ export function normalizeDebugLogging(debugLogging: boolean | undefined): boolea
   return typeof debugLogging === "boolean"
     ? debugLogging
     : DEFAULT_DEBUG_LOGGING;
+}
+
+export function normalizeNativeHostUpdateAutoCheck(
+  enabled: boolean | undefined
+): boolean {
+  return typeof enabled === "boolean"
+    ? enabled
+    : DEFAULT_NATIVE_HOST_UPDATE_AUTO_CHECK;
 }

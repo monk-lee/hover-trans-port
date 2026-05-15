@@ -67,6 +67,20 @@ export type ExtensionRequest =
       requestId: string;
     }
   | {
+      type: "GET_STORED_NATIVE_HOST_UPDATE_STATUS";
+      requestId: string;
+    }
+  | {
+      type: "CHECK_NATIVE_HOST_UPDATE";
+      requestId: string;
+    }
+  | {
+      type: "UPDATE_NATIVE_HOST";
+      requestId: string;
+      targetTag: string;
+      targetVersion: string;
+    }
+  | {
       type: "CHECK_PROVIDER_STATUS";
       requestId: string;
     }
@@ -163,6 +177,73 @@ export type NativeHostStatusResponse =
         | "NATIVE_HOST_UNAVAILABLE"
         | "NATIVE_HOST_UPDATE_REQUIRED"
         | "NATIVE_HOST_UNSUPPORTED"
+        | "UNKNOWN_ERROR";
+      message: string;
+      retryable: boolean;
+    };
+
+export type NativeHostUpdateStoredStatus =
+  | {
+      checkedAt: number;
+      ok: true;
+      installedVersion: string;
+      latestVersion: string;
+      latestTag: string;
+      updateAvailable: boolean;
+      releaseUrl: string;
+    }
+  | {
+      checkedAt: number;
+      ok: false;
+      error:
+        | "NATIVE_HOST_UNAVAILABLE"
+        | "NATIVE_HOST_UPDATE_REQUIRED"
+        | "NATIVE_HOST_UNSUPPORTED"
+        | "UPDATE_UNSUPPORTED_PLATFORM"
+        | "UPDATE_CHECK_FAILED"
+        | "UPDATE_NOT_AVAILABLE"
+        | "UPDATE_DOWNLOAD_FAILED"
+        | "UPDATE_CHECKSUM_FAILED"
+        | "UPDATE_INSTALL_FAILED"
+        | "UPDATE_RECONNECT_FAILED"
+        | "INVALID_MESSAGE"
+        | "UNKNOWN_ERROR";
+      message: string;
+      retryable: boolean;
+      manualUpdateRequired?: boolean;
+    };
+
+export type NativeHostUpdateStatusExtensionResponse = {
+  type: "NATIVE_HOST_UPDATE_STATUS";
+  requestId: string;
+  status?: NativeHostUpdateStoredStatus;
+};
+
+export type NativeHostUpdateApplyResponse =
+  | {
+      type: "NATIVE_HOST_UPDATE_RESULT";
+      requestId: string;
+      ok: true;
+      previousVersion: string;
+      installedVersion: string;
+      installedPath: string;
+    }
+  | {
+      type: "NATIVE_HOST_UPDATE_RESULT";
+      requestId: string;
+      ok: false;
+      error:
+        | "NATIVE_HOST_UNAVAILABLE"
+        | "NATIVE_HOST_UPDATE_REQUIRED"
+        | "NATIVE_HOST_UNSUPPORTED"
+        | "UPDATE_UNSUPPORTED_PLATFORM"
+        | "UPDATE_CHECK_FAILED"
+        | "UPDATE_NOT_AVAILABLE"
+        | "UPDATE_DOWNLOAD_FAILED"
+        | "UPDATE_CHECKSUM_FAILED"
+        | "UPDATE_INSTALL_FAILED"
+        | "UPDATE_RECONNECT_FAILED"
+        | "INVALID_MESSAGE"
         | "UNKNOWN_ERROR";
       message: string;
       retryable: boolean;
@@ -302,6 +383,8 @@ export type ExtensionResponse =
       location: string;
     }
   | NativeHostStatusResponse
+  | NativeHostUpdateStatusExtensionResponse
+  | NativeHostUpdateApplyResponse
   | ProviderStatusResponse
   | ProviderModelsExtensionResponse
   | CacheClearResponse

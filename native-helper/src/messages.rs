@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-pub const NATIVE_BRIDGE_VERSION: &str = "0.2.2-rust-helper";
-pub const NATIVE_HOST_VERSION: &str = "0.2.2";
+pub const NATIVE_BRIDGE_VERSION: &str = "0.2.3-rust-helper";
+pub const NATIVE_HOST_VERSION: &str = "0.2.3";
 pub const NATIVE_HOST_PROTOCOL_VERSION: u64 = 1;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -70,6 +70,14 @@ pub struct ProviderModelsRequest {
     pub request_id: String,
     #[serde(default)]
     pub provider: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeHostUpdateRequest {
+    pub request_id: String,
+    pub target_tag: String,
+    pub target_version: String,
 }
 
 #[derive(Debug, Deserialize)]

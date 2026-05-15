@@ -127,8 +127,13 @@ async function runOptionsWithCatalogSource(source) {
       .replace("./hotkeys", "./hotkeys.js")
   );
   writeFileSync(
+    join(tempSharedDir, "nativeHostUpdate.js"),
+    transpile("src/shared/nativeHostUpdate.ts")
+  );
+  writeFileSync(
     join(tempOptionsDir, "main.js"),
     transpile("src/options/main.ts")
+      .replace("../shared/nativeHostUpdate", "../shared/nativeHostUpdate.js")
       .replace("../shared/providers", "../shared/providers.js")
       .replace("../shared/options", "../shared/options.js")
       .replace("../shared/hotkeys", "../shared/hotkeys.js")

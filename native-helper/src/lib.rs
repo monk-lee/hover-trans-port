@@ -7,3 +7,4 @@ pub mod process;
 pub mod prompt;
 pub mod protocol;
 pub mod providers;
+pub mod update;

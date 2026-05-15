@@ -2,7 +2,7 @@
 set -euo pipefail
 
 HOST_NAME="com.monklabs.hover_trans_port"
-DEFAULT_HOST_VERSION="0.2.2"
+DEFAULT_HOST_VERSION="0.2.3"
 DEFAULT_EXTENSION_ID="mmbmjpmhmlkjknhcigafgplahdbicabe"
 APP_SUPPORT_DIR_NAME="Hover Trans Port"
 HELPER_EXECUTABLE_NAME="hover-trans-port-helper"
@@ -13,12 +13,14 @@ HOST_VERSION="$DEFAULT_HOST_VERSION"
 RELEASE_TAG="latest"
 HELPER_SOURCE=""
 SKIP_CHECKSUM="0"
+JSON_OUTPUT="0"
+PREVIOUS_VERSION=""
 
 usage() {
   cat <<'USAGE'
 Usage:
-  install-macos-native-host.sh install [--host-version VERSION] [--release-tag TAG] [--helper-source PATH] [--skip-checksum]
-  install-macos-native-host.sh update [--host-version VERSION] [--release-tag TAG] [--helper-source PATH] [--skip-checksum]
+  install-macos-native-host.sh install [--host-version VERSION] [--release-tag TAG] [--helper-source PATH] [--skip-checksum] [--json]
+  install-macos-native-host.sh update [--host-version VERSION] [--release-tag TAG] [--helper-source PATH] [--skip-checksum] [--json]
   install-macos-native-host.sh status
   install-macos-native-host.sh uninstall
 
@@ -57,6 +59,10 @@ while [ "$#" -gt 0 ]; do
       ;;
     --skip-checksum)
       SKIP_CHECKSUM="1"
+      shift
+      ;;
+    --json)
+      JSON_OUTPUT="1"
       shift
       ;;
     -h|--help)
@@ -140,6 +146,41 @@ remove_if_exists() {
   fi
 }
 
+json_string() {
+  value="$1"
+  escaped="$(printf '%s' "$value" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+  printf '"%s"' "$escaped"
+}
+
+emit_install_result() {
+  if [ "$JSON_OUTPUT" = "1" ]; then
+    manifests_json=""
+    for manifest_path in "${MANIFEST_PATHS[@]}"; do
+      escaped="$(json_string "$manifest_path")"
+      if [ -n "$manifests_json" ]; then
+        manifests_json="$manifests_json,"
+      fi
+      manifests_json="$manifests_json$escaped"
+    done
+    previous_json="$(json_string "$PREVIOUS_VERSION")"
+    installed_json="$(json_string "$HOST_VERSION")"
+    install_root_json="$(json_string "$INSTALL_ROOT")"
+    current_link_json="$(json_string "$CURRENT_LINK")"
+    helper_path_json="$(json_string "$VERSION_DIR/$HELPER_EXECUTABLE_NAME")"
+    updater_path_json="$(json_string "$VERSION_DIR/install-macos-native-host.sh")"
+    printf '{"command":"%s","ok":true,"previousVersion":%s,"installedVersion":%s,"installRoot":%s,"currentLink":%s,"helperPath":%s,"updaterPath":%s,"manifests":[%s]}\n' \
+      "$COMMAND" "$previous_json" "$installed_json" "$install_root_json" "$current_link_json" "$helper_path_json" "$updater_path_json" "$manifests_json"
+    return
+  fi
+
+  echo "installed native host $HOST_VERSION"
+  for manifest_path in "${MANIFEST_PATHS[@]}"; do
+    echo "manifest: $manifest_path"
+  done
+  echo "launcher: $LAUNCHER_PATH"
+  echo "current: $CURRENT_LINK -> $VERSION_DIR"
+}
+
 write_launcher() {
   cat > "$LAUNCHER_PATH" <<'LAUNCHER'
 #!/bin/sh
@@ -176,13 +217,30 @@ MANIFEST
 
 write_metadata() {
   metadata_path="$1"
+  updater_path="$2"
   cat > "$metadata_path" <<METADATA
 {
   "hostVersion": "$HOST_VERSION",
   "protocolVersion": 1,
-  "source": "macos-script-installer"
+  "source": "macos-script-installer",
+  "updaterPath": "$updater_path"
 }
 METADATA
+}
+
+persist_updater_script() {
+  destination="$1"
+  script_source="${BASH_SOURCE[0]:-$0}"
+
+  if [ -f "$script_source" ] && [ -r "$script_source" ]; then
+    cp "$script_source" "$destination"
+  else
+    updater_url="$(download_url_for "install-macos-native-host.sh")"
+    echo "install-macos-native-host: downloading $updater_url" >&2
+    curl -fL "$updater_url" -o "$destination"
+  fi
+
+  chmod 755 "$destination"
 }
 
 clear_quarantine_if_present() {
@@ -251,7 +309,9 @@ install_helper() {
 
   copy_helper "$helper_source" "$staging_dir/$HELPER_EXECUTABLE_NAME"
   clear_quarantine_if_present "$staging_dir/$HELPER_EXECUTABLE_NAME"
-  write_metadata "$staging_dir/metadata.json"
+  updater_path="$staging_dir/install-macos-native-host.sh"
+  persist_updater_script "$updater_path"
+  write_metadata "$staging_dir/metadata.json" "$VERSION_DIR/install-macos-native-host.sh"
 
   mkdir -p "$NATIVE_HOSTS_ROOT"
   if [ -e "$VERSION_DIR" ] || [ -L "$VERSION_DIR" ]; then
@@ -272,6 +332,10 @@ install_helper() {
   next_link="$CURRENT_LINK.next"
   remove_if_exists "$next_link"
   ln -s "$VERSION_DIR" "$next_link"
+  if [ -L "$CURRENT_LINK" ]; then
+    current_target="$(readlink "$CURRENT_LINK" 2>/dev/null || true)"
+    PREVIOUS_VERSION="$(basename "$current_target")"
+  fi
   remove_if_exists "$CURRENT_LINK"
   mv "$next_link" "$CURRENT_LINK"
 
@@ -279,12 +343,7 @@ install_helper() {
   clear_quarantine_if_present "$LAUNCHER_PATH"
   write_manifest
 
-  echo "installed native host $HOST_VERSION"
-  for manifest_path in "${MANIFEST_PATHS[@]}"; do
-    echo "manifest: $manifest_path"
-  done
-  echo "launcher: $LAUNCHER_PATH"
-  echo "current: $CURRENT_LINK -> $VERSION_DIR"
+  emit_install_result
 }
 
 all_manifests_exist() {
@@ -299,7 +358,8 @@ all_manifests_exist() {
 status_host() {
   if [ -x "$CURRENT_LINK/$HELPER_EXECUTABLE_NAME" ] && all_manifests_exist; then
     resolved="$(readlink "$CURRENT_LINK" 2>/dev/null || printf '%s' "$CURRENT_LINK")"
-    echo "installed native host $HOST_VERSION"
+    installed_version="$(basename "$resolved")"
+    echo "installed native host $installed_version"
     for manifest_path in "${MANIFEST_PATHS[@]}"; do
       echo "manifest: $manifest_path"
     done
