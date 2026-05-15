@@ -111,6 +111,9 @@ const checks = [
       "chrome.action.setBadgeText",
       "native-host-update-check",
       "hoverTransPortNativeHostUpdate",
+      "nativeHostUpdateStatusWriteQueue",
+      "enqueueNativeHostUpdateStatusWrite",
+      "writeNativeHostUpdateStatus",
       "hasNativeHostUpdateSchedule",
       "isNativeHostUpdateRefreshDue",
       "maybeRefreshNativeHostUpdateStatus",
@@ -171,6 +174,18 @@ assertMatches(
 );
 assertMatches(
   serviceWorkerText,
+  /function enqueueNativeHostUpdateStatusWrite[\s\S]*nativeHostUpdateStatusWriteQueue\.then\(write, write\)[\s\S]*nativeHostUpdateStatusWriteQueue = queuedWrite\.catch/u,
+  "src/background/service-worker.ts",
+  "native host update status writes are queued"
+);
+assertMatches(
+  serviceWorkerText,
+  /async function storeNativeHostUpdateStatus[\s\S]*enqueueNativeHostUpdateStatusWrite[\s\S]*writeNativeHostUpdateStatus\(status\)/u,
+  "src/background/service-worker.ts",
+  "native host update status store uses write queue"
+);
+assertMatches(
+  serviceWorkerText,
   /if \(message\.type === "TRANSLATE_CURRENT_TARGET"\)[\s\S]*scheduleNativeHostUpdateStatusRefresh[\s\S]*translateWithNativeHost/u,
   "src/background/service-worker.ts",
   "opportunistic update check when translation is used"
@@ -201,13 +216,13 @@ assertMatches(
 );
 assertMatches(
   serviceWorkerText,
-  /storeNativeHostUpdateReconnectFailedStatus[\s\S]*currentStatus[\s\S]*currentStatus\.checkedAt > previousStatus\.checkedAt/u,
+  /storeNativeHostUpdateReconnectFailedStatus[\s\S]*enqueueNativeHostUpdateStatusWrite[\s\S]*currentStatus[\s\S]*currentStatus\.checkedAt > previousStatus\.checkedAt[\s\S]*writeNativeHostUpdateStatus\(\s*createNativeHostUpdateReconnectFailedStatus\(previousStatus\)\s*\)/u,
   "src/background/service-worker.ts",
-  "stale reconnect failure writes are skipped"
+  "stale reconnect failure writes are skipped inside the write queue"
 );
 assertMatches(
   serviceWorkerText,
-  /function createNativeHostUpdateReconnectFailedStatus[\s\S]*UPDATE_RECONNECT_FAILED[\s\S]*storeNativeHostUpdateStatus/u,
+  /function createNativeHostUpdateReconnectFailedStatus[\s\S]*UPDATE_RECONNECT_FAILED[\s\S]*async function storeNativeHostUpdateReconnectFailedStatus/u,
   "src/background/service-worker.ts",
   "post-update reconnect failure is stored"
 );

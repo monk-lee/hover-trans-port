@@ -42,6 +42,18 @@ type NativeHostUpdateStorage = {
   hoverTransPortNativeHostUpdate?: NativeHostUpdateStoredStatus;
 };
 
+let nativeHostUpdateStatusWriteQueue: Promise<void> = Promise.resolve();
+
+function enqueueNativeHostUpdateStatusWrite(
+  write: () => Promise<void>
+): Promise<void> {
+  const queuedWrite = nativeHostUpdateStatusWriteQueue.then(write, write);
+  nativeHostUpdateStatusWriteQueue = queuedWrite.catch(() => {
+    // Keep later writes from being blocked by a failed write.
+  });
+  return queuedWrite;
+}
+
 async function shouldAutoCheckNativeHostUpdate(): Promise<boolean> {
   const stored = (await chrome.storage.local.get("hoverTransPort")) as StoredOptions;
   return normalizeNativeHostUpdateAutoCheck(
@@ -62,13 +74,21 @@ async function ensureNativeHostUpdateAlarm(): Promise<void> {
   });
 }
 
-async function storeNativeHostUpdateStatus(
+async function writeNativeHostUpdateStatus(
   status: NativeHostUpdateStoredStatus
 ): Promise<void> {
   await chrome.storage.local.set({
     [NATIVE_HOST_UPDATE_STORAGE_KEY]: status
   });
   syncNativeHostUpdateBadge(status);
+}
+
+async function storeNativeHostUpdateStatus(
+  status: NativeHostUpdateStoredStatus
+): Promise<void> {
+  await enqueueNativeHostUpdateStatusWrite(() =>
+    writeNativeHostUpdateStatus(status)
+  );
 }
 
 function createNativeHostUpdateReconnectFailedStatus(
@@ -90,22 +110,24 @@ function createNativeHostUpdateReconnectFailedStatus(
 async function storeNativeHostUpdateReconnectFailedStatus(
   previousStatus: NativeHostUpdateStoredStatus | undefined
 ): Promise<void> {
-  const stored = (await chrome.storage.local.get(
-    NATIVE_HOST_UPDATE_STORAGE_KEY
-  )) as NativeHostUpdateStorage;
-  const currentStatus = stored.hoverTransPortNativeHostUpdate;
+  await enqueueNativeHostUpdateStatusWrite(async () => {
+    const stored = (await chrome.storage.local.get(
+      NATIVE_HOST_UPDATE_STORAGE_KEY
+    )) as NativeHostUpdateStorage;
+    const currentStatus = stored.hoverTransPortNativeHostUpdate;
 
-  if (
-    currentStatus &&
-    (!previousStatus || currentStatus.checkedAt > previousStatus.checkedAt)
-  ) {
-    syncNativeHostUpdateBadge(currentStatus);
-    return;
-  }
+    if (
+      currentStatus &&
+      (!previousStatus || currentStatus.checkedAt > previousStatus.checkedAt)
+    ) {
+      syncNativeHostUpdateBadge(currentStatus);
+      return;
+    }
 
-  await storeNativeHostUpdateStatus(
-    createNativeHostUpdateReconnectFailedStatus(previousStatus)
-  );
+    await writeNativeHostUpdateStatus(
+      createNativeHostUpdateReconnectFailedStatus(previousStatus)
+    );
+  });
 }
 
 async function refreshNativeHostUpdateStatus(
