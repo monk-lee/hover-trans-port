@@ -127,17 +127,33 @@ writeFileSync(
     .replace('import "./popup.css";', "")
 );
 
-const elements = new Map([
-  ["#status-title", new FakeElement()],
-  ["#status-detail", new FakeElement()],
-  ["#status-indicator", new FakeElement()],
-  ["#enabled", new FakeElement()],
-  ["#open-options", new FakeElement()]
-]);
+function createElements() {
+  return new Map([
+    ["#status-title", new FakeElement()],
+    ["#status-detail", new FakeElement()],
+    ["#status-indicator", new FakeElement()],
+    ["#enabled", new FakeElement()],
+    ["#open-options", new FakeElement()]
+  ]);
+}
+
+let currentElements = createElements();
+let nativeHostUpdateStatus = {
+  checkedAt: Date.now(),
+  nextCheckAt: Date.now() + 60 * 60 * 1000,
+  failureCount: 1,
+  lastErrorCode: "NATIVE_HOST_UPDATE_REQUIRED",
+  ok: false,
+  error: "NATIVE_HOST_UPDATE_REQUIRED",
+  message:
+    "One manual native host update is required before in-app updates are available.",
+  retryable: false,
+  manualUpdateRequired: true
+};
 
 global.document = {
   querySelector(selector) {
-    return elements.get(selector) ?? null;
+    return currentElements.get(selector) ?? null;
   }
 };
 
@@ -174,18 +190,7 @@ global.chrome = {
         return {
           type: "NATIVE_HOST_UPDATE_STATUS",
           requestId: message.requestId,
-          status: {
-            checkedAt: Date.now(),
-            nextCheckAt: Date.now() + 60 * 60 * 1000,
-            failureCount: 1,
-            lastErrorCode: "NATIVE_HOST_UPDATE_REQUIRED",
-            ok: false,
-            error: "NATIVE_HOST_UPDATE_REQUIRED",
-            message:
-              "One manual native host update is required before in-app updates are available.",
-            retryable: false,
-            manualUpdateRequired: true
-          }
+          status: nativeHostUpdateStatus
         };
       }
 
@@ -211,9 +216,33 @@ function onUnhandledRejection(reason) {
 
 process.on("unhandledRejection", onUnhandledRejection);
 
-try {
-  await import(pathToFileURL(join(tempPopupDir, "main.js")).href);
+async function importPopupWithStatus(status, cacheKey) {
+  nativeHostUpdateStatus = status;
+  currentElements = createElements();
+  sentMessageTypes.length = 0;
+
+  await import(`${pathToFileURL(join(tempPopupDir, "main.js")).href}?${cacheKey}`);
   await settlePromises();
+
+  return currentElements;
+}
+
+try {
+  const manualUpdateElements = await importPopupWithStatus(
+    {
+      checkedAt: Date.now(),
+      nextCheckAt: Date.now() + 60 * 60 * 1000,
+      failureCount: 1,
+      lastErrorCode: "NATIVE_HOST_UPDATE_REQUIRED",
+      ok: false,
+      error: "NATIVE_HOST_UPDATE_REQUIRED",
+      message:
+        "One manual native host update is required before in-app updates are available.",
+      retryable: false,
+      manualUpdateRequired: true
+    },
+    "manual-update"
+  );
 
   assertDeepEqual(
     sentMessageTypes,
@@ -221,12 +250,12 @@ try {
     "manual native host update guidance prevents provider status check"
   );
   assertEqual(
-    elements.get("#status-title").textContent,
+    manualUpdateElements.get("#status-title").textContent,
     "Native Host update required",
     "popup manual update title"
   );
   assertEqual(
-    elements
+    manualUpdateElements
       .get("#status-detail")
       .textContent.includes(
         "curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh | bash"
@@ -235,7 +264,7 @@ try {
     "popup shows manual update command"
   );
 
-  elements.get("#open-options").dispatch("click");
+  manualUpdateElements.get("#open-options").dispatch("click");
   await settlePromises();
 
   assertEqual(openOptionsPageCalls, 1, "managed options API is tried first");
@@ -248,6 +277,34 @@ try {
     unhandledRejections.length,
     0,
     "options opening failures are handled"
+  );
+
+  const updateAvailableElements = await importPopupWithStatus(
+    {
+      checkedAt: Date.now(),
+      nextCheckAt: Date.now() + 24 * 60 * 60 * 1000,
+      failureCount: 0,
+      ok: true,
+      installedVersion: "0.2.3",
+      latestVersion: "0.2.4",
+      latestTag: "v0.2.4",
+      updateAvailable: true,
+      releaseUrl: "https://github.com/monk-lee/hover-trans-port/releases/tag/v0.2.4"
+    },
+    "update-available"
+  );
+
+  assertEqual(
+    updateAvailableElements.get("#status-detail").textContent,
+    "Native Host 0.2.3 -> 0.2.4. Open Options to update.",
+    "popup update available detail is compact"
+  );
+  assertEqual(
+    updateAvailableElements
+      .get("#status-detail")
+      .textContent.includes("Open Options for details."),
+    false,
+    "popup update available detail does not duplicate options guidance"
   );
 } finally {
   process.off("unhandledRejection", onUnhandledRejection);

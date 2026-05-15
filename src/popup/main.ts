@@ -172,11 +172,7 @@ async function refreshPopup(): Promise<void> {
   const updateStatus = await getNativeHostUpdateStatus();
   if (nativeHostUpdateNeedsAttention(updateStatus)) {
     const message = formatNativeHostUpdateStatusForUser(updateStatus);
-    const detail =
-      updateStatus?.ok && updateStatus.updateAvailable
-        ? `${message.detail} Open Options for details.`
-        : message.detail;
-    setStatus(message.title, detail, "warning");
+    setStatus(message.title, message.detail, "warning");
     return;
   }
 
