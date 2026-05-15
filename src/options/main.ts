@@ -1054,12 +1054,12 @@ async function applyNativeHostUpdate() {
 
   isApplyingNativeHostUpdate = true;
   setNativeHostUpdateApplying(true);
-  setNativeHostUpdateApplyEnabled(false);
 
   try {
     const status = await getStoredNativeHostUpdateStatus();
+    const canRetry = status?.ok === true && status.updateAvailable === true;
 
-    if (!status?.ok || !status.updateAvailable) {
+    if (!canRetry) {
       setNativeHostUpdateStatus("No native host update is available.");
       setNativeHostUpdateApplyEnabled(false);
       return;
@@ -1085,6 +1085,7 @@ async function applyNativeHostUpdate() {
       setNativeHostUpdateStatus(
         `Updated native host to ${response.installedVersion}.`
       );
+      setNativeHostUpdateApplyEnabled(false);
       await checkNativeHost();
       await checkNativeHostUpdate();
       return;
@@ -1096,10 +1097,12 @@ async function applyNativeHostUpdate() {
       !response.ok
     ) {
       setNativeHostUpdateStatus(response.message);
+      setNativeHostUpdateApplyEnabled(canRetry);
       return;
     }
 
     setNativeHostUpdateStatus("Native host update failed.");
+    setNativeHostUpdateApplyEnabled(canRetry);
   } finally {
     isApplyingNativeHostUpdate = false;
     setNativeHostUpdateApplying(false);
