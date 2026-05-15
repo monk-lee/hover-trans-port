@@ -177,9 +177,9 @@ assertMatches(
 );
 assertMatches(
   serviceWorkerText,
-  /if \(message\.type === "UPDATE_NATIVE_HOST"\)[\s\S]*sendResponse[\s\S]*refreshPostNativeHostUpdateStatus[\s\S]*return true;/u,
+  /if \(message\.type === "UPDATE_NATIVE_HOST"\)[\s\S]*sendResponse[\s\S]*if \(result\.ok\)[\s\S]*refreshPostNativeHostUpdateStatus\(message\.requestId\)[\s\S]*return true;/u,
   "src/background/service-worker.ts",
-  "async UPDATE_NATIVE_HOST response pattern"
+  "async UPDATE_NATIVE_HOST response pattern only verifies successful updates"
 );
 assertMatches(
   serviceWorkerText,

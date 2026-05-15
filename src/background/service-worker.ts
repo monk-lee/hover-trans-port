@@ -336,7 +336,9 @@ chrome.runtime.onMessage.addListener(
           ...result
         });
 
-        void refreshPostNativeHostUpdateStatus(message.requestId);
+        if (result.ok) {
+          void refreshPostNativeHostUpdateStatus(message.requestId);
+        }
       });
       return true;
     }
