@@ -87,6 +87,27 @@ function createNativeHostUpdateReconnectFailedStatus(
   };
 }
 
+async function storeNativeHostUpdateReconnectFailedStatus(
+  previousStatus: NativeHostUpdateStoredStatus | undefined
+): Promise<void> {
+  const stored = (await chrome.storage.local.get(
+    NATIVE_HOST_UPDATE_STORAGE_KEY
+  )) as NativeHostUpdateStorage;
+  const currentStatus = stored.hoverTransPortNativeHostUpdate;
+
+  if (
+    currentStatus &&
+    (!previousStatus || currentStatus.checkedAt > previousStatus.checkedAt)
+  ) {
+    syncNativeHostUpdateBadge(currentStatus);
+    return;
+  }
+
+  await storeNativeHostUpdateStatus(
+    createNativeHostUpdateReconnectFailedStatus(previousStatus)
+  );
+}
+
 async function refreshNativeHostUpdateStatus(
   requestId: string,
   previousStatus?: NativeHostUpdateStoredStatus
@@ -173,17 +194,23 @@ async function refreshPostNativeHostUpdateStatus(
     const hostStatus = await checkNativeHost(`${requestId}:host-info`);
 
     if (!hostStatus.ok) {
-      await storeNativeHostUpdateStatus(
-        createNativeHostUpdateReconnectFailedStatus(previousStatus)
-      );
+      await storeNativeHostUpdateReconnectFailedStatus(previousStatus);
       return;
     }
 
-    await refreshNativeHostUpdateStatus(`${requestId}:status`, previousStatus);
-  } catch {
-    await storeNativeHostUpdateStatus(
-      createNativeHostUpdateReconnectFailedStatus(previousStatus)
+    const updateStatus = await checkNativeHostUpdateStatus(
+      `${requestId}:status`,
+      previousStatus
     );
+
+    if (!updateStatus.ok && updateStatus.error === "NATIVE_HOST_UNAVAILABLE") {
+      await storeNativeHostUpdateReconnectFailedStatus(previousStatus);
+      return;
+    }
+
+    await storeNativeHostUpdateStatus(updateStatus);
+  } catch {
+    await storeNativeHostUpdateReconnectFailedStatus(previousStatus);
   }
 }
 

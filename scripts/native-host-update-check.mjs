@@ -189,9 +189,21 @@ assertMatches(
 );
 assertMatches(
   serviceWorkerText,
-  /refreshPostNativeHostUpdateStatus[\s\S]*const hostStatus = await checkNativeHost[\s\S]*if \(!hostStatus\.ok\)[\s\S]*createNativeHostUpdateReconnectFailedStatus\(previousStatus\)[\s\S]*return;[\s\S]*refreshNativeHostUpdateStatus/u,
+  /refreshPostNativeHostUpdateStatus[\s\S]*const hostStatus = await checkNativeHost[\s\S]*if \(!hostStatus\.ok\)[\s\S]*storeNativeHostUpdateReconnectFailedStatus\(previousStatus\)[\s\S]*return;/u,
   "src/background/service-worker.ts",
   "post-update host status ok result is checked before update status refresh"
+);
+assertMatches(
+  serviceWorkerText,
+  /refreshPostNativeHostUpdateStatus[\s\S]*const updateStatus = await checkNativeHostUpdateStatus\(\s*`\$\{requestId\}:status`,\s*previousStatus\s*\)[\s\S]*updateStatus\.error === "NATIVE_HOST_UNAVAILABLE"[\s\S]*storeNativeHostUpdateReconnectFailedStatus\(previousStatus\)[\s\S]*storeNativeHostUpdateStatus\(updateStatus\)/u,
+  "src/background/service-worker.ts",
+  "post-update unavailable status is stored as reconnect failure"
+);
+assertMatches(
+  serviceWorkerText,
+  /storeNativeHostUpdateReconnectFailedStatus[\s\S]*currentStatus[\s\S]*currentStatus\.checkedAt > previousStatus\.checkedAt/u,
+  "src/background/service-worker.ts",
+  "stale reconnect failure writes are skipped"
 );
 assertMatches(
   serviceWorkerText,
