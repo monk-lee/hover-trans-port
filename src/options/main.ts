@@ -81,6 +81,18 @@ const nativeHostUpdateCheckButton =
   document.querySelector<HTMLButtonElement>("#native-host-update-check");
 const nativeHostUpdateApplyButton =
   document.querySelector<HTMLButtonElement>("#native-host-update-apply");
+const nativeHostUpdateCurrentVersion = document.querySelector<HTMLElement>(
+  "#native-host-update-current-version"
+);
+const nativeHostUpdateLatestVersion = document.querySelector<HTMLElement>(
+  "#native-host-update-latest-version"
+);
+const nativeHostUpdateLastChecked = document.querySelector<HTMLElement>(
+  "#native-host-update-last-checked"
+);
+const nativeHostUpdateNextCheck = document.querySelector<HTMLElement>(
+  "#native-host-update-next-check"
+);
 const providerInput = document.querySelector<HTMLSelectElement>("#provider");
 const providerStatusCheckButton =
   document.querySelector<HTMLButtonElement>("#provider-status-check");
@@ -117,6 +129,7 @@ const pendingModifierCodes = new Set<ModifierTriggerCode>();
 let currentModelCatalog: ProviderModelCatalog | undefined;
 const providerModelCatalogCache = new Map<ProviderId, ProviderModelCatalog>();
 let providerStatusCheckSequence = 0;
+let nativeHostUpdateApplyAvailable = false;
 
 function setSaveState(message: string) {
   if (saveState) {
@@ -163,9 +176,64 @@ function setNativeHostUpdateStatus(message: string) {
 }
 
 function setNativeHostUpdateApplyEnabled(enabled: boolean) {
+  nativeHostUpdateApplyAvailable = enabled;
+
   if (nativeHostUpdateApplyButton) {
     nativeHostUpdateApplyButton.disabled = !enabled;
   }
+}
+
+function setNativeHostUpdateChecking(checking: boolean) {
+  if (nativeHostUpdateCheckButton) {
+    nativeHostUpdateCheckButton.disabled = checking;
+    nativeHostUpdateCheckButton.textContent = checking
+      ? "Checking..."
+      : "Check for Updates";
+  }
+}
+
+function setNativeHostUpdateApplying(applying: boolean) {
+  if (nativeHostUpdateApplyButton) {
+    nativeHostUpdateApplyButton.disabled =
+      applying || !nativeHostUpdateApplyAvailable;
+    nativeHostUpdateApplyButton.textContent = applying
+      ? "Updating..."
+      : "Update Native Host";
+  }
+}
+
+function setNativeHostUpdateMeta(
+  currentVersion: string,
+  latestVersion: string,
+  lastChecked: string,
+  nextCheck: string
+) {
+  if (nativeHostUpdateCurrentVersion) {
+    nativeHostUpdateCurrentVersion.textContent = currentVersion;
+  }
+
+  if (nativeHostUpdateLatestVersion) {
+    nativeHostUpdateLatestVersion.textContent = latestVersion;
+  }
+
+  if (nativeHostUpdateLastChecked) {
+    nativeHostUpdateLastChecked.textContent = lastChecked;
+  }
+
+  if (nativeHostUpdateNextCheck) {
+    nativeHostUpdateNextCheck.textContent = nextCheck;
+  }
+}
+
+function formatNativeHostUpdateDateTime(timestamp: number | undefined): string {
+  if (!Number.isFinite(timestamp)) {
+    return "Unknown";
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(timestamp);
 }
 
 function setProviderStatus(message: string) {
@@ -869,15 +937,27 @@ function renderNativeHostUpdateStatus(
 ) {
   if (!status) {
     setNativeHostUpdateStatus("Update status not checked.");
+    setNativeHostUpdateMeta("Unknown", "Unknown", "Never", "Unknown");
     setNativeHostUpdateApplyEnabled(false);
     return;
   }
 
+  const lastChecked = formatNativeHostUpdateDateTime(status.checkedAt);
+  const nextCheck = formatNativeHostUpdateDateTime(status.nextCheckAt);
+
   if (!status.ok) {
     setNativeHostUpdateStatus(formatNativeHostUpdateStatusForUser(status).detail);
+    setNativeHostUpdateMeta("Unknown", "Unknown", lastChecked, nextCheck);
     setNativeHostUpdateApplyEnabled(false);
     return;
   }
+
+  setNativeHostUpdateMeta(
+    status.installedVersion,
+    status.latestVersion,
+    lastChecked,
+    nextCheck
+  );
 
   if (status.updateAvailable) {
     setNativeHostUpdateStatus(formatNativeHostUpdateStatusForUser(status).detail);
@@ -909,26 +989,31 @@ async function loadNativeHostUpdateStatus() {
 
 async function checkNativeHostUpdate() {
   const requestId = createRequestId();
-  setNativeHostUpdateStatus("Checking for updates.");
+  setNativeHostUpdateStatus("Checking for updates...");
   setNativeHostUpdateApplyEnabled(false);
+  setNativeHostUpdateChecking(true);
 
-  const response = await chrome.runtime.sendMessage<
-    ExtensionRequest,
-    ExtensionResponse
-  >({
-    type: "CHECK_NATIVE_HOST_UPDATE",
-    requestId
-  });
+  try {
+    const response = await chrome.runtime.sendMessage<
+      ExtensionRequest,
+      ExtensionResponse
+    >({
+      type: "CHECK_NATIVE_HOST_UPDATE",
+      requestId
+    });
 
-  if (
-    response?.type === "NATIVE_HOST_UPDATE_STATUS" &&
-    response.requestId === requestId
-  ) {
-    renderNativeHostUpdateStatus(response.status);
-    return;
+    if (
+      response?.type === "NATIVE_HOST_UPDATE_STATUS" &&
+      response.requestId === requestId
+    ) {
+      renderNativeHostUpdateStatus(response.status);
+      return;
+    }
+
+    setNativeHostUpdateStatus("Could not check for updates.");
+  } finally {
+    setNativeHostUpdateChecking(false);
   }
-
-  setNativeHostUpdateStatus("Could not check for updates.");
 }
 
 async function getStoredNativeHostUpdateStatus() {
@@ -961,40 +1046,46 @@ async function applyNativeHostUpdate() {
   }
 
   const requestId = createRequestId();
-  setNativeHostUpdateStatus("Updating native host.");
-  setNativeHostUpdateApplyEnabled(false);
+  setNativeHostUpdateStatus("Updating native host...");
+  setNativeHostUpdateApplying(true);
 
-  const response = await chrome.runtime.sendMessage<
-    ExtensionRequest,
-    ExtensionResponse
-  >({
-    type: "UPDATE_NATIVE_HOST",
-    requestId,
-    targetTag: status.latestTag,
-    targetVersion: status.latestVersion
-  });
+  try {
+    const response = await chrome.runtime.sendMessage<
+      ExtensionRequest,
+      ExtensionResponse
+    >({
+      type: "UPDATE_NATIVE_HOST",
+      requestId,
+      targetTag: status.latestTag,
+      targetVersion: status.latestVersion
+    });
 
-  if (
-    response?.type === "NATIVE_HOST_UPDATE_RESULT" &&
-    response.requestId === requestId &&
-    response.ok
-  ) {
-    setNativeHostUpdateStatus(`Updated native host to ${response.installedVersion}.`);
-    await checkNativeHost();
-    await checkNativeHostUpdate();
-    return;
+    if (
+      response?.type === "NATIVE_HOST_UPDATE_RESULT" &&
+      response.requestId === requestId &&
+      response.ok
+    ) {
+      setNativeHostUpdateStatus(
+        `Updated native host to ${response.installedVersion}.`
+      );
+      await checkNativeHost();
+      await checkNativeHostUpdate();
+      return;
+    }
+
+    if (
+      response?.type === "NATIVE_HOST_UPDATE_RESULT" &&
+      response.requestId === requestId &&
+      !response.ok
+    ) {
+      setNativeHostUpdateStatus(response.message);
+      return;
+    }
+
+    setNativeHostUpdateStatus("Native host update failed.");
+  } finally {
+    setNativeHostUpdateApplying(false);
   }
-
-  if (
-    response?.type === "NATIVE_HOST_UPDATE_RESULT" &&
-    response.requestId === requestId &&
-    !response.ok
-  ) {
-    setNativeHostUpdateStatus(response.message);
-    return;
-  }
-
-  setNativeHostUpdateStatus("Native host update failed.");
 }
 
 async function checkProviderStatus() {

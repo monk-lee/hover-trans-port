@@ -272,9 +272,49 @@ assertIncludes(
   "Options update apply button"
 );
 assertIncludes(
+  optionsHtml,
+  'id="native-host-update-meta"',
+  "Options update metadata list"
+);
+assertIncludes(
+  optionsHtml,
+  'id="native-host-update-current-version"',
+  "Options current native host version metadata"
+);
+assertIncludes(
+  optionsHtml,
+  'id="native-host-update-latest-version"',
+  "Options latest native host version metadata"
+);
+assertIncludes(
+  optionsHtml,
+  'id="native-host-update-last-checked"',
+  "Options update last checked metadata"
+);
+assertIncludes(
+  optionsHtml,
+  'id="native-host-update-next-check"',
+  "Options update next check metadata"
+);
+assertIncludes(
   optionsMain,
   "formatNativeHostUpdateStatusForUser",
   "Options formats manual update guidance"
+);
+assertIncludes(
+  optionsMain,
+  "setNativeHostUpdateChecking",
+  "Options check button busy state"
+);
+assertIncludes(
+  optionsMain,
+  "setNativeHostUpdateApplying",
+  "Options apply button busy state"
+);
+assertIncludes(
+  optionsMain,
+  "formatNativeHostUpdateDateTime",
+  "Options formats update timestamps"
 );
 assertIncludes(
   popupMain,
