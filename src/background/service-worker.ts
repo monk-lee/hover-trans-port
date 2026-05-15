@@ -85,7 +85,7 @@ async function maybeRefreshNativeHostUpdateStatus(
   const status = stored.hoverTransPortNativeHostUpdate;
 
   if (
-    isNativeHostUpdateStatusStale(status) &&
+    shouldRefreshNativeHostUpdateStatus(status) &&
     (await shouldAutoCheckNativeHostUpdate())
   ) {
     return refreshNativeHostUpdateStatus(requestId);
@@ -99,6 +99,23 @@ function isNativeHostUpdateStatusStale(
   status: NativeHostUpdateStoredStatus | undefined
 ): boolean {
   return !status || Date.now() - status.checkedAt > NATIVE_HOST_UPDATE_STALE_MS;
+}
+
+function shouldRefreshNativeHostUpdateStatus(
+  status: NativeHostUpdateStoredStatus | undefined
+): boolean {
+  if (isNativeHostUpdateStatusStale(status)) {
+    return true;
+  }
+
+  if (!status || status.ok) {
+    return false;
+  }
+
+  return (
+    status.manualUpdateRequired === true ||
+    status.error === "NATIVE_HOST_UPDATE_REQUIRED"
+  );
 }
 
 function syncNativeHostUpdateBadge(

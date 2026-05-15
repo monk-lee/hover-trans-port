@@ -71,6 +71,7 @@ const checks = [
       "native-host-update-check",
       "hoverTransPortNativeHostUpdate",
       "maybeRefreshNativeHostUpdateStatus",
+      "shouldRefreshNativeHostUpdateStatus",
       "scheduleNativeHostUpdateStatusRefresh",
       "shouldAutoCheckNativeHostUpdate",
       "chrome.storage.onChanged",
@@ -105,6 +106,12 @@ assertMatches(
   /chrome\.storage\.onChanged[\s\S]*ensureNativeHostUpdateAlarm/u,
   "src/background/service-worker.ts",
   "alarm rescheduling from chrome.storage.onChanged"
+);
+assertMatches(
+  serviceWorkerText,
+  /function shouldRefreshNativeHostUpdateStatus[\s\S]*manualUpdateRequired[\s\S]*NATIVE_HOST_UPDATE_REQUIRED/u,
+  "src/background/service-worker.ts",
+  "manual update required status refreshes on extension use"
 );
 assertMatches(
   serviceWorkerText,
