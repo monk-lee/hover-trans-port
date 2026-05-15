@@ -58,6 +58,7 @@ const checks = [
   {
     path: "src/background/nativeClient.ts",
     needles: [
+      "NATIVE_HOST_UPDATE_STATUS_TIMEOUT_MS",
       "checkNativeHostUpdateStatus",
       "updateNativeHost",
       'case "INVALID_MESSAGE"'
@@ -136,6 +137,12 @@ assertMatches(
   /refreshPostNativeHostUpdateStatus[\s\S]*try[\s\S]*(checkNativeHost|refreshNativeHostUpdateStatus)[\s\S]*catch/u,
   "src/background/service-worker.ts",
   "best-effort post-update try/catch"
+);
+assertMatches(
+  nativeClientText,
+  /checkNativeHostUpdateStatus[\s\S]*sendStatusCheckMessageWithRetry\(\s*request,\s*NATIVE_HOST_UPDATE_STATUS_TIMEOUT_MS\s*\)/u,
+  "src/background/nativeClient.ts",
+  "native host update status uses the update status timeout"
 );
 assertMatches(
   nativeClientText,

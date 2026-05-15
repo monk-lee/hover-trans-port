@@ -47,6 +47,7 @@ import {
 } from "../shared/options";
 
 const NATIVE_HOST_TIMEOUT_MS = 5000;
+const NATIVE_HOST_UPDATE_STATUS_TIMEOUT_MS = 15000;
 const NATIVE_HOST_UPDATE_TIMEOUT_MS = 130000;
 const NATIVE_TRANSLATION_OVERHEAD_MS = 5000;
 const STATUS_CHECK_MAX_ATTEMPTS = 3;
@@ -558,13 +559,14 @@ function isRetryableStatusCheckFailure(error: unknown): boolean {
 }
 
 async function sendStatusCheckMessageWithRetry(
-  request: NativeRequest
+  request: NativeRequest,
+  timeoutMs = NATIVE_HOST_TIMEOUT_MS
 ): Promise<NativeResponse | undefined> {
   let retryDelayMs = STATUS_CHECK_INITIAL_RETRY_DELAY_MS;
 
   for (let attempt = 1; attempt <= STATUS_CHECK_MAX_ATTEMPTS; attempt += 1) {
     try {
-      const response = await sendNativeHostMessage(request);
+      const response = await sendNativeHostMessage(request, timeoutMs);
 
       if (response || attempt === STATUS_CHECK_MAX_ATTEMPTS) {
         return response;
@@ -680,7 +682,10 @@ export async function checkNativeHostUpdateStatus(
   };
 
   try {
-    const response = await sendStatusCheckMessageWithRetry(request);
+    const response = await sendStatusCheckMessageWithRetry(
+      request,
+      NATIVE_HOST_UPDATE_STATUS_TIMEOUT_MS
+    );
 
     if (
       response &&
