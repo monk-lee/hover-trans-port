@@ -188,6 +188,12 @@ assertMatches(
   "best-effort post-update try/catch"
 );
 assertMatches(
+  serviceWorkerText,
+  /function createNativeHostUpdateReconnectFailedStatus[\s\S]*UPDATE_RECONNECT_FAILED[\s\S]*storeNativeHostUpdateStatus/u,
+  "src/background/service-worker.ts",
+  "post-update reconnect failure is stored"
+);
+assertMatches(
   nativeClientText,
   /checkNativeHostUpdateStatus[\s\S]*sendStatusCheckMessageWithRetry\(\s*request,\s*NATIVE_HOST_UPDATE_STATUS_TIMEOUT_MS\s*\)/u,
   "src/background/nativeClient.ts",

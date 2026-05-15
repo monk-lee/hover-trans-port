@@ -4,6 +4,7 @@ import type {
   NativeHostUpdateStoredStatus
 } from "../shared/messages";
 import {
+  createNativeHostUpdateMetadata,
   isNativeHostUpdateRefreshDue,
   nativeHostUpdateNeedsAttention
 } from "../shared/nativeHostUpdate";
@@ -68,6 +69,22 @@ async function storeNativeHostUpdateStatus(
     [NATIVE_HOST_UPDATE_STORAGE_KEY]: status
   });
   syncNativeHostUpdateBadge(status);
+}
+
+function createNativeHostUpdateReconnectFailedStatus(
+  previousStatus: NativeHostUpdateStoredStatus | undefined
+): NativeHostUpdateStoredStatus {
+  return {
+    ...createNativeHostUpdateMetadata({
+      previousStatus,
+      error: "UPDATE_RECONNECT_FAILED"
+    }),
+    ok: false,
+    error: "UPDATE_RECONNECT_FAILED",
+    message:
+      "Native host update installed, but the extension could not verify the new host. Reload Chrome or the extension, then check again.",
+    retryable: true
+  };
 }
 
 async function refreshNativeHostUpdateStatus(
@@ -147,11 +164,18 @@ function didNativeHostUpdateAutoCheckChange(
 async function refreshPostNativeHostUpdateStatus(
   requestId: string
 ): Promise<void> {
+  const stored = (await chrome.storage.local.get(
+    NATIVE_HOST_UPDATE_STORAGE_KEY
+  )) as NativeHostUpdateStorage;
+  const previousStatus = stored.hoverTransPortNativeHostUpdate;
+
   try {
     await checkNativeHost(`${requestId}:host-info`);
-    await refreshNativeHostUpdateStatus(`${requestId}:status`);
+    await refreshNativeHostUpdateStatus(`${requestId}:status`, previousStatus);
   } catch {
-    // Post-update status refresh is best-effort; the update result was already returned.
+    await storeNativeHostUpdateStatus(
+      createNativeHostUpdateReconnectFailedStatus(previousStatus)
+    );
   }
 }
 
