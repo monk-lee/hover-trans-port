@@ -76,9 +76,9 @@ function createNativeHostUpdateReconnectFailedStatus(
 ): NativeHostUpdateStoredStatus {
   return {
     ...createNativeHostUpdateMetadata({
-      previousStatus,
-      error: "UPDATE_RECONNECT_FAILED"
+      previousStatus
     }),
+    lastErrorCode: "UPDATE_RECONNECT_FAILED",
     ok: false,
     error: "UPDATE_RECONNECT_FAILED",
     message:
