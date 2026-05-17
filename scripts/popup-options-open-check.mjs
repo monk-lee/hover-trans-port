@@ -285,18 +285,18 @@ try {
       nextCheckAt: Date.now() + 24 * 60 * 60 * 1000,
       failureCount: 0,
       ok: true,
-      installedVersion: "0.2.3",
-      latestVersion: "0.2.4",
-      latestTag: "v0.2.4",
+      installedVersion: "0.2.4",
+      latestVersion: "0.2.5",
+      latestTag: "v0.2.5",
       updateAvailable: true,
-      releaseUrl: "https://github.com/monk-lee/hover-trans-port/releases/tag/v0.2.4"
+      releaseUrl: "https://github.com/monk-lee/hover-trans-port/releases/tag/v0.2.5"
     },
     "update-available"
   );
 
   assertEqual(
     updateAvailableElements.get("#status-detail").textContent,
-    "Native Host 0.2.3 -> 0.2.4. Open Options to update.",
+    "Native Host 0.2.4 -> 0.2.5. Open Options to update.",
     "popup update available detail is compact"
   );
   assertEqual(
