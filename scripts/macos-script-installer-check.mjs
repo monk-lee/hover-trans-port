@@ -1,8 +1,10 @@
 import { execFileSync } from "node:child_process";
 import {
   chmodSync,
+  copyFileSync,
   existsSync,
   lstatSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   readlinkSync,
@@ -17,8 +19,8 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const installer = join(repoRoot, "scripts/install-macos-native-host.sh");
 const extensionId = "mmbmjpmhmlkjknhcigafgplahdbicabe";
 
-function run(args, env) {
-  return execFileSync("bash", [installer, ...args], {
+function runWithInstaller(installerPath, args, env) {
+  return execFileSync("bash", [installerPath, ...args], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -30,8 +32,16 @@ function run(args, env) {
   });
 }
 
+function run(args, env) {
+  return runWithInstaller(installer, args, env);
+}
+
 function runJson(args, env) {
   return JSON.parse(run(args.concat("--json"), env));
+}
+
+function runInstallerJson(installerPath, args, env) {
+  return JSON.parse(runWithInstaller(installerPath, args.concat("--json"), env));
 }
 
 function makeFixtureHelper(root, label = "fixture") {
@@ -39,6 +49,38 @@ function makeFixtureHelper(root, label = "fixture") {
   writeFileSync(helper, "#!/bin/sh\nprintf 'fixture helper\\n'\n");
   chmodSync(helper, 0o755);
   return helper;
+}
+
+function currentMacosAssetName() {
+  const machine = execFileSync("uname", ["-m"], { encoding: "utf8" }).trim();
+
+  if (machine === "arm64") {
+    return "hover-trans-port-helper-macos-arm64";
+  }
+
+  if (machine === "x86_64") {
+    return "hover-trans-port-helper-macos-x64";
+  }
+
+  throw new Error(`unsupported test architecture: ${machine}`);
+}
+
+function writeReleaseFixture(root, tag, assetName, helperBody) {
+  const releaseDir = join(root, "releases", "download", tag);
+  const helperPath = join(releaseDir, assetName);
+
+  rmSync(releaseDir, { recursive: true, force: true });
+  mkdirSync(releaseDir, { recursive: true });
+  writeFileSync(helperPath, helperBody, { mode: 0o755, flush: true });
+  chmodSync(helperPath, 0o755);
+
+  const checksum = execFileSync("shasum", ["-a", "256", helperPath], {
+    encoding: "utf8"
+  }).split(" ")[0];
+
+  writeFileSync(join(releaseDir, "checksums.txt"), `${checksum}  ${assetName}\n`);
+
+  return `file://${join(root, "releases")}`;
 }
 
 function makeEnv(root) {
@@ -92,10 +134,10 @@ withTempRoot("install", (root) => {
   const helper = makeFixtureHelper(root);
 
   const output = run(["install", "--helper-source", helper], env);
-  assert(output.includes("installed native host 0.2.4"), "install output should name host version");
+  assert(output.includes("installed native host 0.2.5"), "install output should name host version");
 
   const installRoot = env.HOVER_TRANS_PORT_INSTALL_ROOT;
-  const versionDir = join(installRoot, "native-hosts/0.2.4");
+  const versionDir = join(installRoot, "native-hosts/0.2.5");
   const installedHelper = join(versionDir, "hover-trans-port-helper");
   const launcher = join(installRoot, "launcher");
   const current = join(installRoot, "current");
@@ -114,8 +156,8 @@ withTempRoot("install", (root) => {
 
   assert(existsSync(installedHelper), "helper should be copied into version directory");
   assert((lstatSync(installedHelper).mode & 0o111) !== 0, "installed helper should be executable");
-  const metadata = readMetadata(installRoot, "0.2.4");
-  assert(metadata.hostVersion === "0.2.4", "metadata should name host version");
+  const metadata = readMetadata(installRoot, "0.2.5");
+  assert(metadata.hostVersion === "0.2.5", "metadata should name host version");
   assert(metadata.protocolVersion === 1, "metadata should name protocol version");
   assert(metadata.source === "macos-script-installer", "metadata should name installer source");
   assert(metadata.updaterPath === join(versionDir, "install-macos-native-host.sh"), "metadata should name updater path");
@@ -160,11 +202,11 @@ withTempRoot("json-update", (root) => {
   );
   assert(Array.isArray(install.manifests), "json install should list manifests");
 
-  const update = runJson(["update", "--host-version", "0.2.4", "--helper-source", helperV2], env);
+  const update = runJson(["update", "--host-version", "0.2.5", "--helper-source", helperV2], env);
   assert(update.ok === true, "json update should report ok");
   assert(update.command === "update", "json update should name command");
   assert(update.previousVersion === "0.1.0", "json update should name previous version");
-  assert(update.installedVersion === "0.2.4", "json update should name installed version");
+  assert(update.installedVersion === "0.2.5", "json update should name installed version");
   assert(
     update.currentLink === join(env.HOVER_TRANS_PORT_INSTALL_ROOT, "current"),
     "json update should name current link"
@@ -177,14 +219,67 @@ withTempRoot("update", (root) => {
   const helperV2 = makeFixtureHelper(root, "v2");
 
   run(["install", "--host-version", "0.1.0", "--helper-source", helperV1], env);
-  run(["install", "--host-version", "0.2.4", "--helper-source", helperV2], env);
+  run(["install", "--host-version", "0.2.5", "--helper-source", helperV2], env);
 
   const installRoot = env.HOVER_TRANS_PORT_INSTALL_ROOT;
   assert(existsSync(join(installRoot, "native-hosts/0.1.0/hover-trans-port-helper")), "old version should remain");
-  assert(existsSync(join(installRoot, "native-hosts/0.2.4/hover-trans-port-helper")), "new version should exist");
+  assert(existsSync(join(installRoot, "native-hosts/0.2.5/hover-trans-port-helper")), "new version should exist");
   assert(
-    readlinkSync(join(installRoot, "current")) === join(installRoot, "native-hosts/0.2.4"),
+    readlinkSync(join(installRoot, "current")) === join(installRoot, "native-hosts/0.2.5"),
     "current should point at updated version"
+  );
+});
+
+withTempRoot("persisted-updater-download", (root) => {
+  const env = makeEnv(root);
+  const installRoot = env.HOVER_TRANS_PORT_INSTALL_ROOT;
+  const previousVersionDir = join(installRoot, "native-hosts/0.2.4");
+  const staleHelperBody = "#!/bin/sh\nprintf 'stale bundled helper\\n'\n";
+  const downloadedHelperBody = "#!/bin/sh\nprintf 'downloaded release helper\\n'\n";
+  const assetName = currentMacosAssetName();
+  const releaseBaseUrl = writeReleaseFixture(
+    root,
+    "v0.2.6",
+    assetName,
+    downloadedHelperBody
+  );
+
+  rmSync(previousVersionDir, { recursive: true, force: true });
+  mkdirSync(previousVersionDir, { recursive: true });
+  writeFileSync(join(previousVersionDir, "hover-trans-port-helper"), staleHelperBody, {
+    mode: 0o755,
+    flush: true
+  });
+  chmodSync(join(previousVersionDir, "hover-trans-port-helper"), 0o755);
+  const persistedUpdater = join(previousVersionDir, "install-macos-native-host.sh");
+  copyFileSync(installer, persistedUpdater);
+  chmodSync(persistedUpdater, 0o755);
+
+  const result = runInstallerJson(
+    persistedUpdater,
+    [
+      "update",
+      "--host-version",
+      "0.2.6",
+      "--release-tag",
+      "v0.2.6"
+    ],
+    {
+      ...env,
+      HOVER_TRANS_PORT_RELEASE_BASE_URL: releaseBaseUrl
+    }
+  );
+
+  assert(result.ok === true, "persisted updater should report ok");
+  assert(result.installedVersion === "0.2.6", "persisted updater should install target version");
+
+  const installedHelper = readFileSync(
+    join(installRoot, "native-hosts/0.2.6/hover-trans-port-helper"),
+    "utf8"
+  );
+  assert(
+    installedHelper === downloadedHelperBody,
+    "persisted updater must download the release helper instead of copying the old generic helper"
   );
 });
 
@@ -197,7 +292,7 @@ withTempRoot("status-uninstall", (root) => {
 
   run(["install", "--helper-source", helper], env);
   const status = run(["status"], env);
-  assert(status.includes("installed native host 0.2.4"), "status should report installed version");
+  assert(status.includes("installed native host 0.2.5"), "status should report installed version");
 
   run(["uninstall"], env);
   assert(!existsSync(env.HOVER_TRANS_PORT_INSTALL_ROOT), "uninstall should remove install root");

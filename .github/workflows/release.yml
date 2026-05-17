@@ -79,16 +79,16 @@ jobs:
           - install-macos-native-host.sh: one-line native host installer
           - checksums.txt: SHA-256 checksums for native host assets
           - hover-trans-port-helper-macos-arm64: macOS ARM64 native helper
-          - hover-trans-port-native-host-macos-0.2.4.tar.gz: inspect-first native host package
+          - hover-trans-port-native-host-macos-0.2.5.tar.gz: inspect-first native host package
           - hover-trans-port-extension-${TAG_NAME}.zip: unpacked Chrome extension package built from dist/
 
           Highlights:
-          - Hardens native host/helper update checks with persisted metadata, retry backoff, and safer status writes.
-          - Shows richer Options diagnostics for current/latest native host versions, last check time, and retry timing.
-          - Keeps Popup update guidance compact while avoiding duplicate prompts.
+          - Fixes persisted native host updater installs so they download the target release helper instead of reusing the old helper beside the updater script.
+          - Keeps native host/helper update checks, retry backoff, and Options diagnostics from v0.2.4.
 
           Native host update required:
-          - Existing v0.2.3 native hosts can install this release from Options with user confirmation.
+          - Existing v0.2.4 installs that still report helper version v0.2.3 need one manual install command because their persisted updater copied the old helper.
+          - Existing v0.2.5 and later native hosts can install future releases from Options with user confirmation.
           - Existing v0.2.2 and older native hosts do not understand update messages. Run the latest install script once, then reload the extension.
 
           Next:
@@ -109,7 +109,7 @@ jobs:
           test -f "$NATIVE_DIR/install-macos-native-host.sh"
           test -f "$NATIVE_DIR/checksums.txt"
           test -f "$NATIVE_DIR/hover-trans-port-helper-macos-arm64"
-          test -f "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.4.tar.gz"
+          test -f "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.5.tar.gz"
           test -f "$EXTENSION_ZIP"
           test -f build/release/release-notes.md
 
@@ -128,7 +128,7 @@ jobs:
             "$NATIVE_DIR/install-macos-native-host.sh" \
             "$NATIVE_DIR/checksums.txt" \
             "$NATIVE_DIR/hover-trans-port-helper-macos-arm64" \
-            "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.4.tar.gz" \
+            "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.5.tar.gz" \
             "$EXTENSION_ZIP" \
             --verify-tag \
             --latest \

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 HOST_NAME="com.monklabs.hover_trans_port"
-DEFAULT_HOST_VERSION="0.2.4"
+DEFAULT_HOST_VERSION="0.2.5"
 DEFAULT_EXTENSION_ID="mmbmjpmhmlkjknhcigafgplahdbicabe"
 APP_SUPPORT_DIR_NAME="Hover Trans Port"
 HELPER_EXECUTABLE_NAME="hover-trans-port-helper"
@@ -263,15 +263,9 @@ resolve_helper_source() {
   script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
   asset_name="$(detect_asset_name)"
   bundled="$script_dir/$asset_name"
-  generic_bundled="$script_dir/$HELPER_EXECUTABLE_NAME"
 
   if [ -x "$bundled" ]; then
     printf '%s\n' "$bundled"
-    return 0
-  fi
-
-  if [ -x "$generic_bundled" ]; then
-    printf '%s\n' "$generic_bundled"
     return 0
   fi
 
