@@ -10,7 +10,7 @@
 
 ![Hover Trans Port inline translation preview](../docs/assets/hover-trans-port-preview.png)
 
-Hover Trans Port는 웹페이지에서 텍스트를 선택하거나 마우스를 올린 뒤 지정한 단축키를 누르면 원문 근처에 번역을 보여주는 Chrome 확장 프로그램입니다. Chrome Native Messaging으로 로컬 helper를 호출하고, helper는 사용자가 이미 설치하고 로그인한 Codex CLI 또는 experimental Claude CLI를 실행합니다.
+Hover Trans Port는 웹페이지에서 텍스트를 선택하거나 마우스를 올린 뒤 지정한 단축키를 누르면 원문 근처에 번역을 보여주는 Chrome 확장 프로그램입니다. Chrome Native Messaging으로 로컬 helper를 호출하고, helper는 사용자가 이미 설치하고 로그인한 Codex CLI 또는 Claude CLI를 실행합니다.
 
 이 프로젝트는 OpenAI, Codex, Anthropic, Claude와 제휴, 보증, 후원을 받는 공식 제품이 아닙니다.
 
@@ -19,7 +19,7 @@ Hover Trans Port는 웹페이지에서 텍스트를 선택하거나 마우스를
 현재 동작하는 범위:
 
 - macOS, Google Chrome, `dist/` 폴더를 직접 불러오는 unpacked extension 설치.
-- Codex CLI provider 및 experimental Claude CLI provider.
+- Codex CLI provider 및 Claude CLI provider.
 - 선택 영역 우선 번역과 마우스로 가리킨 읽기 가능한 블록 번역.
 - 원문 안에 번역 표시, 로컬 SQLite 캐시, Options 진단 기능.
 - macOS native host용 script installer.
@@ -35,7 +35,7 @@ Hover Trans Port는 웹페이지에서 텍스트를 선택하거나 마우스를
 
 ### 1. Release에서 Extension package 다운로드
 
-[최신 GitHub Release](https://github.com/monk-lee/hover-trans-port/releases/latest)를 열고 `hover-trans-port-extension-<version>.zip` asset을 다운로드합니다.
+[최신 GitHub Release](https://github.com/monk-lee/hover-trans-port/releases/latest)를 열고 `hover-trans-port-extension-v<version>.zip` asset을 다운로드합니다. 예: `hover-trans-port-extension-v0.2.5.zip`.
 
 압축을 해제한 뒤 `chrome://extensions`를 열고 Developer mode를 켠 다음 `Load unpacked`에서 압축 해제한 extension 폴더를 선택합니다. Chrome은 `.zip` 파일 자체가 아니라 압축 해제한 폴더를 불러옵니다.
 
@@ -48,6 +48,8 @@ curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download
 ```
 
 이 installer는 현재 Mac 아키텍처에 맞는 helper를 다운로드하고 `checksums.txt`로 검증한 뒤, stable launcher와 Chrome Native Messaging manifest를 등록합니다. Codex CLI와 Claude CLI는 별도 전제 조건이므로 Options에서 선택하기 전에 각 로컬 CLI가 설치되고 인증되어 있어야 합니다.
+
+아직 스스로 업데이트할 수 없는 오래된 native host를 쓰고 있으면 extension의 Popup 또는 Options에 수동 업데이트 안내가 표시됩니다. 같은 `curl` 명령을 한 번 실행한 뒤 extension을 다시 불러오면, 이후 update-capable host는 Options에서 업데이트할 수 있습니다.
 
 스크립트를 먼저 확인하고 실행하려면:
 

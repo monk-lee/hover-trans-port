@@ -8,7 +8,7 @@ This guide covers the current macOS install path:
 - Google Chrome
 - Unpacked extension loaded from this repository's `dist/` folder
 - Codex CLI as the default executable provider
-- Experimental Claude CLI as an optional executable provider
+- Claude CLI as an optional executable provider
 
 Chrome Web Store installation is not currently supported.
 
@@ -108,7 +108,7 @@ Common settings:
 
 - `Target language`: translation output language. Choose `Korean` for Korean output.
 - `Timeout seconds`: per-request provider CLI timeout. The default is 30 seconds. Values are clamped to 5-120.
-- `Provider`: executable CLI used for translation. Codex is the default provider; Claude is experimental and CLI-only.
+- `Provider`: executable CLI used for translation. Codex is the default provider; Claude is optional and CLI-only.
 - `Use cache`: when disabled, Local Bridge skips both cache lookup and cache write.
 - `Model`: provider model alias passed as `--model <model>`. The Options page asks the native host for a provider model catalog. Providers with a stable machine-readable list, such as Codex through `codex debug models`, can show CLI-provided models. Providers without a stable list command use built-in fallback aliases and still allow custom model values. Selecting `Default (Claude CLI)` omits `--model` so Claude CLI chooses its configured default. Codex reset restores `gpt-5.4-mini`; Claude reset restores `haiku`.
 

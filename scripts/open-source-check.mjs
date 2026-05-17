@@ -83,7 +83,6 @@ const readme = read("README.md");
 assertIncludes(readme, "Chrome Manifest V3 extension", "README.md");
 assertIncludes(readme, "Codex CLI", "README.md");
 assertIncludes(readme, "Claude CLI", "README.md");
-assertIncludes(readme, "experimental Claude CLI", "README.md");
 assertIncludes(readme, "Native Messaging", "README.md");
 assertIncludes(readme, "PRIVACY.md", "README.md");
 assertIncludes(readme, "[한국어](readmes/README.ko.md)", "README.md");
@@ -113,7 +112,7 @@ assertIncludes(
 const privacy = read("PRIVACY.md");
 assertIncludes(
   privacy,
-  "Codex CLI and experimental Claude CLI",
+  "Codex CLI and Claude CLI",
   "PRIVACY.md"
 );
 assertIncludes(
@@ -145,7 +144,7 @@ assertIncludes(nativeHostInstall, "standalone modifier keys", "docs/native-host-
 assertIncludes(nativeHostInstall, "ChatGPT Atlas", "docs/native-host-install.md");
 assertIncludes(
   nativeHostInstall,
-  "Experimental Claude CLI",
+  "Claude CLI as an optional executable provider",
   "docs/native-host-install.md"
 );
 assertIncludes(

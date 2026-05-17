@@ -59,7 +59,7 @@ This checklist is for the first public source release.
 
 - [ ] Tag v0.2.5
 - [ ] Release title: v0.2.5
-- [ ] Release notes mention macOS + Chrome + Codex CLI and experimental Claude CLI support
+- [ ] Release notes mention macOS + Chrome + Codex CLI and Claude CLI support
 - [ ] Release notes link docs/native-host-install.md
 - [ ] Release notes link PRIVACY.md
 - [ ] Release notes state this is not a Chrome Web Store release
