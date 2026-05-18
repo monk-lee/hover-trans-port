@@ -134,10 +134,10 @@ withTempRoot("install", (root) => {
   const helper = makeFixtureHelper(root);
 
   const output = run(["install", "--helper-source", helper], env);
-  assert(output.includes("installed native host 0.2.5"), "install output should name host version");
+  assert(output.includes("installed native host 0.2.6"), "install output should name host version");
 
   const installRoot = env.HOVER_TRANS_PORT_INSTALL_ROOT;
-  const versionDir = join(installRoot, "native-hosts/0.2.5");
+  const versionDir = join(installRoot, "native-hosts/0.2.6");
   const installedHelper = join(versionDir, "hover-trans-port-helper");
   const launcher = join(installRoot, "launcher");
   const current = join(installRoot, "current");
@@ -156,8 +156,8 @@ withTempRoot("install", (root) => {
 
   assert(existsSync(installedHelper), "helper should be copied into version directory");
   assert((lstatSync(installedHelper).mode & 0o111) !== 0, "installed helper should be executable");
-  const metadata = readMetadata(installRoot, "0.2.5");
-  assert(metadata.hostVersion === "0.2.5", "metadata should name host version");
+  const metadata = readMetadata(installRoot, "0.2.6");
+  assert(metadata.hostVersion === "0.2.6", "metadata should name host version");
   assert(metadata.protocolVersion === 1, "metadata should name protocol version");
   assert(metadata.source === "macos-script-installer", "metadata should name installer source");
   assert(metadata.updaterPath === join(versionDir, "install-macos-native-host.sh"), "metadata should name updater path");
@@ -292,7 +292,7 @@ withTempRoot("status-uninstall", (root) => {
 
   run(["install", "--helper-source", helper], env);
   const status = run(["status"], env);
-  assert(status.includes("installed native host 0.2.5"), "status should report installed version");
+  assert(status.includes("installed native host 0.2.6"), "status should report installed version");
 
   run(["uninstall"], env);
   assert(!existsSync(env.HOVER_TRANS_PORT_INSTALL_ROOT), "uninstall should remove install root");

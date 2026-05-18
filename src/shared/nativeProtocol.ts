@@ -5,8 +5,8 @@ import type {
 } from "./providers";
 
 export const NATIVE_HOST_NAME = "com.monklabs.hover_trans_port";
-export const NATIVE_BRIDGE_VERSION = "0.2.5-rust-helper";
-export const NATIVE_HOST_VERSION = "0.2.5";
+export const NATIVE_BRIDGE_VERSION = "0.2.6-rust-helper";
+export const NATIVE_HOST_VERSION = "0.2.6";
 export const NATIVE_HOST_PROTOCOL_VERSION = 1;
 
 export type NativePingRequest = {
