@@ -338,6 +338,52 @@ try {
     "clipped source translation should be inserted after the clipped source"
   );
 
+  const mixedTargetSource = document.createElement("p");
+  mixedTargetSource.setAttribute(SOURCE_KEY_ATTRIBUTE, "hover-trans-port-source-4");
+  mixedTargetSource.appendChild(
+    document.createTextNode("macOS, Google Chrome, and an unpacked extension loaded from dist/.")
+  );
+  document.body.appendChild(mixedTargetSource);
+
+  const selectionTarget = {
+    ...target,
+    mode: "selection",
+    text: "loaded",
+    sourceElement: {
+      ownerKey: "hover-trans-port-source-4",
+      tagName: "p",
+      renderStrategy: "inside-source"
+    }
+  };
+  const sentenceTarget = {
+    ...selectionTarget,
+    mode: "hover-block",
+    text: "macOS, Google Chrome, and an unpacked extension loaded from dist/."
+  };
+
+  assert(renderer.renderSuccess(selectionTarget, "로드됨"), "selection render should succeed");
+  assert(
+    renderer.getRenderedStatus(selectionTarget) === "success",
+    "selection render should be tracked as selection"
+  );
+  assert(
+    renderer.getRenderedStatus(sentenceTarget) === null,
+    "selection render should not satisfy a sentence target on the same source"
+  );
+  assert(
+    renderer.toggleRenderedResult(sentenceTarget) === false,
+    "sentence target should not toggle a previous selection translation"
+  );
+  assert(renderer.renderLoading(sentenceTarget), "sentence target should replace selection inline with loading");
+  assert(
+    renderer.getRenderedStatus(sentenceTarget) === "loading",
+    "sentence target should have its own render state after replacing selection inline"
+  );
+  assert(
+    inlineNodesUnder(mixedTargetSource).length === 1,
+    "selection-to-sentence replacement should keep a single inline node per source"
+  );
+
   console.log("inline-renderer-check: inline insertion behavior is valid.");
 } finally {
   rmSync(tempDir, { recursive: true, force: true });

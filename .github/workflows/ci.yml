@@ -51,6 +51,6 @@ jobs:
           test -f build/macos-script-installer/install-macos-native-host.sh
           test -f build/macos-script-installer/checksums.txt
           test -f build/macos-script-installer/hover-trans-port-helper-macos-arm64
-          test -f build/macos-script-installer/hover-trans-port-native-host-macos-0.2.5.tar.gz
+          test -f build/macos-script-installer/hover-trans-port-native-host-macos-0.2.6.tar.gz
           cd build/macos-script-installer
           shasum -a 256 -c checksums.txt

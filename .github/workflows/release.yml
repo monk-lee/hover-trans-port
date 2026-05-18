@@ -79,10 +79,11 @@ jobs:
           - install-macos-native-host.sh: one-line native host installer
           - checksums.txt: SHA-256 checksums for native host assets
           - hover-trans-port-helper-macos-arm64: macOS ARM64 native helper
-          - hover-trans-port-native-host-macos-0.2.5.tar.gz: inspect-first native host package
+          - hover-trans-port-native-host-macos-0.2.6.tar.gz: inspect-first native host package
           - hover-trans-port-extension-${TAG_NAME}.zip: unpacked Chrome extension package built from dist/
 
           Highlights:
+          - Keeps selection translation and whole-sentence translation states separate when they share the same page source element.
           - Fixes persisted native host updater installs so they download the target release helper instead of reusing the old helper beside the updater script.
           - Keeps native host/helper update checks, retry backoff, and Options diagnostics from v0.2.4.
 
@@ -109,7 +110,7 @@ jobs:
           test -f "$NATIVE_DIR/install-macos-native-host.sh"
           test -f "$NATIVE_DIR/checksums.txt"
           test -f "$NATIVE_DIR/hover-trans-port-helper-macos-arm64"
-          test -f "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.5.tar.gz"
+          test -f "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.6.tar.gz"
           test -f "$EXTENSION_ZIP"
           test -f build/release/release-notes.md
 
@@ -128,7 +129,7 @@ jobs:
             "$NATIVE_DIR/install-macos-native-host.sh" \
             "$NATIVE_DIR/checksums.txt" \
             "$NATIVE_DIR/hover-trans-port-helper-macos-arm64" \
-            "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.5.tar.gz" \
+            "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.6.tar.gz" \
             "$EXTENSION_ZIP" \
             --verify-tag \
             --latest \

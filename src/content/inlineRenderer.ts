@@ -4,6 +4,8 @@ import { findSourceElementByOwnerKey } from "./sourceElement";
 
 const INLINE_ATTRIBUTE = "data-hover-trans-port-inline";
 const INLINE_OWNER_ATTRIBUTE = "data-hover-trans-port-owner";
+const INLINE_TARGET_MODE_ATTRIBUTE = "data-hover-trans-port-target-mode";
+const INLINE_TARGET_TEXT_KEY_ATTRIBUTE = "data-hover-trans-port-target-text-key";
 const INLINE_TEXT_ATTRIBUTE = "data-hover-trans-port-inline-text";
 const INLINE_STATUS_ATTRIBUTE = "data-hover-trans-port-status";
 const INLINE_LOADER_ATTRIBUTE = "data-hover-trans-port-loader";
@@ -64,6 +66,40 @@ function createLineBreakNode(): HTMLBRElement {
 
 function normalizeText(text: string): string {
   return text.replace(/\s+/g, " ").trim();
+}
+
+function createTextKey(text: string): string {
+  const normalized = normalizeText(text);
+  let hash = 2166136261;
+
+  for (let index = 0; index < normalized.length; index += 1) {
+    hash ^= normalized.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return `${normalized.length}:${(hash >>> 0).toString(36)}`;
+}
+
+function getTargetTextKey(target: TranslationTarget): string {
+  return createTextKey(target.text);
+}
+
+function setInlineTargetMetadata(
+  node: HTMLElement,
+  target: TranslationTarget
+): void {
+  node.setAttribute(INLINE_TARGET_MODE_ATTRIBUTE, target.mode);
+  node.setAttribute(INLINE_TARGET_TEXT_KEY_ATTRIBUTE, getTargetTextKey(target));
+}
+
+function isInlineForTarget(
+  node: HTMLElement,
+  target: TranslationTarget
+): boolean {
+  return (
+    node.getAttribute(INLINE_TARGET_MODE_ATTRIBUTE) === target.mode &&
+    node.getAttribute(INLINE_TARGET_TEXT_KEY_ATTRIBUTE) === getTargetTextKey(target)
+  );
 }
 
 function findTextBearingLayoutChild(
@@ -276,6 +312,10 @@ export class InlineRenderer {
       return null;
     }
 
+    if (!isInlineForTarget(node, target)) {
+      return null;
+    }
+
     const status = node.getAttribute(INLINE_STATUS_ATTRIBUTE);
 
     if (status === "success" && node.hidden) {
@@ -300,7 +340,11 @@ export class InlineRenderer {
 
     const node = findExistingInline(target.sourceElement.ownerKey);
 
-    if (!node || node.getAttribute(INLINE_STATUS_ATTRIBUTE) !== "success") {
+    if (
+      !node ||
+      !isInlineForTarget(node, target) ||
+      node.getAttribute(INLINE_STATUS_ATTRIBUTE) !== "success"
+    ) {
       return false;
     }
 
@@ -320,6 +364,7 @@ export class InlineRenderer {
     const existing = findExistingInline(ownerKey);
     const node = existing ?? createInlineNode(ownerKey);
 
+    setInlineTargetMetadata(node, target);
     setInlineText(node, state, target.inlineAnnotations);
 
     if (existing) {
