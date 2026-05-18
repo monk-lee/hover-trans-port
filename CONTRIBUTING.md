@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve Hover Trans Port.
+Thanks for helping improve HoverTransPort.
 
 ## Current Scope
 

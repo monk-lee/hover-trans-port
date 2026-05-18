@@ -1,14 +1,10 @@
-# Hover Trans Port
-
-<p align="center">
-  <img src="docs/assets/hover-trans-port-icon.svg" alt="Hover Trans Port icon" width="72" height="72">
-</p>
+# HoverTransPort
 
 Language: English | [한국어](readmes/README.ko.md)
 
-![Hover Trans Port inline translation preview](docs/assets/hover-trans-port-preview.png)
+![HoverTransPort inline translation preview](docs/assets/hover-trans-port-preview.png)
 
-Hover Trans Port is a Chrome Manifest V3 extension for translating selected or hovered web text on demand. It uses Chrome Native Messaging to reach a local compiled helper, and the helper calls the AI CLI that is already installed and authenticated on your machine. Supported executable providers are Codex CLI and Claude CLI.
+HoverTransPort is a Chrome Manifest V3 extension for translating selected or hovered web text on demand. It uses Chrome Native Messaging to reach a local compiled helper, and the helper calls the AI CLI that is already installed and authenticated on your machine. Supported executable providers are Codex CLI and Claude CLI.
 
 This project is not affiliated with, endorsed by, or sponsored by OpenAI, Codex, Anthropic, or Claude.
 
@@ -102,7 +98,7 @@ Common browser and editing shortcuts such as Ctrl+C or Ctrl+F are blocked from t
 
 ## Privacy
 
-Hover Trans Port is local-first, but not offline-only. Requested text is passed to the local helper, which invokes the configured provider CLI; it may be sent to upstream AI services according to your CLI account, authentication, environment, and provider policies.
+HoverTransPort is local-first, but not offline-only. Requested text is passed to the local helper, which invokes the configured provider CLI; it may be sent to upstream AI services according to your CLI account, authentication, environment, and provider policies.
 
 The extension and helper do not store API keys, OAuth tokens, browser cookies, or service session tokens. If cache is enabled, normalized source text and translated text can be stored in local plaintext SQLite.
 

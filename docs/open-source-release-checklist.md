@@ -39,7 +39,7 @@ This checklist is for the first public source release.
 - [ ] Reload the extension and confirm `Check Native Host` returns `Native Host is not installed or not reachable.`
 - [ ] pnpm build
 - [ ] pnpm native:install
-- [ ] Script installer `install` creates `~/Library/Application Support/Hover Trans Port/current`.
+- [ ] Script installer `install` creates `~/Library/Application Support/HoverTransPort/current`.
 - [ ] Script installer `status` reports installed native host version.
 - [ ] Script installer `update` switches `current` to the new version and keeps the previous version directory.
 - [ ] Script installer `uninstall` removes the Chrome manifest and install root.
@@ -47,7 +47,7 @@ This checklist is for the first public source release.
 - [ ] Options Diagnostics / Check Native Host succeeds
 - [ ] Options Diagnostics / Check Native Host shows host version, bridge version, and protocol version.
 - [ ] Native Host update-required state blocks translation before provider execution when protocol is too old.
-- [ ] `~/Library/Application Support/Hover Trans Port/current` points at the expected versioned host directory after install.
+- [ ] `~/Library/Application Support/HoverTransPort/current` points at the expected versioned host directory after install.
 - [ ] Options Translation Provider / Check Provider succeeds
 - [ ] Selection translation succeeds
 - [ ] Hover block translation succeeds

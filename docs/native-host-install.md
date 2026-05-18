@@ -1,6 +1,6 @@
 # Native Host Install
 
-Hover Trans Port uses Chrome Native Messaging to connect the browser extension to a local compiled native helper. The helper calls local AI CLIs for requested translations.
+HoverTransPort uses Chrome Native Messaging to connect the browser extension to a local compiled native helper. The helper calls local AI CLIs for requested translations.
 
 This guide covers the current macOS install path:
 
@@ -52,13 +52,13 @@ bash install-macos-native-host.sh update
 bash install-macos-native-host.sh uninstall
 ```
 
-The installer writes the helper to `~/Library/Application Support/Hover Trans Port/native-hosts/<version>/`, updates `current`, writes the stable launcher, and registers Chrome's Native Messaging manifest.
+The installer writes the helper to `~/Library/Application Support/HoverTransPort/native-hosts/<version>/`, updates `current`, writes the stable launcher, and registers Chrome's Native Messaging manifest.
 
 Codex CLI and Claude CLI are separate prerequisites. The installer does not store provider credentials, API keys, or browser session data.
 
 ## Updating From Options
 
-Hover Trans Port can check for native host updates in the background and show the result in Options.
+HoverTransPort can check for native host updates in the background and show the result in Options.
 
 The first update-capable native host must be installed manually because older native hosts do not understand update messages. v0.2.4 installs that still report helper version v0.2.3 also need one manual install because their persisted updater can copy the old helper. After that one-time update, open Options > Diagnostics > Native Host and use `Check for Updates` or `Update Native Host`.
 
@@ -95,7 +95,7 @@ For legacy debugging only, set `HOVER_TRANS_PORT_USE_NODE_HOST=1` to install the
 After installing:
 
 1. Open `chrome://extensions`.
-2. Reload Hover Trans Port.
+2. Reload HoverTransPort.
 3. Open the extension Options page.
 4. Click `Check Provider` in `Translation Provider`.
 5. Expand `Diagnostics` and click `Check Native Host`.
@@ -150,7 +150,7 @@ Reload the extension, expand `Diagnostics`, and click `Check Native Host` again.
 
 ### Native Host is not installed or not reachable
 
-Run `bash install-macos-native-host.sh install` from the release payload, then reload Hover Trans Port from `chrome://extensions`. During development, run `pnpm helper:build:release` and `pnpm native:install`.
+Run `bash install-macos-native-host.sh install` from the release payload, then reload HoverTransPort from `chrome://extensions`. During development, run `pnpm helper:build:release` and `pnpm native:install`.
 
 ### Codex cannot be found
 
@@ -180,7 +180,7 @@ Then click `Check Provider` and check the resolved binary path. Chrome on macOS 
 
 ### Claude is not authenticated
 
-Run Claude CLI directly and complete its login or authentication flow. Hover Trans Port does not store Anthropic API keys, OAuth tokens, or Claude session credentials.
+Run Claude CLI directly and complete its login or authentication flow. HoverTransPort does not store Anthropic API keys, OAuth tokens, or Claude session credentials.
 
 ### Translation times out
 

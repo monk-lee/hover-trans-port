@@ -1,6 +1,6 @@
 # Privacy
 
-Hover Trans Port translates text only when you explicitly request it with the configured trigger.
+HoverTransPort translates text only when you explicitly request it with the configured trigger.
 
 ## What The Extension Processes
 
@@ -23,10 +23,10 @@ Requested text flows through these local components:
 1. Chrome content script.
 2. Chrome background service worker.
 3. Chrome Native Messaging.
-4. Hover Trans Port local native helper.
+4. HoverTransPort local native helper.
 5. The configured local provider CLI.
 
-Supported executable providers are Codex CLI and Claude CLI. Each configured local provider CLI may send requested text upstream according to that provider CLI's account, authentication, environment, and provider policies. Hover Trans Port does not store provider credentials or API keys. Hover Trans Port invokes Codex CLI with `--ignore-user-config`. Claude CLI support is CLI-only; Hover Trans Port does not make direct Anthropic API calls.
+Supported executable providers are Codex CLI and Claude CLI. Each configured local provider CLI may send requested text upstream according to that provider CLI's account, authentication, environment, and provider policies. HoverTransPort does not store provider credentials or API keys. HoverTransPort invokes Codex CLI with `--ignore-user-config`. Claude CLI support is CLI-only; HoverTransPort does not make direct Anthropic API calls.
 
 ## What Is Stored
 
@@ -50,7 +50,7 @@ The cache key includes provider, model, target language, and normalized source t
 
 ## What Is Not Stored By The Extension
 
-Hover Trans Port does not store:
+HoverTransPort does not store:
 
 - API keys.
 - OAuth tokens.
@@ -84,4 +84,4 @@ To remove extension storage, remove the unpacked extension from `chrome://extens
 
 ## Sensitive Content Warning
 
-Do not use Hover Trans Port on confidential, regulated, privileged, or third-party content unless you are allowed to send that content through your configured AI CLI provider.
+Do not use HoverTransPort on confidential, regulated, privileged, or third-party content unless you are allowed to send that content through your configured AI CLI provider.

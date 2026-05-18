@@ -1,16 +1,12 @@
-# Hover Trans Port
-
-<p align="center">
-  <img src="../docs/assets/hover-trans-port-icon.svg" alt="Hover Trans Port icon" width="72" height="72">
-</p>
+# HoverTransPort
 
 언어: [English](../README.md) | 한국어
 
 > 이 한국어 README는 빠른 이해를 위한 요약입니다. 릴리스, 보안, 개인정보, Native Host 세부 기준은 영어 원문 문서를 우선합니다.
 
-![Hover Trans Port inline translation preview](../docs/assets/hover-trans-port-preview.png)
+![HoverTransPort inline translation preview](../docs/assets/hover-trans-port-preview.png)
 
-Hover Trans Port는 웹페이지에서 텍스트를 선택하거나 마우스를 올린 뒤 지정한 단축키를 누르면 원문 근처에 번역을 보여주는 Chrome 확장 프로그램입니다. Chrome Native Messaging으로 로컬 helper를 호출하고, helper는 사용자가 이미 설치하고 로그인한 Codex CLI 또는 Claude CLI를 실행합니다.
+HoverTransPort는 웹페이지에서 텍스트를 선택하거나 마우스를 올린 뒤 지정한 단축키를 누르면 원문 근처에 번역을 보여주는 Chrome 확장 프로그램입니다. Chrome Native Messaging으로 로컬 helper를 호출하고, helper는 사용자가 이미 설치하고 로그인한 Codex CLI 또는 Claude CLI를 실행합니다.
 
 이 프로젝트는 OpenAI, Codex, Anthropic, Claude와 제휴, 보증, 후원을 받는 공식 제품이 아닙니다.
 
@@ -104,7 +100,7 @@ Ctrl+C 또는 Ctrl+F 같은 일반 브라우저/편집 단축키는 trigger로 �
 
 ## 개인정보와 보안 요약
 
-Hover Trans Port는 로컬 중심으로 동작하지만 완전한 오프라인 번역기는 아닙니다. 번역 요청 텍스트는 로컬 helper를 거쳐 설정된 provider CLI로 전달되며, 사용자의 CLI 계정, 로그인 상태, 실행 환경, 제공자 정책에 따라 외부 AI 서비스로 전송될 수 있습니다.
+HoverTransPort는 로컬 중심으로 동작하지만 완전한 오프라인 번역기는 아닙니다. 번역 요청 텍스트는 로컬 helper를 거쳐 설정된 provider CLI로 전달되며, 사용자의 CLI 계정, 로그인 상태, 실행 환경, 제공자 정책에 따라 외부 AI 서비스로 전송될 수 있습니다.
 
 확장 프로그램과 helper는 API 키, OAuth 토큰, 브라우저 쿠키, 서비스 세션 토큰을 저장하지 않습니다. 캐시가 활성화되어 있으면 정규화된 원문과 번역문이 암호화되지 않은 로컬 SQLite에 저장될 수 있습니다.
 
