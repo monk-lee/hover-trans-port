@@ -3,6 +3,7 @@ import { HoverTracker } from "./hoverTracker";
 import { InlineRenderer } from "./inlineRenderer";
 import { installHotkeyTrigger } from "./leftControlTrigger";
 import { getSelectionTarget } from "./selectionExtractor";
+import { getTargetKey, hasTargetSourceElement } from "./targetIdentity";
 import type {
   DebugLogFields,
   ExtensionRequest,
@@ -248,10 +249,6 @@ function handleStoredOptionsChanged(
   installTranslationTrigger(getTriggerHotkeyFromOptions(nextOptions));
 }
 
-function getTargetKey(target: TranslationTarget): string {
-  return target.sourceElement.ownerKey;
-}
-
 function describeTarget(target: TranslationTarget): DebugLogFields {
   return {
     ownerKey: target.sourceElement.ownerKey,
@@ -394,7 +391,7 @@ async function requestTranslation(target: TranslationTarget): Promise<void> {
     return;
   }
 
-  if (!inlineRenderer.hasSourceElement(target)) {
+  if (!hasTargetSourceElement(target)) {
     clearTranslationState(target, "content.response.source_detached", {
       translationRequestId: requestId
     });
