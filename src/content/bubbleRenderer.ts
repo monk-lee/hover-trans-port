@@ -167,7 +167,11 @@ export class BubbleRenderer {
       }
     };
 
-    const handleScroll = (): void => {
+    const handleScroll = (event: Event): void => {
+      if (event.target instanceof Node && bubble.contains(event.target)) {
+        return;
+      }
+
       this.dismiss("scroll");
     };
 
