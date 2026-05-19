@@ -14,6 +14,19 @@ type BubbleState =
       text: string;
     };
 
+export type BubbleDismissReason =
+  | "outside-click"
+  | "escape"
+  | "scroll"
+  | "resize"
+  | "programmatic";
+
+type BubbleDismissOptions = {
+  notify?: boolean;
+};
+
+type BubbleDismissHandler = (reason: BubbleDismissReason) => void;
+
 const BUBBLE_ID = "hover-trans-port-bubble";
 const STYLE_ID = "hover-trans-port-bubble-style";
 
@@ -90,11 +103,14 @@ function getBubblePosition(anchorRect: AnchorRect, bubbleRect: DOMRect): { top: 
 export class BubbleRenderer {
   private cleanupOutsideClick: (() => void) | null = null;
   private cleanupEscape: (() => void) | null = null;
+  private cleanupViewportChange: (() => void) | null = null;
   private pendingHandlerTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  constructor(private readonly onDismiss?: BubbleDismissHandler) {}
 
   show(anchorRect: AnchorRect, state: BubbleState): void {
     ensureStyle();
-    this.dismiss();
+    this.dismiss("programmatic", { notify: false });
 
     const bubble = document.createElement("div");
     const initialPosition = getInitialBubblePosition(anchorRect);
@@ -115,29 +131,48 @@ export class BubbleRenderer {
     this.installDismissHandlers(bubble);
   }
 
-  dismiss(): void {
+  dismiss(reason: BubbleDismissReason = "programmatic", options: BubbleDismissOptions = {}): void {
+    const hadBubble = Boolean(
+      document.getElementById(BUBBLE_ID)?.dataset.hoverTransPortBubble === "true",
+    );
+    const shouldNotify = options.notify ?? reason !== "programmatic";
+
     if (this.pendingHandlerTimeout !== null) {
       clearTimeout(this.pendingHandlerTimeout);
       this.pendingHandlerTimeout = null;
     }
     this.cleanupOutsideClick?.();
     this.cleanupEscape?.();
+    this.cleanupViewportChange?.();
     this.cleanupOutsideClick = null;
     this.cleanupEscape = null;
+    this.cleanupViewportChange = null;
     removeExistingBubble();
+
+    if (hadBubble && shouldNotify) {
+      this.onDismiss?.(reason);
+    }
   }
 
   private installDismissHandlers(bubble: HTMLElement): void {
     const handlePointerDown = (event: PointerEvent): void => {
       if (!bubble.contains(event.target as Node)) {
-        this.dismiss();
+        this.dismiss("outside-click");
       }
     };
 
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (event.key === "Escape") {
-        this.dismiss();
+        this.dismiss("escape");
       }
+    };
+
+    const handleScroll = (): void => {
+      this.dismiss("scroll");
+    };
+
+    const handleResize = (): void => {
+      this.dismiss("resize");
     };
 
     this.pendingHandlerTimeout = setTimeout(() => {
@@ -148,6 +183,8 @@ export class BubbleRenderer {
 
       document.addEventListener("pointerdown", handlePointerDown, true);
       document.addEventListener("keydown", handleKeyDown, true);
+      window.addEventListener("scroll", handleScroll, true);
+      window.addEventListener("resize", handleResize, true);
     }, 0);
 
     this.cleanupOutsideClick = () => {
@@ -155,6 +192,10 @@ export class BubbleRenderer {
     };
     this.cleanupEscape = () => {
       document.removeEventListener("keydown", handleKeyDown, true);
+    };
+    this.cleanupViewportChange = () => {
+      window.removeEventListener("scroll", handleScroll, true);
+      window.removeEventListener("resize", handleResize, true);
     };
   }
 }
