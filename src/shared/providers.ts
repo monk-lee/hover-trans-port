@@ -65,7 +65,11 @@ export const PROVIDER_FALLBACK_MODEL_CATALOGS: Record<
   gemini: {
     provider: "gemini",
     defaultModel: "",
-    models: [],
+    models: [
+      { value: "", label: "Default (Gemini CLI)", recommended: true },
+      { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+      { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro" }
+    ],
     supportsCustomModel: true,
     source: "fallback"
   }

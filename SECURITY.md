@@ -27,8 +27,8 @@ HoverTransPort uses Chrome Native Messaging to call a local native host. The nat
 The native host should:
 
 - Use no shell invocation for provider execution.
-- Run Codex CLI in ephemeral mode and Claude CLI in non-interactive print mode.
-- Use read-only sandbox mode.
+- Run Codex CLI in ephemeral mode and Claude CLI/Gemini CLI in non-interactive print mode.
+- Use read-only sandbox mode or an empty provider workspace/tool allowlist where the provider supports it.
 - Avoid approval prompts.
 - Use no browser cookies or service tokens.
 - Avoid storing API keys or OAuth tokens.

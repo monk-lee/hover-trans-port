@@ -83,12 +83,13 @@ const readme = read("README.md");
 assertIncludes(readme, "Chrome Manifest V3 extension", "README.md");
 assertIncludes(readme, "Codex CLI", "README.md");
 assertIncludes(readme, "Claude CLI", "README.md");
+assertIncludes(readme, "Gemini CLI", "README.md");
 assertIncludes(readme, "Native Messaging", "README.md");
 assertIncludes(readme, "PRIVACY.md", "README.md");
 assertIncludes(readme, "[한국어](readmes/README.ko.md)", "README.md");
 assertIncludes(
   readme,
-  "not affiliated with, endorsed by, or sponsored by OpenAI, Codex, Anthropic, or Claude",
+  "not affiliated with, endorsed by, or sponsored by OpenAI, Codex, Anthropic, Claude, Google, or Gemini",
   "README.md"
 );
 
@@ -103,16 +104,17 @@ assertIncludes(koreanReadme, "../PRIVACY.md", "Korean README");
 assertIncludes(koreanReadme, "../SECURITY.md", "Korean README");
 assertIncludes(koreanReadme, "../docs/native-host-install.md", "Korean README");
 assertIncludes(koreanReadme, "Claude CLI", "Korean README");
+assertIncludes(koreanReadme, "Gemini CLI", "Korean README");
 assertIncludes(
   koreanReadme,
-  "OpenAI, Codex, Anthropic, Claude와 제휴, 보증, 후원을 받는 공식 제품이 아닙니다.",
+  "OpenAI, Codex, Anthropic, Claude, Google, Gemini와 제휴, 보증, 후원을 받는 공식 제품이 아닙니다.",
   "Korean README"
 );
 
 const privacy = read("PRIVACY.md");
 assertIncludes(
   privacy,
-  "Codex CLI and Claude CLI",
+  "Codex CLI, Claude CLI, and Gemini CLI",
   "PRIVACY.md"
 );
 assertIncludes(
@@ -149,7 +151,12 @@ assertIncludes(
 );
 assertIncludes(
   nativeHostInstall,
-  "Claude authentication is verified by Claude CLI when a translation runs",
+  "Gemini CLI as an optional executable provider",
+  "docs/native-host-install.md"
+);
+assertIncludes(
+  nativeHostInstall,
+  "provider authentication is verified by the selected CLI when a translation runs",
   "docs/native-host-install.md"
 );
 assertIncludes(

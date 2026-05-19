@@ -4,7 +4,9 @@ use hover_trans_port_helper::providers::claude::{
     build_claude_args, parse_claude_output, ClaudeProvider,
 };
 use hover_trans_port_helper::providers::codex::{build_codex_exec_args, CodexProvider};
-use hover_trans_port_helper::providers::gemini::{build_gemini_args, parse_gemini_output};
+use hover_trans_port_helper::providers::gemini::{
+    build_gemini_args, parse_gemini_output, GeminiProvider,
+};
 use hover_trans_port_helper::providers::{Provider, ProviderRegistry};
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -294,6 +296,10 @@ fn provider_registry_resolves_selected_provider_ids() {
     let registry = ProviderRegistry::new(BTreeMap::new());
 
     assert_eq!(
+        registry.provider_id_for_selection(Some("gemini")),
+        ProviderId::Gemini
+    );
+    assert_eq!(
         registry.provider_id_for_selection(Some("claude")),
         ProviderId::Claude
     );
@@ -336,6 +342,8 @@ fn gemini_command_builder_uses_non_interactive_json_shape() {
             "Translate according to the instructions provided on stdin. Return only the translated text.",
             "--output-format",
             "json",
+            "--extensions",
+            "none",
             "--model",
             "gemini-2.5-pro",
         ]
@@ -343,7 +351,117 @@ fn gemini_command_builder_uses_non_interactive_json_shape() {
 }
 
 #[test]
+fn gemini_command_builder_omits_default_model_sentinel() {
+    let args = build_gemini_args(Some("default"));
+
+    assert_eq!(
+        args,
+        vec![
+            "-p",
+            "Translate according to the instructions provided on stdin. Return only the translated text.",
+            "--output-format",
+            "json",
+            "--extensions",
+            "none",
+        ]
+    );
+}
+
+#[test]
+fn gemini_model_catalog_uses_unified_fallback_shape() {
+    let provider = GeminiProvider::new(BTreeMap::new());
+    let catalog = provider.model_catalog();
+
+    assert_eq!(catalog.provider, ProviderId::Gemini);
+    assert_eq!(catalog.default_model, "");
+    assert!(catalog.supports_custom_model);
+    assert!(catalog.models.iter().any(|model| model.value == ""));
+    assert!(catalog
+        .models
+        .iter()
+        .any(|model| model.value == "gemini-2.5-flash"));
+}
+
+#[test]
+fn gemini_fake_cli_translation_returns_success_result() {
+    let gemini = fixture_path("gemini");
+    make_executable(&gemini);
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_GEMINI_PATH".to_string(),
+        gemini.to_string_lossy().into_owned(),
+    );
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+    let home_dir = tempdir().unwrap();
+    env.insert("HOME".to_string(), home_dir.path().display().to_string());
+
+    let response = handle_request(
+        json!({
+            "type": "TRANSLATE",
+            "requestId": "req-gemini",
+            "provider": "gemini",
+            "model": "",
+            "targetLang": "Korean",
+            "text": "Hello",
+            "cacheEnabled": false,
+            "timeoutMs": 5_000
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "TRANSLATE_RESULT");
+    assert_eq!(response["requestId"], "req-gemini");
+    assert_eq!(response["ok"], true);
+    assert_eq!(response["provider"], "gemini");
+    assert_eq!(response["translatedText"], "제미나이 안녕하세요");
+    assert_eq!(response["cached"], false);
+}
+
+#[test]
+fn gemini_nonzero_json_error_surfaces_error_message() {
+    let gemini = fixture_path("gemini");
+    make_executable(&gemini);
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_GEMINI_PATH".to_string(),
+        gemini.to_string_lossy().into_owned(),
+    );
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+    let home_dir = tempdir().unwrap();
+    env.insert("HOME".to_string(), home_dir.path().display().to_string());
+
+    let response = handle_request(
+        json!({
+            "type": "TRANSLATE",
+            "requestId": "req-gemini-auth",
+            "provider": "gemini",
+            "model": "",
+            "targetLang": "Korean",
+            "text": "Trigger auth error",
+            "cacheEnabled": false,
+            "timeoutMs": 5_000
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "TRANSLATE_RESULT");
+    assert_eq!(response["requestId"], "req-gemini-auth");
+    assert_eq!(response["ok"], false);
+    assert_eq!(response["error"], "PROVIDER_EXIT_NONZERO");
+    assert!(response["message"]
+        .as_str()
+        .unwrap()
+        .contains("Not logged in"));
+}
+
+#[test]
 fn gemini_output_parser_accepts_json_result_and_plain_text() {
+    assert_eq!(
+        parse_gemini_output(r#"{"response":"번역 결과"}"#).unwrap(),
+        "번역 결과"
+    );
     assert_eq!(
         parse_gemini_output(r#"{"result":"번역 결과"}"#).unwrap(),
         "번역 결과"

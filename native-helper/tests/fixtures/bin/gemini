@@ -1,0 +1,49 @@
+#!/bin/sh
+if [ "$1" = "--version" ]; then
+  printf 'gemini test-version\n'
+  exit 0
+fi
+
+if [ "$1" = "-p" ]; then
+  output_format=""
+  extensions=""
+  previous=""
+
+  for arg in "$@"; do
+    if [ "$previous" = "--output-format" ]; then
+      output_format="$arg"
+    fi
+    if [ "$previous" = "--extensions" ]; then
+      extensions="$arg"
+    fi
+    previous="$arg"
+  done
+
+  if [ "$output_format" != "json" ]; then
+    printf 'expected --output-format json, got: %s\n' "$output_format" >&2
+    exit 2
+  fi
+  if [ "$extensions" != "none" ]; then
+    printf 'expected --extensions none, got: %s\n' "$extensions" >&2
+    exit 2
+  fi
+
+  prompt="$(/bin/cat)"
+  case "$prompt" in
+    *"Trigger auth error"*)
+      printf '{"error":{"type":"AuthError","message":"Not logged in"}}\n'
+      exit 1
+      ;;
+    *"Translate the following text to Korean."*)
+      printf '{"response":"제미나이 안녕하세요","stats":{"models":{"gemini-2.5-flash":{}}}}\n'
+      exit 0
+      ;;
+    *)
+      printf 'unexpected prompt: %s\n' "$prompt" >&2
+      exit 2
+      ;;
+  esac
+fi
+
+printf 'unexpected gemini args: %s\n' "$*" >&2
+exit 2

@@ -26,7 +26,7 @@ Requested text flows through these local components:
 4. HoverTransPort local native helper.
 5. The configured local provider CLI.
 
-Supported executable providers are Codex CLI and Claude CLI. Each configured local provider CLI may send requested text upstream according to that provider CLI's account, authentication, environment, and provider policies. HoverTransPort does not store provider credentials or API keys. HoverTransPort invokes Codex CLI with `--ignore-user-config`. Claude CLI support is CLI-only; HoverTransPort does not make direct Anthropic API calls.
+Supported executable providers are Codex CLI, Claude CLI, and Gemini CLI. Each configured local provider CLI may send requested text upstream according to that provider CLI's account, authentication, environment, and provider policies. HoverTransPort does not store provider credentials or API keys. HoverTransPort invokes Codex CLI with `--ignore-user-config`. Claude CLI and Gemini CLI support is CLI-only; HoverTransPort does not make direct Anthropic or Google API calls.
 
 ## What Is Stored
 
