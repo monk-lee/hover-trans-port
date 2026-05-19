@@ -1,4 +1,5 @@
 use hover_trans_port_helper::bridge::{handle_request, BridgeDeps};
+use hover_trans_port_helper::messages::NATIVE_BRIDGE_VERSION;
 use serde_json::json;
 use std::collections::BTreeMap;
 use std::fs;
@@ -17,10 +18,7 @@ fn ping_returns_pong_with_same_request_id() {
     assert_eq!(response["type"], "PONG");
     assert_eq!(response["requestId"], "req-ping");
     assert_eq!(response["ok"], true);
-    assert!(response["bridgeVersion"]
-        .as_str()
-        .unwrap()
-        .starts_with("0.2.6"));
+    assert_eq!(response["bridgeVersion"], NATIVE_BRIDGE_VERSION);
 }
 
 #[test]
@@ -292,10 +290,10 @@ fn native_host_update_status_reports_available_release() {
     write_release_fixture(
         &releases_path,
         r#"[{
-          "tag_name": "v0.2.7",
+          "tag_name": "v0.2.9",
           "prerelease": false,
           "draft": false,
-          "html_url": "https://github.com/monk-lee/hover-trans-port/releases/tag/v0.2.7",
+          "html_url": "https://github.com/monk-lee/hover-trans-port/releases/tag/v0.2.9",
           "assets": [
             {"name": "install-macos-native-host.sh"},
             {"name": "checksums.txt"},
@@ -323,9 +321,9 @@ fn native_host_update_status_reports_available_release() {
     assert_eq!(response["type"], "NATIVE_HOST_UPDATE_STATUS_RESULT");
     assert_eq!(response["requestId"], "req-update-status");
     assert_eq!(response["ok"], true);
-    assert_eq!(response["installedVersion"], "0.2.6");
-    assert_eq!(response["latestVersion"], "0.2.7");
-    assert_eq!(response["latestTag"], "v0.2.7");
+    assert_eq!(response["installedVersion"], "0.2.8");
+    assert_eq!(response["latestVersion"], "0.2.9");
+    assert_eq!(response["latestTag"], "v0.2.9");
     assert_eq!(response["updateAvailable"], true);
 }
 

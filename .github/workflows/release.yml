@@ -79,10 +79,11 @@ jobs:
           - install-macos-native-host.sh: one-line native host installer
           - checksums.txt: SHA-256 checksums for native host assets
           - hover-trans-port-helper-macos-arm64: macOS ARM64 native helper
-          - hover-trans-port-native-host-macos-0.2.7.tar.gz: inspect-first native host package
+          - hover-trans-port-native-host-macos-0.2.8.tar.gz: inspect-first native host package
           - hover-trans-port-extension-${TAG_NAME}.zip: unpacked Chrome extension package built from dist/
 
           Highlights:
+          - Fixes the native helper's internal host/version report so in-app update checks can recognize the installed release correctly.
           - Adds Gemini CLI as a selectable translation provider alongside Codex CLI and Claude CLI.
           - Parses Gemini CLI JSON responses and surfaces Gemini authentication/runtime errors in the inline translation slot.
           - Runs Gemini translation requests in an isolated temporary workspace with CLI extensions disabled.
@@ -110,7 +111,7 @@ jobs:
           test -f "$NATIVE_DIR/install-macos-native-host.sh"
           test -f "$NATIVE_DIR/checksums.txt"
           test -f "$NATIVE_DIR/hover-trans-port-helper-macos-arm64"
-          test -f "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.7.tar.gz"
+          test -f "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.8.tar.gz"
           test -f "$EXTENSION_ZIP"
           test -f build/release/release-notes.md
 
@@ -129,7 +130,7 @@ jobs:
             "$NATIVE_DIR/install-macos-native-host.sh" \
             "$NATIVE_DIR/checksums.txt" \
             "$NATIVE_DIR/hover-trans-port-helper-macos-arm64" \
-            "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.7.tar.gz" \
+            "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.8.tar.gz" \
             "$EXTENSION_ZIP" \
             --verify-tag \
             --latest \

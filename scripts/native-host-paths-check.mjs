@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -17,13 +17,49 @@ import {
 import { renderNativeHostLauncher } from "./native-host-launcher.mjs";
 
 const installRoot = mkdtempSync(join(tmpdir(), "hover-trans-port-install-"));
+const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
+const manifestJson = JSON.parse(readFileSync("public/manifest.json", "utf8"));
+const cargoToml = readFileSync("native-helper/Cargo.toml", "utf8");
+const nativeMessages = readFileSync("native-helper/src/messages.rs", "utf8");
+const nativeProtocol = readFileSync("src/shared/nativeProtocol.ts", "utf8");
+const scriptInstaller = readFileSync("scripts/install-macos-native-host.sh", "utf8");
+const releaseAssetBuilder = readFileSync(
+  "scripts/build-macos-script-installer-release.sh",
+  "utf8"
+);
 
 try {
   const env = {
     HOVER_TRANS_PORT_INSTALL_ROOT: installRoot
   };
 
-  assert.equal(NATIVE_HOST_VERSION, "0.2.7");
+  assert.equal(NATIVE_HOST_VERSION, "0.2.8");
+  assert.equal(manifestJson.version, packageJson.version);
+  assert.match(cargoToml, new RegExp(`^version = "${packageJson.version}"`, "m"));
+  assert.match(
+    nativeMessages,
+    new RegExp(`NATIVE_HOST_VERSION: &str = "${packageJson.version}"`)
+  );
+  assert.match(
+    nativeMessages,
+    new RegExp(`NATIVE_BRIDGE_VERSION: &str = "${packageJson.version}-rust-helper"`)
+  );
+  assert.match(
+    nativeProtocol,
+    new RegExp(`NATIVE_HOST_VERSION = "${packageJson.version}"`)
+  );
+  assert.match(
+    nativeProtocol,
+    new RegExp(`NATIVE_BRIDGE_VERSION = "${packageJson.version}-rust-helper"`)
+  );
+  assert.match(
+    scriptInstaller,
+    new RegExp(`DEFAULT_HOST_VERSION="${packageJson.version}"`)
+  );
+  assert.match(
+    releaseAssetBuilder,
+    new RegExp(`HOST_VERSION="${packageJson.version}"`)
+  );
   assert.equal(getNativeHostInstallRoot("darwin", env), installRoot);
   assert.equal(
     getInstalledNativeHostVersionDir(NATIVE_HOST_VERSION, "darwin", env),
