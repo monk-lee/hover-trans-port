@@ -405,6 +405,10 @@ function logIgnoredResponse(
 }
 
 function clearVisibleSelectionBubble(): void {
+  if (visibleSelectionBubbleKey) {
+    translationStates.delete(visibleSelectionBubbleKey);
+  }
+
   visibleSelectionBubbleKey = null;
   bubbleRenderer.dismiss("programmatic", { notify: false });
 }
