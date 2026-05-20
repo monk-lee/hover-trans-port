@@ -1,6 +1,7 @@
 import {
   NATIVE_HOST_NAME,
   type NativeCacheClearResponse,
+  type NativeDebugLogFields,
   type NativeDebugLogClearResponse,
   type NativeDebugLogContentResponse,
   type NativeDebugLogInfoResponse,
@@ -46,6 +47,10 @@ import {
   normalizeTimeoutMs,
   type StoredOptions
 } from "../shared/options";
+import {
+  createTranslationInflightKey,
+  TranslationInflightRegistry
+} from "./translationInflight";
 
 const NATIVE_HOST_TIMEOUT_MS = 5000;
 const NATIVE_HOST_UPDATE_STATUS_TIMEOUT_MS = 15000;
@@ -54,6 +59,8 @@ const NATIVE_TRANSLATION_OVERHEAD_MS = 5000;
 const STATUS_CHECK_MAX_ATTEMPTS = 3;
 const STATUS_CHECK_INITIAL_RETRY_DELAY_MS = 300;
 const STATUS_CHECK_BACKOFF_FACTOR = 3;
+const translationInflightRequests =
+  new TranslationInflightRegistry<NativeTranslationStatus>();
 
 type ExtensionTranslationError =
   | "NO_TRANSLATION_TARGET"
@@ -479,7 +486,7 @@ function nativeHostStatusFromHostInfo(
 
 function createTranslationBlockedByNativeHost(
   status: Extract<NativeHostStatus, { ok: false }>
-): NativeTranslationStatus {
+): Extract<NativeTranslationStatus, { ok: false }> {
   return {
     ok: false,
     error:
@@ -523,6 +530,63 @@ function sendNativeHostMessage(
       resolve(response as NativeResponse | undefined);
     });
   });
+}
+
+function createDebugRequestId(requestId: string, event: string): string {
+  return `${requestId}:${event}:${Date.now()}`;
+}
+
+function writeDebugLogEventDirect(
+  debugLogging: boolean,
+  requestId: string,
+  event: string,
+  fields: NativeDebugLogFields = {}
+): void {
+  if (!debugLogging) {
+    return;
+  }
+
+  void sendNativeHostMessage({
+    type: "WRITE_DEBUG_LOG",
+    requestId: createDebugRequestId(requestId, event),
+    event,
+    fields
+  }).catch(() => undefined);
+}
+
+function createTranslationTimeline(
+  debugLogging: boolean,
+  requestId: string,
+  startedAt: number,
+  fields: NativeDebugLogFields
+): {
+  mark: (name: string, fields?: NativeDebugLogFields) => void;
+  flush: () => void;
+} {
+  const timelineFields: NativeDebugLogFields = { ...fields };
+
+  return {
+    mark(name, fields = {}) {
+      if (!debugLogging) {
+        return;
+      }
+
+      timelineFields[`${name}Ms`] = Date.now() - startedAt;
+
+      for (const [key, value] of Object.entries(fields)) {
+        timelineFields[`${name}${key[0]?.toUpperCase() ?? ""}${key.slice(1)}`] =
+          value;
+      }
+    },
+    flush() {
+      writeDebugLogEventDirect(
+        debugLogging,
+        requestId,
+        "translation.timeline.background",
+        timelineFields
+      );
+    }
+  };
 }
 
 function wait(ms: number): Promise<void> {
@@ -1016,6 +1080,7 @@ export async function translateWithNativeHost(
   requestId: string,
   target: TranslationTarget
 ): Promise<NativeTranslationStatus> {
+  const startedAt = Date.now();
   const text = target.text.trim();
   const options = (await chrome.storage.local.get(
     "hoverTransPort"
@@ -1036,6 +1101,24 @@ export async function translateWithNativeHost(
   const debugLogging = normalizeDebugLogging(
     options.hoverTransPort?.debugLogging
   );
+  const timeoutMsValue = timeoutMs || DEFAULT_TIMEOUT_MS;
+  const cacheEnabledValue =
+    typeof cacheEnabled === "boolean" ? cacheEnabled : DEFAULT_CACHE_ENABLED;
+
+  const timeline = createTranslationTimeline(
+    debugLogging,
+    requestId,
+    startedAt,
+    {
+      mode: target.mode,
+      provider: selectedProvider,
+      model: selectedModel || "default",
+      targetLang: selectedTargetLang,
+      textLength: text.length,
+      cacheEnabled: cacheEnabledValue
+    }
+  );
+  timeline.mark("optionsLoaded");
 
   if (text.length < 2) {
     return {
@@ -1046,98 +1129,161 @@ export async function translateWithNativeHost(
     };
   }
 
-  const nativeHostStatus = await checkNativeHost(`${requestId}:host-info`);
-
-  if (!nativeHostStatus.ok) {
-    return createTranslationBlockedByNativeHost(nativeHostStatus);
-  }
-
-  const request: NativeRequest = {
-    type: "TRANSLATE",
-    requestId,
+  const inflightKey = createTranslationInflightKey({
     provider: selectedProvider,
     model: selectedModel,
     sourceLang: "auto",
     targetLang: selectedTargetLang,
     text,
-    timeoutMs: timeoutMs || DEFAULT_TIMEOUT_MS,
-    cacheEnabled:
-      typeof cacheEnabled === "boolean" ? cacheEnabled : DEFAULT_CACHE_ENABLED,
-    debugLogging:
-      typeof debugLogging === "boolean" ? debugLogging : DEFAULT_DEBUG_LOGGING,
-    context: {
-      mode: target.mode
-    }
-  };
+    cacheEnabled: cacheEnabledValue
+  });
 
-  try {
-    const response = await sendNativeHostMessage(
-      request,
-      timeoutMs + NATIVE_TRANSLATION_OVERHEAD_MS
-    );
+  return translationInflightRequests.run(
+    inflightKey,
+    async () => {
+      timeline.mark("inflightStart");
+      writeDebugLogEventDirect(debugLogging, requestId, "translation.inflight.start", {
+        mode: target.mode
+      });
 
-    if (!response) {
-      return createTranslationUnavailable("Native host did not respond.");
-    }
+      const nativeHostStatus = await checkNativeHost(`${requestId}:host-info`);
 
-    if (
-      isTranslateResult(response) &&
-      response.requestId === requestId &&
-      response.ok
-    ) {
-      return {
-        ok: true,
-        provider: response.provider,
-        translatedText: response.translatedText,
-        cached: response.cached,
-        elapsedMs: response.elapsedMs
+      timeline.mark("hostInfoChecked", {
+        ok: nativeHostStatus.ok,
+        status: nativeHostStatus.status
+      });
+
+      if (!nativeHostStatus.ok) {
+        const blocked = createTranslationBlockedByNativeHost(nativeHostStatus);
+        timeline.mark("inflightEnd", {
+          ok: false,
+          error: blocked.error
+        });
+        timeline.flush();
+        writeDebugLogEventDirect(debugLogging, requestId, "translation.inflight.end", {
+          mode: target.mode,
+          ok: false,
+          error: blocked.error
+        });
+        return blocked;
+      }
+
+      const request: NativeRequest = {
+        type: "TRANSLATE",
+        requestId,
+        provider: selectedProvider,
+        model: selectedModel,
+        sourceLang: "auto",
+        targetLang: selectedTargetLang,
+        text,
+        timeoutMs: timeoutMsValue,
+        cacheEnabled: cacheEnabledValue,
+        debugLogging:
+          typeof debugLogging === "boolean" ? debugLogging : DEFAULT_DEBUG_LOGGING,
+        context: {
+          mode: target.mode
+        }
       };
+
+      try {
+        const response = await sendNativeHostMessage(
+          request,
+          timeoutMsValue + NATIVE_TRANSLATION_OVERHEAD_MS
+        );
+
+        timeline.mark("nativeResponse", {
+          responseType: response?.type ?? null,
+          ok:
+            response && "ok" in response && typeof response.ok === "boolean"
+              ? response.ok
+              : null
+        });
+
+        if (!response) {
+          return createTranslationUnavailable("Native host did not respond.");
+        }
+
+        if (
+          isTranslateResult(response) &&
+          response.requestId === requestId &&
+          response.ok
+        ) {
+          return {
+            ok: true,
+            provider: response.provider,
+            translatedText: response.translatedText,
+            cached: response.cached,
+            elapsedMs: response.elapsedMs
+          };
+        }
+
+        if (
+          isTranslateResult(response) &&
+          response.requestId === requestId &&
+          !response.ok
+        ) {
+          return {
+            ok: false,
+            provider: response.provider,
+            error: toExtensionTranslationError(response.error),
+            message: toUserFacingTranslationMessage(
+              response.error,
+              response.message,
+              response.provider ?? selectedProvider
+            ),
+            retryable: response.retryable,
+            elapsedMs: response.elapsedMs
+          };
+        }
+
+        if (response.type === "ERROR") {
+          return {
+            ok: false,
+            error: toExtensionTranslationError(response.error),
+            message: toUserFacingTranslationMessage(
+              response.error,
+              response.message,
+              selectedProvider
+            ),
+            retryable: response.retryable
+          };
+        }
+
+        return {
+          ok: false,
+          error: "UNKNOWN_ERROR",
+          message: "번역 결과를 받지 못했습니다.",
+          retryable: true
+        };
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Native host unavailable.";
+
+        return createTranslationUnavailable(message);
+      } finally {
+        timeline.mark("inflightEnd");
+        timeline.flush();
+        writeDebugLogEventDirect(debugLogging, requestId, "translation.inflight.end", {
+          mode: target.mode
+        });
+      }
+    },
+    (request) => {
+      const joinedAt = Date.now();
+      void request.finally(() => {
+        writeDebugLogEventDirect(
+          debugLogging,
+          requestId,
+          "translation.inflight.joined",
+          {
+            mode: target.mode,
+            joinWaitMs: Date.now() - joinedAt,
+            elapsedMs: Date.now() - startedAt
+          }
+        );
+      });
     }
-
-    if (
-      isTranslateResult(response) &&
-      response.requestId === requestId &&
-      !response.ok
-    ) {
-      return {
-        ok: false,
-        provider: response.provider,
-        error: toExtensionTranslationError(response.error),
-        message: toUserFacingTranslationMessage(
-          response.error,
-          response.message,
-          response.provider ?? selectedProvider
-        ),
-        retryable: response.retryable,
-        elapsedMs: response.elapsedMs
-      };
-    }
-
-    if (response.type === "ERROR") {
-      return {
-        ok: false,
-        error: toExtensionTranslationError(response.error),
-        message: toUserFacingTranslationMessage(
-          response.error,
-          response.message,
-          selectedProvider
-        ),
-        retryable: response.retryable
-      };
-    }
-
-    return {
-      ok: false,
-      error: "UNKNOWN_ERROR",
-      message: "번역 결과를 받지 못했습니다.",
-      retryable: true
-    };
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Native host unavailable.";
-
-    return createTranslationUnavailable(message);
-  }
+  );
 }
 
 export async function clearTranslationCache(
