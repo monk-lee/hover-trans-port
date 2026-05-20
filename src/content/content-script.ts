@@ -1,4 +1,8 @@
 import { getHoverBlockTarget } from "./blockExtractor";
+import {
+  BubbleRenderer,
+  type BubbleDismissReason
+} from "./bubbleRenderer";
 import { HoverTracker } from "./hoverTracker";
 import { InlineRenderer } from "./inlineRenderer";
 import { installHotkeyTrigger } from "./leftControlTrigger";
@@ -24,6 +28,9 @@ import type { ModifierTriggerCode } from "../shared/hotkeys";
 
 const hoverTracker = new HoverTracker();
 const inlineRenderer = new InlineRenderer();
+const selectionBubbleStates = new Map<string, SelectionBubbleStoredState>();
+let visibleSelectionBubbleKey: string | null = null;
+const bubbleRenderer = new BubbleRenderer(handleSelectionBubbleDismissed);
 const DEFAULT_EXTENSION_ENABLED = true;
 const TRANSLATION_STATUS_LOADING = "loading";
 const TRANSLATION_STATUS_SUCCESS = "success";
@@ -80,6 +87,30 @@ type TranslationState = {
   status: TranslationStateStatus;
   requestId?: string;
 };
+
+type SelectionBubbleStoredState =
+  | {
+      status: typeof TRANSLATION_STATUS_LOADING;
+      requestId: string;
+      anchorRect: TranslationTarget["anchorRect"];
+    }
+  | {
+      status: typeof TRANSLATION_STATUS_SUCCESS;
+      text: string;
+      anchorRect: TranslationTarget["anchorRect"];
+    }
+  | {
+      status: typeof TRANSLATION_STATUS_ERROR;
+      text: string;
+      anchorRect: TranslationTarget["anchorRect"];
+    }
+  | {
+      status: typeof TRANSLATION_STATUS_HIDDEN;
+      lastResult?:
+        | { status: typeof TRANSLATION_STATUS_SUCCESS; text: string }
+        | { status: typeof TRANSLATION_STATUS_ERROR; text: string };
+      anchorRect: TranslationTarget["anchorRect"];
+    };
 
 const translationStates = new Map<string, TranslationState>();
 let activeTriggerHotkey: TriggerHotkey = DEFAULT_TRIGGER_HOTKEY;
@@ -297,6 +328,20 @@ function setTranslationState(
   });
 }
 
+function setTranslationStateByKey(
+  key: string,
+  status: TranslationStateStatus,
+  requestId?: string
+): void {
+  const state: TranslationState = { status };
+
+  if (requestId) {
+    state.requestId = requestId;
+  }
+
+  translationStates.set(key, state);
+}
+
 function clearTranslationState(
   target: TranslationTarget,
   event: string,
@@ -359,6 +404,45 @@ function logIgnoredResponse(
   });
 }
 
+function hideVisibleSelectionBubble(): void {
+  if (!visibleSelectionBubbleKey) {
+    bubbleRenderer.dismiss("programmatic", { notify: false });
+    return;
+  }
+
+  const key = visibleSelectionBubbleKey;
+  const state = selectionBubbleStates.get(key);
+  const lastResult =
+    state?.status === TRANSLATION_STATUS_SUCCESS ||
+    state?.status === TRANSLATION_STATUS_ERROR
+      ? { status: state.status, text: state.text }
+      : state?.status === TRANSLATION_STATUS_HIDDEN
+        ? state.lastResult
+        : undefined;
+
+  selectionBubbleStates.set(key, {
+    status: TRANSLATION_STATUS_HIDDEN,
+    ...(lastResult ? { lastResult } : {}),
+    anchorRect: state?.anchorRect ?? {
+      top: 0,
+      left: 0,
+      width: 0,
+      height: 0
+    }
+  });
+  setTranslationStateByKey(key, TRANSLATION_STATUS_HIDDEN);
+  visibleSelectionBubbleKey = null;
+  bubbleRenderer.dismiss("programmatic", { notify: false });
+}
+
+function handleSelectionBubbleDismissed(reason: BubbleDismissReason): void {
+  if (reason === "programmatic") {
+    return;
+  }
+
+  hideVisibleSelectionBubble();
+}
+
 function renderErrorState(
   target: TranslationTarget,
   message: string,
@@ -375,10 +459,94 @@ function renderErrorState(
   setTranslationState(target, TRANSLATION_STATUS_ERROR, requestId);
 }
 
+function renderLoadingState(
+  target: TranslationTarget,
+  requestId: string
+): boolean {
+  if (target.mode === "selection") {
+    const key = getTargetKey(target);
+
+    if (visibleSelectionBubbleKey && visibleSelectionBubbleKey !== key) {
+      hideVisibleSelectionBubble();
+    }
+
+    bubbleRenderer.show(target.anchorRect, {
+      status: "loading",
+      text: "번역 중..."
+    });
+    visibleSelectionBubbleKey = key;
+    selectionBubbleStates.set(key, {
+      status: TRANSLATION_STATUS_LOADING,
+      requestId,
+      anchorRect: target.anchorRect
+    });
+    return true;
+  }
+
+  hideVisibleSelectionBubble();
+  return inlineRenderer.renderLoading(target);
+}
+
+function renderSuccessState(
+  target: TranslationTarget,
+  translatedText: string
+): boolean {
+  if (target.mode === "selection") {
+    const key = getTargetKey(target);
+
+    if (visibleSelectionBubbleKey && visibleSelectionBubbleKey !== key) {
+      hideVisibleSelectionBubble();
+    }
+
+    bubbleRenderer.show(target.anchorRect, {
+      status: "success",
+      text: translatedText
+    });
+    visibleSelectionBubbleKey = key;
+    selectionBubbleStates.set(key, {
+      status: TRANSLATION_STATUS_SUCCESS,
+      text: translatedText,
+      anchorRect: target.anchorRect
+    });
+    return true;
+  }
+
+  return inlineRenderer.renderSuccess(target, translatedText);
+}
+
+function renderTargetErrorState(
+  target: TranslationTarget,
+  message: string,
+  requestId: string
+): void {
+  if (target.mode === "selection") {
+    const key = getTargetKey(target);
+
+    if (visibleSelectionBubbleKey && visibleSelectionBubbleKey !== key) {
+      hideVisibleSelectionBubble();
+    }
+
+    bubbleRenderer.show(target.anchorRect, {
+      status: "error",
+      text: message
+    });
+    visibleSelectionBubbleKey = key;
+    selectionBubbleStates.set(key, {
+      status: TRANSLATION_STATUS_ERROR,
+      text: message,
+      anchorRect: target.anchorRect
+    });
+    setTranslationState(target, TRANSLATION_STATUS_ERROR, requestId);
+    return;
+  }
+
+  renderErrorState(target, message, requestId);
+}
+
 async function requestTranslation(target: TranslationTarget): Promise<void> {
   const requestId = createRequestId();
 
-  if (!inlineRenderer.renderLoading(target)) {
+  if (!renderLoadingState(target, requestId)) {
     clearTranslationState(target, "content.request.source_missing", {
       translationRequestId: requestId
     });
@@ -405,7 +573,7 @@ async function requestTranslation(target: TranslationTarget): Promise<void> {
       return;
     }
 
-    renderErrorState(target, "번역 요청을 처리하지 못했습니다.", requestId);
+    renderTargetErrorState(target, "번역 요청을 처리하지 못했습니다.", requestId);
     return;
   }
 
@@ -422,21 +590,21 @@ async function requestTranslation(target: TranslationTarget): Promise<void> {
   }
 
   if (!isTranslationResult(response)) {
-    renderErrorState(target, "번역 결과를 받지 못했습니다.", requestId);
+    renderTargetErrorState(target, "번역 결과를 받지 못했습니다.", requestId);
     return;
   }
 
   if (response.requestId !== requestId) {
-    renderErrorState(target, "번역 결과를 받지 못했습니다.", requestId);
+    renderTargetErrorState(target, "번역 결과를 받지 못했습니다.", requestId);
     return;
   }
 
   if (!response.ok) {
-    renderErrorState(target, response.message, requestId);
+    renderTargetErrorState(target, response.message, requestId);
     return;
   }
 
-  if (!inlineRenderer.renderSuccess(target, response.translatedText)) {
+  if (!renderSuccessState(target, response.translatedText)) {
     clearTranslationState(target, "content.response.source_detached", {
       translationRequestId: requestId,
       nextStatus: TRANSLATION_STATUS_SUCCESS
