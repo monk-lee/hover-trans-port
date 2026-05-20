@@ -28,7 +28,7 @@ Not yet:
 
 ### 1. Download The Extension Package
 
-Open the [latest GitHub Release](https://github.com/monk-lee/hover-trans-port/releases/latest) and download the asset named `hover-trans-port-extension-v<version>.zip`, for example `hover-trans-port-extension-v0.2.9.zip`.
+Open the [latest GitHub Release](https://github.com/monk-lee/hover-trans-port/releases/latest) and download the asset named `hover-trans-port-extension-v<version>.zip`, for example `hover-trans-port-extension-v0.2.10.zip`.
 
 Unzip it somewhere you can keep it, then open `chrome://extensions`, enable Developer mode, click `Load unpacked`, and select the unzipped extension folder. Chrome loads the unpacked folder; the `.zip` file is only the download package.
 

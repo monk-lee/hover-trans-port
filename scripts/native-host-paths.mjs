@@ -4,7 +4,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const NATIVE_HOST_NAME = "com.monklabs.hover_trans_port";
-export const NATIVE_HOST_VERSION = "0.2.9";
+export const NATIVE_HOST_VERSION = "0.2.10";
 export const APP_SUPPORT_DIR_NAME = "Hover Trans Port";
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url));
