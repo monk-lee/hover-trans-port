@@ -30,7 +30,7 @@ HoverTransPort는 웹페이지에서 텍스트를 선택하거나 마우스를 �
 
 ### 1. Release에서 Extension package 다운로드
 
-[최신 GitHub Release](https://github.com/monk-lee/hover-trans-port/releases/latest)를 열고 `hover-trans-port-extension-v<version>.zip` asset을 다운로드합니다. 예: `hover-trans-port-extension-v0.2.8.zip`.
+[최신 GitHub Release](https://github.com/monk-lee/hover-trans-port/releases/latest)를 열고 `hover-trans-port-extension-v<version>.zip` asset을 다운로드합니다. 예: `hover-trans-port-extension-v0.2.9.zip`.
 
 압축을 해제한 뒤 `chrome://extensions`를 열고 Developer mode를 켠 다음 `Load unpacked`에서 압축 해제한 extension 폴더를 선택합니다. Chrome은 `.zip` 파일 자체가 아니라 압축 해제한 폴더를 불러옵니다.
 
