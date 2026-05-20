@@ -404,7 +404,12 @@ function logIgnoredResponse(
   });
 }
 
-function hideVisibleSelectionBubble(): void {
+function clearVisibleSelectionBubble(): void {
+  visibleSelectionBubbleKey = null;
+  bubbleRenderer.dismiss("programmatic", { notify: false });
+}
+
+function markVisibleSelectionBubbleHidden(): void {
   if (!visibleSelectionBubbleKey) {
     bubbleRenderer.dismiss("programmatic", { notify: false });
     return;
@@ -440,7 +445,7 @@ function handleSelectionBubbleDismissed(reason: BubbleDismissReason): void {
     return;
   }
 
-  hideVisibleSelectionBubble();
+  markVisibleSelectionBubbleHidden();
 }
 
 function renderErrorState(
@@ -467,7 +472,7 @@ function renderLoadingState(
     const key = getTargetKey(target);
 
     if (visibleSelectionBubbleKey && visibleSelectionBubbleKey !== key) {
-      hideVisibleSelectionBubble();
+      clearVisibleSelectionBubble();
     }
 
     bubbleRenderer.show(target.anchorRect, {
@@ -483,7 +488,7 @@ function renderLoadingState(
     return true;
   }
 
-  hideVisibleSelectionBubble();
+  clearVisibleSelectionBubble();
   return inlineRenderer.renderLoading(target);
 }
 
@@ -495,7 +500,7 @@ function renderSuccessState(
     const key = getTargetKey(target);
 
     if (visibleSelectionBubbleKey && visibleSelectionBubbleKey !== key) {
-      hideVisibleSelectionBubble();
+      clearVisibleSelectionBubble();
     }
 
     bubbleRenderer.show(target.anchorRect, {
@@ -523,7 +528,7 @@ function renderTargetErrorState(
     const key = getTargetKey(target);
 
     if (visibleSelectionBubbleKey && visibleSelectionBubbleKey !== key) {
-      hideVisibleSelectionBubble();
+      clearVisibleSelectionBubble();
     }
 
     bubbleRenderer.show(target.anchorRect, {
@@ -626,8 +631,22 @@ async function handleTranslateTrigger(): Promise<void> {
     return;
   }
 
-  const renderedStatus = inlineRenderer.getRenderedStatus(target);
   const trackedState = getTranslationState(target);
+
+  if (target.mode === "selection") {
+    if (trackedState?.status === TRANSLATION_STATUS_LOADING) {
+      writeContentDebugEvent("content.request.duplicate_ignored", {
+        ...describeTarget(target),
+        translationRequestId: trackedState.requestId ?? null
+      });
+      return;
+    }
+
+    await requestTranslation(target);
+    return;
+  }
+
+  const renderedStatus = inlineRenderer.getRenderedStatus(target);
 
   if (trackedState?.status === TRANSLATION_STATUS_LOADING) {
     if (renderedStatus === TRANSLATION_STATUS_LOADING) {
