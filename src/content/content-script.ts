@@ -727,7 +727,10 @@ async function handleTranslateTrigger(): Promise<void> {
     });
   }
 
-  if (renderedStatus === TRANSLATION_STATUS_LOADING) {
+  if (
+    renderedStatus === TRANSLATION_STATUS_LOADING &&
+    trackedState?.status === TRANSLATION_STATUS_LOADING
+  ) {
     writeContentDebugEvent("content.request.duplicate_ignored", {
       ...describeTarget(target),
       translationRequestId: trackedState?.requestId ?? null
