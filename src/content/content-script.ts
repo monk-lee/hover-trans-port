@@ -1,8 +1,17 @@
 import { getHoverBlockTarget } from "./blockExtractor";
+import {
+  BubbleRenderer,
+  type BubbleDismissReason
+} from "./bubbleRenderer";
 import { HoverTracker } from "./hoverTracker";
 import { InlineRenderer } from "./inlineRenderer";
 import { installHotkeyTrigger } from "./leftControlTrigger";
 import { getSelectionTarget } from "./selectionExtractor";
+import {
+  getSelectionTargetKeyPrefix,
+  getTargetKey,
+  hasTargetSourceElement
+} from "./targetIdentity";
 import type {
   DebugLogFields,
   ExtensionRequest,
@@ -19,6 +28,9 @@ import type { ModifierTriggerCode } from "../shared/hotkeys";
 
 const hoverTracker = new HoverTracker();
 const inlineRenderer = new InlineRenderer();
+const selectionBubbleStates = new Map<string, SelectionBubbleStoredState>();
+let visibleSelectionBubbleKey: string | null = null;
+const bubbleRenderer = new BubbleRenderer(handleSelectionBubbleDismissed);
 const DEFAULT_EXTENSION_ENABLED = true;
 const TRANSLATION_STATUS_LOADING = "loading";
 const TRANSLATION_STATUS_SUCCESS = "success";
@@ -75,6 +87,30 @@ type TranslationState = {
   status: TranslationStateStatus;
   requestId?: string;
 };
+
+type SelectionBubbleStoredState =
+  | {
+      status: typeof TRANSLATION_STATUS_LOADING;
+      requestId: string;
+      anchorRect: TranslationTarget["anchorRect"];
+    }
+  | {
+      status: typeof TRANSLATION_STATUS_SUCCESS;
+      text: string;
+      anchorRect: TranslationTarget["anchorRect"];
+    }
+  | {
+      status: typeof TRANSLATION_STATUS_ERROR;
+      text: string;
+      anchorRect: TranslationTarget["anchorRect"];
+    }
+  | {
+      status: typeof TRANSLATION_STATUS_HIDDEN;
+      lastResult?:
+        | { status: typeof TRANSLATION_STATUS_SUCCESS; text: string }
+        | { status: typeof TRANSLATION_STATUS_ERROR; text: string };
+      anchorRect: TranslationTarget["anchorRect"];
+    };
 
 const translationStates = new Map<string, TranslationState>();
 let activeTriggerHotkey: TriggerHotkey = DEFAULT_TRIGGER_HOTKEY;
@@ -248,10 +284,6 @@ function handleStoredOptionsChanged(
   installTranslationTrigger(getTriggerHotkeyFromOptions(nextOptions));
 }
 
-function getTargetKey(target: TranslationTarget): string {
-  return target.sourceElement.ownerKey;
-}
-
 function describeTarget(target: TranslationTarget): DebugLogFields {
   return {
     ownerKey: target.sourceElement.ownerKey,
@@ -296,6 +328,20 @@ function setTranslationState(
   });
 }
 
+function setTranslationStateByKey(
+  key: string,
+  status: TranslationStateStatus,
+  requestId?: string
+): void {
+  const state: TranslationState = { status };
+
+  if (requestId) {
+    state.requestId = requestId;
+  }
+
+  translationStates.set(key, state);
+}
+
 function clearTranslationState(
   target: TranslationTarget,
   event: string,
@@ -306,6 +352,24 @@ function clearTranslationState(
     ...describeTarget(target),
     ...fields
   });
+}
+
+function clearOtherSelectionTranslationStates(target: TranslationTarget): void {
+  const selectionKeyPrefix = getSelectionTargetKeyPrefix(target);
+
+  if (!selectionKeyPrefix) {
+    return;
+  }
+
+  const targetKey = getTargetKey(target);
+
+  translationStates.delete(target.sourceElement.ownerKey);
+
+  for (const key of translationStates.keys()) {
+    if (key !== targetKey && key.startsWith(selectionKeyPrefix)) {
+      translationStates.delete(key);
+    }
+  }
 }
 
 function getTranslationState(target: TranslationTarget): TranslationState | null {
@@ -340,6 +404,90 @@ function logIgnoredResponse(
   });
 }
 
+function clearVisibleSelectionBubble(): void {
+  if (visibleSelectionBubbleKey) {
+    translationStates.delete(visibleSelectionBubbleKey);
+  }
+
+  visibleSelectionBubbleKey = null;
+  bubbleRenderer.dismiss("programmatic", { notify: false });
+}
+
+function markVisibleSelectionBubbleHidden(): void {
+  if (!visibleSelectionBubbleKey) {
+    bubbleRenderer.dismiss("programmatic", { notify: false });
+    return;
+  }
+
+  const key = visibleSelectionBubbleKey;
+  const state = selectionBubbleStates.get(key);
+  const lastResult =
+    state?.status === TRANSLATION_STATUS_SUCCESS ||
+    state?.status === TRANSLATION_STATUS_ERROR
+      ? { status: state.status, text: state.text }
+      : state?.status === TRANSLATION_STATUS_HIDDEN
+        ? state.lastResult
+        : undefined;
+
+  selectionBubbleStates.set(key, {
+    status: TRANSLATION_STATUS_HIDDEN,
+    ...(lastResult ? { lastResult } : {}),
+    anchorRect: state?.anchorRect ?? {
+      top: 0,
+      left: 0,
+      width: 0,
+      height: 0
+    }
+  });
+  setTranslationStateByKey(key, TRANSLATION_STATUS_HIDDEN);
+  visibleSelectionBubbleKey = null;
+  bubbleRenderer.dismiss("programmatic", { notify: false });
+}
+
+function showHiddenSelectionBubbleIfAvailable(
+  target: TranslationTarget
+): boolean {
+  if (target.mode !== "selection") {
+    return false;
+  }
+
+  const key = getTargetKey(target);
+  const state = selectionBubbleStates.get(key);
+  const lastResult =
+    state?.status === TRANSLATION_STATUS_HIDDEN
+      ? state.lastResult
+      : visibleSelectionBubbleKey !== key &&
+          (state?.status === TRANSLATION_STATUS_SUCCESS ||
+            state?.status === TRANSLATION_STATUS_ERROR)
+        ? { status: state.status, text: state.text }
+        : undefined;
+
+  if (!lastResult) {
+    return false;
+  }
+
+  bubbleRenderer.show(target.anchorRect, {
+    status: lastResult.status,
+    text: lastResult.text
+  });
+  visibleSelectionBubbleKey = key;
+  selectionBubbleStates.set(key, {
+    status: lastResult.status,
+    text: lastResult.text,
+    anchorRect: target.anchorRect
+  });
+  setTranslationState(target, lastResult.status);
+  return true;
+}
+
+function handleSelectionBubbleDismissed(reason: BubbleDismissReason): void {
+  if (reason === "programmatic") {
+    return;
+  }
+
+  markVisibleSelectionBubbleHidden();
+}
+
 function renderErrorState(
   target: TranslationTarget,
   message: string,
@@ -356,16 +504,101 @@ function renderErrorState(
   setTranslationState(target, TRANSLATION_STATUS_ERROR, requestId);
 }
 
+function renderLoadingState(
+  target: TranslationTarget,
+  requestId: string
+): boolean {
+  if (target.mode === "selection") {
+    const key = getTargetKey(target);
+
+    if (visibleSelectionBubbleKey && visibleSelectionBubbleKey !== key) {
+      clearVisibleSelectionBubble();
+    }
+
+    bubbleRenderer.show(target.anchorRect, {
+      status: "loading",
+      text: ""
+    });
+    visibleSelectionBubbleKey = key;
+    selectionBubbleStates.set(key, {
+      status: TRANSLATION_STATUS_LOADING,
+      requestId,
+      anchorRect: target.anchorRect
+    });
+    return true;
+  }
+
+  clearVisibleSelectionBubble();
+  return inlineRenderer.renderLoading(target);
+}
+
+function renderSuccessState(
+  target: TranslationTarget,
+  translatedText: string
+): boolean {
+  if (target.mode === "selection") {
+    const key = getTargetKey(target);
+
+    if (visibleSelectionBubbleKey && visibleSelectionBubbleKey !== key) {
+      clearVisibleSelectionBubble();
+    }
+
+    bubbleRenderer.show(target.anchorRect, {
+      status: "success",
+      text: translatedText
+    });
+    visibleSelectionBubbleKey = key;
+    selectionBubbleStates.set(key, {
+      status: TRANSLATION_STATUS_SUCCESS,
+      text: translatedText,
+      anchorRect: target.anchorRect
+    });
+    return true;
+  }
+
+  return inlineRenderer.renderSuccess(target, translatedText);
+}
+
+function renderTargetErrorState(
+  target: TranslationTarget,
+  message: string,
+  requestId: string
+): void {
+  if (target.mode === "selection") {
+    const key = getTargetKey(target);
+
+    if (visibleSelectionBubbleKey && visibleSelectionBubbleKey !== key) {
+      clearVisibleSelectionBubble();
+    }
+
+    bubbleRenderer.show(target.anchorRect, {
+      status: "error",
+      text: message
+    });
+    visibleSelectionBubbleKey = key;
+    selectionBubbleStates.set(key, {
+      status: TRANSLATION_STATUS_ERROR,
+      text: message,
+      anchorRect: target.anchorRect
+    });
+    setTranslationState(target, TRANSLATION_STATUS_ERROR, requestId);
+    return;
+  }
+
+  renderErrorState(target, message, requestId);
+}
+
 async function requestTranslation(target: TranslationTarget): Promise<void> {
   const requestId = createRequestId();
 
-  if (!inlineRenderer.renderLoading(target)) {
+  if (!renderLoadingState(target, requestId)) {
     clearTranslationState(target, "content.request.source_missing", {
       translationRequestId: requestId
     });
     return;
   }
 
+  clearOtherSelectionTranslationStates(target);
   setTranslationState(target, TRANSLATION_STATUS_LOADING, requestId);
 
   let response: ExtensionResponse | undefined;
@@ -385,7 +618,7 @@ async function requestTranslation(target: TranslationTarget): Promise<void> {
       return;
     }
 
-    renderErrorState(target, "번역 요청을 처리하지 못했습니다.", requestId);
+    renderTargetErrorState(target, "번역 요청을 처리하지 못했습니다.", requestId);
     return;
   }
 
@@ -394,7 +627,7 @@ async function requestTranslation(target: TranslationTarget): Promise<void> {
     return;
   }
 
-  if (!inlineRenderer.hasSourceElement(target)) {
+  if (!hasTargetSourceElement(target)) {
     clearTranslationState(target, "content.response.source_detached", {
       translationRequestId: requestId
     });
@@ -402,21 +635,21 @@ async function requestTranslation(target: TranslationTarget): Promise<void> {
   }
 
   if (!isTranslationResult(response)) {
-    renderErrorState(target, "번역 결과를 받지 못했습니다.", requestId);
+    renderTargetErrorState(target, "번역 결과를 받지 못했습니다.", requestId);
     return;
   }
 
   if (response.requestId !== requestId) {
-    renderErrorState(target, "번역 결과를 받지 못했습니다.", requestId);
+    renderTargetErrorState(target, "번역 결과를 받지 못했습니다.", requestId);
     return;
   }
 
   if (!response.ok) {
-    renderErrorState(target, response.message, requestId);
+    renderTargetErrorState(target, response.message, requestId);
     return;
   }
 
-  if (!inlineRenderer.renderSuccess(target, response.translatedText)) {
+  if (!renderSuccessState(target, response.translatedText)) {
     clearTranslationState(target, "content.response.source_detached", {
       translationRequestId: requestId,
       nextStatus: TRANSLATION_STATUS_SUCCESS
@@ -425,6 +658,36 @@ async function requestTranslation(target: TranslationTarget): Promise<void> {
   }
 
   setTranslationState(target, TRANSLATION_STATUS_SUCCESS, requestId);
+}
+
+async function handleSelectionTranslateTrigger(
+  target: TranslationTarget
+): Promise<void> {
+  const key = getTargetKey(target);
+  const trackedState = getTranslationState(target);
+
+  if (trackedState?.status === TRANSLATION_STATUS_LOADING) {
+    writeContentDebugEvent("content.request.duplicate_ignored", {
+      ...describeTarget(target),
+      translationRequestId: trackedState.requestId ?? null
+    });
+    return;
+  }
+
+  if (
+    visibleSelectionBubbleKey === key &&
+    (trackedState?.status === TRANSLATION_STATUS_SUCCESS ||
+      trackedState?.status === TRANSLATION_STATUS_ERROR)
+  ) {
+    markVisibleSelectionBubbleHidden();
+    return;
+  }
+
+  if (showHiddenSelectionBubbleIfAvailable(target)) {
+    return;
+  }
+
+  await requestTranslation(target);
 }
 
 async function handleTranslateTrigger(): Promise<void> {
@@ -438,8 +701,16 @@ async function handleTranslateTrigger(): Promise<void> {
     return;
   }
 
-  const renderedStatus = inlineRenderer.getRenderedStatus(target);
   const trackedState = getTranslationState(target);
+
+  if (target.mode === "selection") {
+    await handleSelectionTranslateTrigger(target);
+    return;
+  }
+
+  clearVisibleSelectionBubble();
+
+  const renderedStatus = inlineRenderer.getRenderedStatus(target);
 
   if (trackedState?.status === TRANSLATION_STATUS_LOADING) {
     if (renderedStatus === TRANSLATION_STATUS_LOADING) {
@@ -456,7 +727,10 @@ async function handleTranslateTrigger(): Promise<void> {
     });
   }
 
-  if (renderedStatus === TRANSLATION_STATUS_LOADING) {
+  if (
+    renderedStatus === TRANSLATION_STATUS_LOADING &&
+    trackedState?.status === TRANSLATION_STATUS_LOADING
+  ) {
     writeContentDebugEvent("content.request.duplicate_ignored", {
       ...describeTarget(target),
       translationRequestId: trackedState?.requestId ?? null

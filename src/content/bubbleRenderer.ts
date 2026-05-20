@@ -14,8 +14,22 @@ type BubbleState =
       text: string;
     };
 
+export type BubbleDismissReason =
+  | "outside-click"
+  | "escape"
+  | "scroll"
+  | "resize"
+  | "programmatic";
+
+type BubbleDismissOptions = {
+  notify?: boolean;
+};
+
+type BubbleDismissHandler = (reason: BubbleDismissReason) => void;
+
 const BUBBLE_ID = "hover-trans-port-bubble";
 const STYLE_ID = "hover-trans-port-bubble-style";
+const BUBBLE_LOADER_ATTRIBUTE = "data-hover-trans-port-bubble-loader";
 
 function ensureStyle(): void {
   if (document.getElementById(STYLE_ID)) {
@@ -48,6 +62,52 @@ function ensureStyle(): void {
 
     #${BUBBLE_ID}[data-state="loading"] {
       color: #d4d4d4;
+    }
+
+    #${BUBBLE_ID} [${BUBBLE_LOADER_ATTRIBUTE}="true"] {
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 0.22em;
+      min-width: 1.55em;
+      vertical-align: baseline;
+    }
+
+    #${BUBBLE_ID} [${BUBBLE_LOADER_ATTRIBUTE}="true"] > span {
+      display: inline-block;
+      width: 0.34em;
+      height: 0.34em;
+      border-radius: 999px;
+      background-color: currentColor;
+      opacity: 0.32;
+      animation: hover-trans-port-bubble-loading-dot 1s ease-in-out infinite;
+    }
+
+    #${BUBBLE_ID} [${BUBBLE_LOADER_ATTRIBUTE}="true"] > span:nth-child(2) {
+      animation-delay: 0.14s;
+    }
+
+    #${BUBBLE_ID} [${BUBBLE_LOADER_ATTRIBUTE}="true"] > span:nth-child(3) {
+      animation-delay: 0.28s;
+    }
+
+    @keyframes hover-trans-port-bubble-loading-dot {
+      0%, 80%, 100% {
+        opacity: 0.28;
+        transform: translateY(0);
+      }
+
+      40% {
+        opacity: 0.86;
+        transform: translateY(-0.12em);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #${BUBBLE_ID} [${BUBBLE_LOADER_ATTRIBUTE}="true"] > span {
+        animation: none;
+        opacity: 0.56;
+      }
     }
   `;
   document.documentElement.appendChild(style);
@@ -87,14 +147,33 @@ function getBubblePosition(anchorRect: AnchorRect, bubbleRect: DOMRect): { top: 
   };
 }
 
+function createLoaderNode(): HTMLElement {
+  const loader = document.createElement("span");
+  loader.className = "notranslate";
+  loader.setAttribute(BUBBLE_LOADER_ATTRIBUTE, "true");
+  loader.setAttribute("role", "status");
+  loader.setAttribute("aria-label", "Translating");
+
+  for (let index = 0; index < 3; index += 1) {
+    const dot = document.createElement("span");
+    dot.setAttribute("aria-hidden", "true");
+    loader.appendChild(dot);
+  }
+
+  return loader;
+}
+
 export class BubbleRenderer {
   private cleanupOutsideClick: (() => void) | null = null;
   private cleanupEscape: (() => void) | null = null;
+  private cleanupViewportChange: (() => void) | null = null;
   private pendingHandlerTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  constructor(private readonly onDismiss?: BubbleDismissHandler) {}
 
   show(anchorRect: AnchorRect, state: BubbleState): void {
     ensureStyle();
-    this.dismiss();
+    this.dismiss("programmatic", { notify: false });
 
     const bubble = document.createElement("div");
     const initialPosition = getInitialBubblePosition(anchorRect);
@@ -102,9 +181,14 @@ export class BubbleRenderer {
     bubble.id = BUBBLE_ID;
     bubble.dataset.hoverTransPortBubble = "true";
     bubble.dataset.state = state.status;
-    bubble.textContent = state.text;
     bubble.style.top = `${initialPosition.top}px`;
     bubble.style.left = `${initialPosition.left}px`;
+
+    if (state.status === "loading") {
+      bubble.replaceChildren(createLoaderNode());
+    } else {
+      bubble.textContent = state.text;
+    }
 
     document.documentElement.appendChild(bubble);
 
@@ -115,29 +199,52 @@ export class BubbleRenderer {
     this.installDismissHandlers(bubble);
   }
 
-  dismiss(): void {
+  dismiss(reason: BubbleDismissReason = "programmatic", options: BubbleDismissOptions = {}): void {
+    const hadBubble = Boolean(
+      document.getElementById(BUBBLE_ID)?.dataset.hoverTransPortBubble === "true",
+    );
+    const shouldNotify = options.notify ?? reason !== "programmatic";
+
     if (this.pendingHandlerTimeout !== null) {
       clearTimeout(this.pendingHandlerTimeout);
       this.pendingHandlerTimeout = null;
     }
     this.cleanupOutsideClick?.();
     this.cleanupEscape?.();
+    this.cleanupViewportChange?.();
     this.cleanupOutsideClick = null;
     this.cleanupEscape = null;
+    this.cleanupViewportChange = null;
     removeExistingBubble();
+
+    if (hadBubble && shouldNotify) {
+      this.onDismiss?.(reason);
+    }
   }
 
   private installDismissHandlers(bubble: HTMLElement): void {
     const handlePointerDown = (event: PointerEvent): void => {
       if (!bubble.contains(event.target as Node)) {
-        this.dismiss();
+        this.dismiss("outside-click");
       }
     };
 
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (event.key === "Escape") {
-        this.dismiss();
+        this.dismiss("escape");
       }
+    };
+
+    const handleScroll = (event: Event): void => {
+      if (event.target instanceof Node && bubble.contains(event.target)) {
+        return;
+      }
+
+      this.dismiss("scroll");
+    };
+
+    const handleResize = (): void => {
+      this.dismiss("resize");
     };
 
     this.pendingHandlerTimeout = setTimeout(() => {
@@ -148,6 +255,8 @@ export class BubbleRenderer {
 
       document.addEventListener("pointerdown", handlePointerDown, true);
       document.addEventListener("keydown", handleKeyDown, true);
+      window.addEventListener("scroll", handleScroll, true);
+      window.addEventListener("resize", handleResize, true);
     }, 0);
 
     this.cleanupOutsideClick = () => {
@@ -155,6 +264,10 @@ export class BubbleRenderer {
     };
     this.cleanupEscape = () => {
       document.removeEventListener("keydown", handleKeyDown, true);
+    };
+    this.cleanupViewportChange = () => {
+      window.removeEventListener("scroll", handleScroll, true);
+      window.removeEventListener("resize", handleResize, true);
     };
   }
 }
