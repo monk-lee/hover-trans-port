@@ -453,22 +453,30 @@ function showHiddenSelectionBubbleIfAvailable(
 
   const key = getTargetKey(target);
   const state = selectionBubbleStates.get(key);
+  const lastResult =
+    state?.status === TRANSLATION_STATUS_HIDDEN
+      ? state.lastResult
+      : visibleSelectionBubbleKey !== key &&
+          (state?.status === TRANSLATION_STATUS_SUCCESS ||
+            state?.status === TRANSLATION_STATUS_ERROR)
+        ? { status: state.status, text: state.text }
+        : undefined;
 
-  if (state?.status !== TRANSLATION_STATUS_HIDDEN || !state.lastResult) {
+  if (!lastResult) {
     return false;
   }
 
   bubbleRenderer.show(target.anchorRect, {
-    status: state.lastResult.status,
-    text: state.lastResult.text
+    status: lastResult.status,
+    text: lastResult.text
   });
   visibleSelectionBubbleKey = key;
   selectionBubbleStates.set(key, {
-    status: state.lastResult.status,
-    text: state.lastResult.text,
+    status: lastResult.status,
+    text: lastResult.text,
     anchorRect: target.anchorRect
   });
-  setTranslationState(target, state.lastResult.status);
+  setTranslationState(target, lastResult.status);
   return true;
 }
 
