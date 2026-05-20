@@ -444,6 +444,34 @@ function markVisibleSelectionBubbleHidden(): void {
   bubbleRenderer.dismiss("programmatic", { notify: false });
 }
 
+function showHiddenSelectionBubbleIfAvailable(
+  target: TranslationTarget
+): boolean {
+  if (target.mode !== "selection") {
+    return false;
+  }
+
+  const key = getTargetKey(target);
+  const state = selectionBubbleStates.get(key);
+
+  if (state?.status !== TRANSLATION_STATUS_HIDDEN || !state.lastResult) {
+    return false;
+  }
+
+  bubbleRenderer.show(target.anchorRect, {
+    status: state.lastResult.status,
+    text: state.lastResult.text
+  });
+  visibleSelectionBubbleKey = key;
+  selectionBubbleStates.set(key, {
+    status: state.lastResult.status,
+    text: state.lastResult.text,
+    anchorRect: target.anchorRect
+  });
+  setTranslationState(target, state.lastResult.status);
+  return true;
+}
+
 function handleSelectionBubbleDismissed(reason: BubbleDismissReason): void {
   if (reason === "programmatic") {
     return;
@@ -624,6 +652,36 @@ async function requestTranslation(target: TranslationTarget): Promise<void> {
   setTranslationState(target, TRANSLATION_STATUS_SUCCESS, requestId);
 }
 
+async function handleSelectionTranslateTrigger(
+  target: TranslationTarget
+): Promise<void> {
+  const key = getTargetKey(target);
+  const trackedState = getTranslationState(target);
+
+  if (trackedState?.status === TRANSLATION_STATUS_LOADING) {
+    writeContentDebugEvent("content.request.duplicate_ignored", {
+      ...describeTarget(target),
+      translationRequestId: trackedState.requestId ?? null
+    });
+    return;
+  }
+
+  if (
+    visibleSelectionBubbleKey === key &&
+    (trackedState?.status === TRANSLATION_STATUS_SUCCESS ||
+      trackedState?.status === TRANSLATION_STATUS_ERROR)
+  ) {
+    markVisibleSelectionBubbleHidden();
+    return;
+  }
+
+  if (showHiddenSelectionBubbleIfAvailable(target)) {
+    return;
+  }
+
+  await requestTranslation(target);
+}
+
 async function handleTranslateTrigger(): Promise<void> {
   if (!(await isExtensionEnabled())) {
     return;
@@ -638,17 +696,11 @@ async function handleTranslateTrigger(): Promise<void> {
   const trackedState = getTranslationState(target);
 
   if (target.mode === "selection") {
-    if (trackedState?.status === TRANSLATION_STATUS_LOADING) {
-      writeContentDebugEvent("content.request.duplicate_ignored", {
-        ...describeTarget(target),
-        translationRequestId: trackedState.requestId ?? null
-      });
-      return;
-    }
-
-    await requestTranslation(target);
+    await handleSelectionTranslateTrigger(target);
     return;
   }
+
+  clearVisibleSelectionBubble();
 
   const renderedStatus = inlineRenderer.getRenderedStatus(target);
 
