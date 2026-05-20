@@ -17,14 +17,30 @@ function createTextHash(text: string): string {
   return `${normalized.length}:${(hash >>> 0).toString(36)}`;
 }
 
+function createSelectionTargetKeyPrefix(ownerKey: string): string {
+  return `selection:${ownerKey}:`;
+}
+
 export function getTargetKey(target: TranslationTarget): string {
   if (target.mode === "selection") {
-    return `selection:${target.sourceElement.ownerKey}:${createTextHash(
-      target.text
-    )}`;
+    const selectionKeyPrefix = createSelectionTargetKeyPrefix(
+      target.sourceElement.ownerKey
+    );
+
+    return `${selectionKeyPrefix}${createTextHash(target.text)}`;
   }
 
   return target.sourceElement.ownerKey;
+}
+
+export function getSelectionTargetKeyPrefix(
+  target: TranslationTarget
+): string | null {
+  if (target.mode !== "selection") {
+    return null;
+  }
+
+  return createSelectionTargetKeyPrefix(target.sourceElement.ownerKey);
 }
 
 export function hasTargetSourceElement(target: TranslationTarget): boolean {

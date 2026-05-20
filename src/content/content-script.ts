@@ -3,7 +3,11 @@ import { HoverTracker } from "./hoverTracker";
 import { InlineRenderer } from "./inlineRenderer";
 import { installHotkeyTrigger } from "./leftControlTrigger";
 import { getSelectionTarget } from "./selectionExtractor";
-import { getTargetKey, hasTargetSourceElement } from "./targetIdentity";
+import {
+  getSelectionTargetKeyPrefix,
+  getTargetKey,
+  hasTargetSourceElement
+} from "./targetIdentity";
 import type {
   DebugLogFields,
   ExtensionRequest,
@@ -305,6 +309,22 @@ function clearTranslationState(
   });
 }
 
+function clearOtherSelectionTranslationStates(target: TranslationTarget): void {
+  const selectionKeyPrefix = getSelectionTargetKeyPrefix(target);
+
+  if (!selectionKeyPrefix) {
+    return;
+  }
+
+  const targetKey = getTargetKey(target);
+
+  for (const key of translationStates.keys()) {
+    if (key !== targetKey && key.startsWith(selectionKeyPrefix)) {
+      translationStates.delete(key);
+    }
+  }
+}
+
 function getTranslationState(target: TranslationTarget): TranslationState | null {
   return translationStates.get(getTargetKey(target)) ?? null;
 }
@@ -363,6 +383,7 @@ async function requestTranslation(target: TranslationTarget): Promise<void> {
     return;
   }
 
+  clearOtherSelectionTranslationStates(target);
   setTranslationState(target, TRANSLATION_STATUS_LOADING, requestId);
 
   let response: ExtensionResponse | undefined;
