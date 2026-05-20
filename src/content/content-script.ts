@@ -318,6 +318,8 @@ function clearOtherSelectionTranslationStates(target: TranslationTarget): void {
 
   const targetKey = getTargetKey(target);
 
+  translationStates.delete(target.sourceElement.ownerKey);
+
   for (const key of translationStates.keys()) {
     if (key !== targetKey && key.startsWith(selectionKeyPrefix)) {
       translationStates.delete(key);
