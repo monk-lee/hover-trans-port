@@ -517,7 +517,7 @@ function renderLoadingState(
 
     bubbleRenderer.show(target.anchorRect, {
       status: "loading",
-      text: "번역 중..."
+      text: ""
     });
     visibleSelectionBubbleKey = key;
     selectionBubbleStates.set(key, {

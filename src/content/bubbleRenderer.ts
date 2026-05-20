@@ -29,6 +29,7 @@ type BubbleDismissHandler = (reason: BubbleDismissReason) => void;
 
 const BUBBLE_ID = "hover-trans-port-bubble";
 const STYLE_ID = "hover-trans-port-bubble-style";
+const BUBBLE_LOADER_ATTRIBUTE = "data-hover-trans-port-bubble-loader";
 
 function ensureStyle(): void {
   if (document.getElementById(STYLE_ID)) {
@@ -61,6 +62,52 @@ function ensureStyle(): void {
 
     #${BUBBLE_ID}[data-state="loading"] {
       color: #d4d4d4;
+    }
+
+    #${BUBBLE_ID} [${BUBBLE_LOADER_ATTRIBUTE}="true"] {
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 0.22em;
+      min-width: 1.55em;
+      vertical-align: baseline;
+    }
+
+    #${BUBBLE_ID} [${BUBBLE_LOADER_ATTRIBUTE}="true"] > span {
+      display: inline-block;
+      width: 0.34em;
+      height: 0.34em;
+      border-radius: 999px;
+      background-color: currentColor;
+      opacity: 0.32;
+      animation: hover-trans-port-bubble-loading-dot 1s ease-in-out infinite;
+    }
+
+    #${BUBBLE_ID} [${BUBBLE_LOADER_ATTRIBUTE}="true"] > span:nth-child(2) {
+      animation-delay: 0.14s;
+    }
+
+    #${BUBBLE_ID} [${BUBBLE_LOADER_ATTRIBUTE}="true"] > span:nth-child(3) {
+      animation-delay: 0.28s;
+    }
+
+    @keyframes hover-trans-port-bubble-loading-dot {
+      0%, 80%, 100% {
+        opacity: 0.28;
+        transform: translateY(0);
+      }
+
+      40% {
+        opacity: 0.86;
+        transform: translateY(-0.12em);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #${BUBBLE_ID} [${BUBBLE_LOADER_ATTRIBUTE}="true"] > span {
+        animation: none;
+        opacity: 0.56;
+      }
     }
   `;
   document.documentElement.appendChild(style);
@@ -100,6 +147,22 @@ function getBubblePosition(anchorRect: AnchorRect, bubbleRect: DOMRect): { top: 
   };
 }
 
+function createLoaderNode(): HTMLElement {
+  const loader = document.createElement("span");
+  loader.className = "notranslate";
+  loader.setAttribute(BUBBLE_LOADER_ATTRIBUTE, "true");
+  loader.setAttribute("role", "status");
+  loader.setAttribute("aria-label", "Translating");
+
+  for (let index = 0; index < 3; index += 1) {
+    const dot = document.createElement("span");
+    dot.setAttribute("aria-hidden", "true");
+    loader.appendChild(dot);
+  }
+
+  return loader;
+}
+
 export class BubbleRenderer {
   private cleanupOutsideClick: (() => void) | null = null;
   private cleanupEscape: (() => void) | null = null;
@@ -118,9 +181,14 @@ export class BubbleRenderer {
     bubble.id = BUBBLE_ID;
     bubble.dataset.hoverTransPortBubble = "true";
     bubble.dataset.state = state.status;
-    bubble.textContent = state.text;
     bubble.style.top = `${initialPosition.top}px`;
     bubble.style.left = `${initialPosition.left}px`;
+
+    if (state.status === "loading") {
+      bubble.replaceChildren(createLoaderNode());
+    } else {
+      bubble.textContent = state.text;
+    }
 
     document.documentElement.appendChild(bubble);
 
