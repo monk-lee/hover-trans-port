@@ -1,0 +1,58 @@
+#!/bin/sh
+if [ "$1" = "--version" ]; then
+  printf 'opencode test-version\n'
+  exit 0
+fi
+
+if [ "$1" = "run" ]; then
+  format=""
+  pure=0
+  dir=""
+  previous=""
+  prompt=""
+
+  for arg in "$@"; do
+    if [ "$previous" = "--format" ]; then
+      format="$arg"
+    fi
+    if [ "$previous" = "--dir" ]; then
+      dir="$arg"
+    fi
+    if [ "$arg" = "--pure" ]; then
+      pure=1
+    fi
+    prompt="$arg"
+    previous="$arg"
+  done
+
+  if [ "$format" != "json" ]; then
+    printf 'expected --format json, got: %s\n' "$format" >&2
+    exit 2
+  fi
+  if [ "$pure" -ne 1 ]; then
+    printf 'expected --pure\n' >&2
+    exit 2
+  fi
+  if [ -z "$dir" ]; then
+    printf 'expected --dir\n' >&2
+    exit 2
+  fi
+
+  case "$prompt" in
+    *"Trigger auth error"*)
+      printf '{"type":"error","error":{"message":"Not logged in"}}\n'
+      exit 1
+      ;;
+    *"Translate the following text to Korean."*)
+      printf '{"type":"message","message":{"content":[{"type":"text","text":"오픈코드 안녕하세요"}]}}\n'
+      exit 0
+      ;;
+    *)
+      printf 'unexpected prompt: %s\n' "$prompt" >&2
+      exit 2
+      ;;
+  esac
+fi
+
+printf 'unexpected opencode args: %s\n' "$*" >&2
+exit 2

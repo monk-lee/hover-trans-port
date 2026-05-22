@@ -7,6 +7,9 @@ use hover_trans_port_helper::providers::codex::{build_codex_exec_args, CodexProv
 use hover_trans_port_helper::providers::gemini::{
     build_gemini_args, parse_gemini_output, GeminiProvider,
 };
+use hover_trans_port_helper::providers::opencode::{
+    build_opencode_args, parse_opencode_output, OpencodeProvider,
+};
 use hover_trans_port_helper::providers::{Provider, ProviderRegistry};
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -296,6 +299,10 @@ fn provider_registry_resolves_selected_provider_ids() {
     let registry = ProviderRegistry::new(BTreeMap::new());
 
     assert_eq!(
+        registry.provider_id_for_selection(Some("opencode")),
+        ProviderId::Opencode
+    );
+    assert_eq!(
         registry.provider_id_for_selection(Some("gemini")),
         ProviderId::Gemini
     );
@@ -468,6 +475,146 @@ fn gemini_output_parser_accepts_json_result_and_plain_text() {
     );
     assert_eq!(
         parse_gemini_output("plain translated text").unwrap(),
+        "plain translated text"
+    );
+}
+
+#[test]
+fn opencode_command_builder_uses_default_model_when_model_is_empty() {
+    let args = build_opencode_args(Some("  "), Path::new("/tmp/htp"), "prompt");
+
+    assert_eq!(
+        args,
+        vec!["run", "--format", "json", "--pure", "--dir", "/tmp/htp", "prompt",]
+    );
+}
+
+#[test]
+fn opencode_command_builder_passes_explicit_model() {
+    let args = build_opencode_args(Some("opencode/gpt-5"), Path::new("/tmp/htp"), "prompt");
+
+    assert_eq!(
+        args,
+        vec![
+            "run",
+            "--format",
+            "json",
+            "--pure",
+            "--dir",
+            "/tmp/htp",
+            "--model",
+            "opencode/gpt-5",
+            "prompt",
+        ]
+    );
+}
+
+#[test]
+fn opencode_model_catalog_uses_default_cli_model() {
+    let provider = OpencodeProvider::new(BTreeMap::new());
+    let catalog = provider.model_catalog();
+
+    assert_eq!(catalog.provider, ProviderId::Opencode);
+    assert_eq!(catalog.default_model, "");
+    assert!(catalog.supports_custom_model);
+    assert_eq!(catalog.models.len(), 1);
+    assert_eq!(catalog.models[0].value, "");
+    assert_eq!(catalog.models[0].label, "Default (OpenCode CLI)");
+    assert_eq!(catalog.models[0].recommended, Some(true));
+}
+
+#[test]
+fn opencode_fake_cli_translation_returns_success_result() {
+    let opencode = fixture_path("opencode");
+    make_executable(&opencode);
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_OPENCODE_PATH".to_string(),
+        opencode.to_string_lossy().into_owned(),
+    );
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+    let home_dir = tempdir().unwrap();
+    env.insert("HOME".to_string(), home_dir.path().display().to_string());
+
+    let response = handle_request(
+        json!({
+            "type": "TRANSLATE",
+            "requestId": "req-opencode",
+            "provider": "opencode",
+            "model": "",
+            "targetLang": "Korean",
+            "text": "Hello",
+            "cacheEnabled": false,
+            "timeoutMs": 5_000
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "TRANSLATE_RESULT");
+    assert_eq!(response["requestId"], "req-opencode");
+    assert_eq!(response["ok"], true);
+    assert_eq!(response["provider"], "opencode");
+    assert_eq!(response["translatedText"], "오픈코드 안녕하세요");
+    assert_eq!(response["cached"], false);
+}
+
+#[test]
+fn opencode_nonzero_json_error_surfaces_error_message() {
+    let opencode = fixture_path("opencode");
+    make_executable(&opencode);
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_OPENCODE_PATH".to_string(),
+        opencode.to_string_lossy().into_owned(),
+    );
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+    let home_dir = tempdir().unwrap();
+    env.insert("HOME".to_string(), home_dir.path().display().to_string());
+
+    let response = handle_request(
+        json!({
+            "type": "TRANSLATE",
+            "requestId": "req-opencode-auth",
+            "provider": "opencode",
+            "model": "",
+            "targetLang": "Korean",
+            "text": "Trigger auth error",
+            "cacheEnabled": false,
+            "timeoutMs": 5_000
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "TRANSLATE_RESULT");
+    assert_eq!(response["requestId"], "req-opencode-auth");
+    assert_eq!(response["ok"], false);
+    assert_eq!(response["error"], "PROVIDER_EXIT_NONZERO");
+    assert!(response["message"]
+        .as_str()
+        .unwrap()
+        .contains("Not logged in"));
+}
+
+#[test]
+fn opencode_output_parser_accepts_json_event_and_plain_text() {
+    assert_eq!(
+        parse_opencode_output(
+            r#"{"type":"message","message":{"content":[{"type":"text","text":"번역 결과"}]}}"#
+        )
+        .unwrap(),
+        "번역 결과"
+    );
+    assert_eq!(
+        parse_opencode_output(
+            r#"{"type":"message","error":null,"message":{"content":[{"type":"text","text":"번역 결과"}]}}"#
+        )
+        .unwrap(),
+        "번역 결과"
+    );
+    assert_eq!(
+        parse_opencode_output("plain translated text").unwrap(),
         "plain translated text"
     );
 }

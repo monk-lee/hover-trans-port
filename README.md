@@ -63,7 +63,7 @@ bash install-macos-native-host.sh uninstall
 
 Open the extension's Options page and run both `Check Native Host` and `Check Provider`.
 
-Options asks the native host for the selected provider's model catalog. Codex can show CLI-provided models through `codex debug models`; providers without a stable machine-readable model list use built-in fallback aliases and still allow custom model values.
+Options asks the native host for the selected provider's model catalog. Codex can show CLI-provided models through `codex debug models`; providers without a stable machine-readable model list use built-in fallback aliases and still allow custom model values. OpenCode defaults to the model configured in OpenCode itself unless you choose a custom `provider/model` value.
 
 ### Build The Extension From Source
 
