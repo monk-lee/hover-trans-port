@@ -139,7 +139,18 @@ fn antigravity_command_builder_uses_print_mode_shape() {
 fn antigravity_command_builder_rounds_timeout_up_to_seconds() {
     let args = build_antigravity_args(5_500, Path::new("/tmp/htp-agy.log"), "prompt");
 
-    assert_eq!(args[3], "6s");
+    assert_eq!(
+        args,
+        vec![
+            "--log-file",
+            "/tmp/htp-agy.log",
+            "--print-timeout",
+            "6s",
+            "--sandbox",
+            "--print",
+            "prompt",
+        ]
+    );
 }
 
 #[test]

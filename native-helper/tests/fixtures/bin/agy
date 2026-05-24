@@ -43,6 +43,14 @@ if [ -z "$prompt" ]; then
   exit 2
 fi
 
+if [ -n "$HOVER_TRANS_PORT_ANTIGRAVITY_WORKSPACE_DIR" ]; then
+  current_dir="$(pwd)"
+  if [ "$current_dir" != "$HOVER_TRANS_PORT_ANTIGRAVITY_WORKSPACE_DIR" ]; then
+    printf 'expected cwd %s, got: %s\n' "$HOVER_TRANS_PORT_ANTIGRAVITY_WORKSPACE_DIR" "$current_dir" >&2
+    exit 2
+  fi
+fi
+
 mkdir -p .antigravitycli
 printf 'test log\n' > "$log_file"
 
