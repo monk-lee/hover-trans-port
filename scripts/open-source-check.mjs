@@ -130,6 +130,21 @@ assertIncludes(
   "does not make direct Anthropic or Google API calls",
   "PRIVACY.md"
 );
+assertIncludes(
+  privacy,
+  "requested text may be visible in local process metadata while `agy` runs",
+  "PRIVACY.md"
+);
+assertIncludes(
+  privacy,
+  "~/.hover-trans-port/antigravity-workspace",
+  "PRIVACY.md"
+);
+assertIncludes(
+  privacy,
+  "separate from the translation cache and debug log",
+  "PRIVACY.md"
+);
 assertIncludes(privacy, "does not request the `cookies` permission", "PRIVACY.md");
 assertIncludes(privacy, "~/.hover-trans-port/cache.sqlite", "PRIVACY.md");
 assertIncludes(privacy, "plaintext SQLite", "PRIVACY.md");
@@ -138,6 +153,16 @@ const security = read("SECURITY.md");
 assertIncludes(security, "Chrome Native Messaging", "SECURITY.md");
 assertIncludes(security, "read-only sandbox", "SECURITY.md");
 assertIncludes(security, "private vulnerability reporting", "SECURITY.md");
+assertIncludes(
+  security,
+  "requested text may be visible in local process metadata while `agy` runs",
+  "SECURITY.md"
+);
+assertIncludes(
+  security,
+  "~/.hover-trans-port/antigravity-workspace",
+  "SECURITY.md"
+);
 
 const nativeHostInstall = read("docs/native-host-install.md");
 assertIncludes(nativeHostInstall, "current macOS install path", "docs/native-host-install.md");
@@ -169,6 +194,16 @@ assertIncludes(
 assertIncludes(
   nativeHostInstall,
   "Antigravity ignores the model dropdown because `agy --print` uses the CLI-configured default model",
+  "docs/native-host-install.md"
+);
+assertIncludes(
+  nativeHostInstall,
+  "full translation prompt as a process argument",
+  "docs/native-host-install.md"
+);
+assertIncludes(
+  nativeHostInstall,
+  "~/.hover-trans-port/antigravity-workspace",
   "docs/native-host-install.md"
 );
 assertIncludes(

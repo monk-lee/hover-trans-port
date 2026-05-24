@@ -228,6 +228,12 @@ fn antigravity_fake_cli_translation_returns_success_result() {
     assert_eq!(response["provider"], "antigravity");
     assert_eq!(response["translatedText"], "안티그래비티 안녕하세요");
     assert_eq!(response["cached"], false);
+    assert!(workspace_dir.join(".antigravitycli").is_dir());
+    let recorded_cwd = fs::read_to_string(home_dir.path().join("agy-cwd.txt")).unwrap();
+    assert_eq!(
+        fs::canonicalize(recorded_cwd.trim_end()).unwrap(),
+        fs::canonicalize(&workspace_dir).unwrap()
+    );
 }
 
 #[test]

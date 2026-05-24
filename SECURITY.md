@@ -41,6 +41,8 @@ The native host can execute the configured provider CLI on the local machine.
 
 The selected provider CLI may communicate with upstream AI services according to that provider account, authentication, environment, and provider policies. HoverTransPort invokes Codex CLI with `--ignore-user-config`. Antigravity support invokes the local Antigravity CLI and does not make direct Google API calls.
 
+For Antigravity, requested text may be visible in local process metadata while `agy` runs because `agy --print` takes the full translation prompt as a process argument. Antigravity may create local workspace artifacts under `~/.hover-trans-port/antigravity-workspace` by default. These artifacts are separate from the translation cache and debug log and can be removed manually to clear local provider workspace state.
+
 ## Out Of Scope
 
 The first public developer preview does not claim to provide:

@@ -51,6 +51,10 @@ if [ -n "$HOVER_TRANS_PORT_ANTIGRAVITY_WORKSPACE_DIR" ]; then
   fi
 fi
 
+if [ -n "$HOME" ]; then
+  pwd > "$HOME/agy-cwd.txt"
+fi
+
 mkdir -p .antigravitycli
 printf 'test log\n' > "$log_file"
 

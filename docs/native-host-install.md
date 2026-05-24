@@ -58,6 +58,8 @@ The installer writes the helper to `~/Library/Application Support/HoverTransPort
 
 Codex CLI, Claude CLI, Gemini CLI, and Antigravity CLI are separate prerequisites. The installer does not store provider credentials, API keys, or browser session data.
 
+For Antigravity translations, HoverTransPort invokes `agy --print`, which takes the full translation prompt as a process argument. Requested text may therefore be visible in local process metadata while `agy` runs.
+
 ## Updating From Options
 
 HoverTransPort can check for native host updates in the background and show the result in Options.
@@ -131,6 +133,8 @@ Cached entries include provider, selected model, target language, normalized sou
 For isolated cache tests, set `HOVER_TRANS_PORT_CACHE_PATH=/tmp/hover-trans-port-cache.sqlite`.
 
 Debug logs, when enabled, are written to `~/.hover-trans-port/hover-trans-port.log`. The Options page Debug Log controls can view and clear this file.
+
+Antigravity may create local workspace artifacts under `~/.hover-trans-port/antigravity-workspace` by default. These artifacts are separate from the translation cache and debug log. Remove that directory manually if you want to clear local Antigravity provider workspace state.
 
 ## Uninstall
 
