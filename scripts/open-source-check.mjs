@@ -84,12 +84,13 @@ assertIncludes(readme, "Chrome Manifest V3 extension", "README.md");
 assertIncludes(readme, "Codex CLI", "README.md");
 assertIncludes(readme, "Claude CLI", "README.md");
 assertIncludes(readme, "Gemini CLI", "README.md");
+assertIncludes(readme, "Antigravity CLI", "README.md");
 assertIncludes(readme, "Native Messaging", "README.md");
 assertIncludes(readme, "PRIVACY.md", "README.md");
 assertIncludes(readme, "[한국어](readmes/README.ko.md)", "README.md");
 assertIncludes(
   readme,
-  "not affiliated with, endorsed by, or sponsored by OpenAI, Codex, Anthropic, Claude, Google, or Gemini",
+  "not affiliated with, endorsed by, or sponsored by OpenAI, Codex, Anthropic, Claude, Google, Gemini, or Antigravity",
   "README.md"
 );
 
@@ -105,22 +106,28 @@ assertIncludes(koreanReadme, "../SECURITY.md", "Korean README");
 assertIncludes(koreanReadme, "../docs/native-host-install.md", "Korean README");
 assertIncludes(koreanReadme, "Claude CLI", "Korean README");
 assertIncludes(koreanReadme, "Gemini CLI", "Korean README");
+assertIncludes(koreanReadme, "Antigravity CLI", "Korean README");
 assertIncludes(
   koreanReadme,
-  "OpenAI, Codex, Anthropic, Claude, Google, Gemini와 제휴, 보증, 후원을 받는 공식 제품이 아닙니다.",
+  "OpenAI, Codex, Anthropic, Claude, Google, Gemini, Antigravity와 제휴, 보증, 후원을 받는 공식 제품이 아닙니다.",
   "Korean README"
 );
 
 const privacy = read("PRIVACY.md");
 assertIncludes(
   privacy,
-  "Codex CLI, Claude CLI, and Gemini CLI",
+  "Codex CLI, Claude CLI, Gemini CLI, and Antigravity CLI",
   "PRIVACY.md"
 );
 assertIncludes(
   privacy,
   "does not store provider credentials or API keys",
-  "may send requested text upstream",
+  "PRIVACY.md"
+);
+assertIncludes(privacy, "may send requested text upstream", "PRIVACY.md");
+assertIncludes(
+  privacy,
+  "does not make direct Anthropic or Google API calls",
   "PRIVACY.md"
 );
 assertIncludes(privacy, "does not request the `cookies` permission", "PRIVACY.md");
@@ -152,6 +159,21 @@ assertIncludes(
 assertIncludes(
   nativeHostInstall,
   "Gemini CLI as an optional executable provider",
+  "docs/native-host-install.md"
+);
+assertIncludes(
+  nativeHostInstall,
+  "Antigravity CLI as an optional executable provider",
+  "docs/native-host-install.md"
+);
+assertIncludes(
+  nativeHostInstall,
+  "Antigravity ignores the model dropdown because `agy --print` uses the CLI-configured default model",
+  "docs/native-host-install.md"
+);
+assertIncludes(
+  nativeHostInstall,
+  "Antigravity cannot be found",
   "docs/native-host-install.md"
 );
 assertIncludes(
