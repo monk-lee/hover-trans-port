@@ -13,6 +13,7 @@ use crate::providers::{
 };
 
 const DEFAULT_STATUS_TIMEOUT_MS: u64 = 5_000;
+const PRINT_TIMEOUT_GRACE_MS: u64 = 500;
 
 #[derive(Clone, Debug)]
 pub struct AntigravityProvider {
@@ -123,7 +124,7 @@ impl Provider for AntigravityProvider {
             cwd: Some(workspace_dir),
             env: provider_env(&self.env, &binary),
             stdin: String::new(),
-            timeout_ms: request.timeout_ms,
+            timeout_ms: antigravity_process_timeout_ms(request.timeout_ms),
         })
         .map_err(map_antigravity_process_error)?;
 
@@ -156,8 +157,17 @@ pub fn parse_antigravity_output(stdout: &str) -> Result<String, ProviderError> {
     Ok(trimmed.to_string())
 }
 
-fn timeout_ms_to_duration_arg(timeout_ms: u64) -> String {
+pub fn antigravity_process_timeout_ms(timeout_ms: u64) -> u64 {
+    rounded_timeout_ms(timeout_ms).saturating_add(PRINT_TIMEOUT_GRACE_MS)
+}
+
+fn rounded_timeout_ms(timeout_ms: u64) -> u64 {
     let seconds = (timeout_ms.saturating_add(999) / 1_000).max(1);
+    seconds.saturating_mul(1_000)
+}
+
+fn timeout_ms_to_duration_arg(timeout_ms: u64) -> String {
+    let seconds = rounded_timeout_ms(timeout_ms) / 1_000;
     format!("{seconds}s")
 }
 

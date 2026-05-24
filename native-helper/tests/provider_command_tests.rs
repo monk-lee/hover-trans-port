@@ -1,7 +1,8 @@
 use hover_trans_port_helper::bridge::{handle_request, BridgeDeps};
 use hover_trans_port_helper::messages::ProviderId;
 use hover_trans_port_helper::providers::antigravity::{
-    build_antigravity_args, parse_antigravity_output, AntigravityProvider,
+    antigravity_process_timeout_ms, build_antigravity_args, parse_antigravity_output,
+    AntigravityProvider,
 };
 use hover_trans_port_helper::providers::claude::{
     build_claude_args, parse_claude_output, ClaudeProvider,
@@ -151,6 +152,13 @@ fn antigravity_command_builder_rounds_timeout_up_to_seconds() {
             "prompt",
         ]
     );
+}
+
+#[test]
+fn antigravity_process_timeout_allows_print_timeout_grace() {
+    assert_eq!(antigravity_process_timeout_ms(5_500), 6_500);
+    assert_eq!(antigravity_process_timeout_ms(5_000), 5_500);
+    assert_eq!(antigravity_process_timeout_ms(0), 1_500);
 }
 
 #[test]
