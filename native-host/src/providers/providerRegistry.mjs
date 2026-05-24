@@ -1,11 +1,12 @@
-export const PROVIDER_IDS = ["codex", "claude", "gemini"];
+export const PROVIDER_IDS = ["codex", "claude", "gemini", "antigravity"];
 export const PROVIDER_SELECTION_IDS = [...PROVIDER_IDS, "auto"];
 export const DEFAULT_PROVIDER_ID = "codex";
 
 const PROVIDER_LABELS = {
   codex: "Codex CLI",
   claude: "Claude CLI",
-  gemini: "Gemini CLI"
+  gemini: "Gemini CLI",
+  antigravity: "Antigravity CLI"
 };
 
 const PROVIDER_FALLBACK_MODEL_CATALOGS = {
@@ -44,6 +45,15 @@ const PROVIDER_FALLBACK_MODEL_CATALOGS = {
       { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro" }
     ],
     supportsCustomModel: true,
+    source: "fallback"
+  },
+  antigravity: {
+    provider: "antigravity",
+    defaultModel: "",
+    models: [
+      { value: "", label: "Default (Antigravity CLI)", recommended: true }
+    ],
+    supportsCustomModel: false,
     source: "fallback"
   }
 };

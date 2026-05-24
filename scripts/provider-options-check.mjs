@@ -32,6 +32,11 @@ assertIncludes(
   '<option value="gemini">Gemini CLI</option>',
   "Gemini provider option is enabled"
 );
+assertIncludes(
+  optionsHtml,
+  '<option value="antigravity">Antigravity CLI</option>',
+  "Antigravity provider option is enabled"
+);
 assertNotIncludes(
   optionsHtml,
   '<option value="claude" disabled>',
@@ -45,8 +50,10 @@ assertNotIncludes(
 
 assertIncludes(providersTs, 'claude: "Claude CLI"', "Claude provider label");
 assertIncludes(providersTs, 'gemini: "Gemini CLI"', "Gemini provider label");
+assertIncludes(providersTs, 'antigravity: "Antigravity CLI"', "Antigravity provider label");
 assertIncludes(providersTs, 'claude: "haiku"', "Claude provider default model");
 assertIncludes(providersTs, 'gemini: ""', "Gemini provider default model");
+assertIncludes(providersTs, 'antigravity: ""', "Antigravity provider default model");
 
 assertIncludes(
   optionsMainTs,

@@ -27,6 +27,7 @@ const providerRegistry = read("native-host/src/providers/providerRegistry.mjs");
 
 assertIncludes(optionsHtml, '<option value="claude">Claude CLI</option>', "src/options.html");
 assertIncludes(optionsHtml, '<option value="gemini">Gemini CLI</option>', "src/options.html");
+assertIncludes(optionsHtml, '<option value="antigravity">Antigravity CLI</option>', "src/options.html");
 assertIncludes(optionsHtml, '<select id="provider-model">', "src/options.html");
 assertNotIncludes(optionsHtml, '<input id="provider-model"', "src/options.html");
 
@@ -38,6 +39,10 @@ assertIncludes(
 );
 assertIncludes(providers, 'codex: "gpt-5.4-mini"', "src/shared/providers.ts");
 assertIncludes(providers, 'claude: "haiku"', "src/shared/providers.ts");
+assertIncludes(providers, 'antigravity: "Antigravity CLI"', "src/shared/providers.ts");
+assertIncludes(providers, 'provider: "antigravity"', "src/shared/providers.ts");
+assertIncludes(providers, 'label: "Default (Antigravity CLI)"', "src/shared/providers.ts");
+assertIncludes(providers, "supportsCustomModel: false", "src/shared/providers.ts");
 assertIncludes(providers, 'value: "gpt-5.5"', "src/shared/providers.ts");
 assertIncludes(providers, 'value: "gpt-5.4-mini"', "src/shared/providers.ts");
 assertNotIncludes(providers, 'value: "gpt-5.4-nano"', "src/shared/providers.ts");
