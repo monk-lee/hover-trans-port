@@ -1,3 +1,4 @@
+pub mod antigravity;
 pub mod claude;
 pub mod codex;
 pub mod gemini;
@@ -68,6 +69,7 @@ impl ProviderRegistry {
             codex::CodexProvider::new(self.env.clone()).status(),
             claude::ClaudeProvider::new(self.env.clone()).status(),
             gemini::GeminiProvider::new(self.env.clone()).status(),
+            antigravity::AntigravityProvider::new(self.env.clone()).status(),
         ]
     }
 
@@ -76,6 +78,7 @@ impl ProviderRegistry {
             ProviderSelection::Codex => ProviderId::Codex,
             ProviderSelection::Claude => ProviderId::Claude,
             ProviderSelection::Gemini => ProviderId::Gemini,
+            ProviderSelection::Antigravity => ProviderId::Antigravity,
         }
     }
 
@@ -84,6 +87,9 @@ impl ProviderRegistry {
             ProviderId::Codex => codex::CodexProvider::new(self.env.clone()).model_catalog(),
             ProviderId::Claude => claude::ClaudeProvider::new(self.env.clone()).model_catalog(),
             ProviderId::Gemini => gemini::GeminiProvider::new(self.env.clone()).model_catalog(),
+            ProviderId::Antigravity => {
+                antigravity::AntigravityProvider::new(self.env.clone()).model_catalog()
+            }
         }
     }
 
@@ -111,6 +117,12 @@ impl ProviderRegistry {
                     .translate(request)
                     .map(|result| (provider.id(), result))
             }
+            ProviderSelection::Antigravity => {
+                let provider = antigravity::AntigravityProvider::new(self.env.clone());
+                provider
+                    .translate(request)
+                    .map(|result| (provider.id(), result))
+            }
         }
     }
 }
@@ -120,6 +132,7 @@ pub fn resolve_provider_id(selection: Option<&str>) -> ProviderId {
         ProviderSelection::Codex => ProviderId::Codex,
         ProviderSelection::Claude => ProviderId::Claude,
         ProviderSelection::Gemini => ProviderId::Gemini,
+        ProviderSelection::Antigravity => ProviderId::Antigravity,
     }
 }
 
@@ -128,12 +141,14 @@ enum ProviderSelection {
     Codex,
     Claude,
     Gemini,
+    Antigravity,
 }
 
 fn normalize_provider_selection(value: Option<&str>) -> ProviderSelection {
     match value {
         Some("claude") => ProviderSelection::Claude,
         Some("gemini") => ProviderSelection::Gemini,
+        Some("antigravity") => ProviderSelection::Antigravity,
         Some("auto") | Some("codex") | _ => ProviderSelection::Codex,
     }
 }

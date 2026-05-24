@@ -11,6 +11,7 @@ pub enum ProviderId {
     Codex,
     Claude,
     Gemini,
+    Antigravity,
 }
 
 impl ProviderId {
@@ -19,6 +20,7 @@ impl ProviderId {
             Self::Codex => "codex",
             Self::Claude => "claude",
             Self::Gemini => "gemini",
+            Self::Antigravity => "antigravity",
         }
     }
 }
