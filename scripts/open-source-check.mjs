@@ -178,6 +178,14 @@ assertIncludes(
 );
 assertIncludes(
   nativeHostInstall,
+  "Antigravity is not authenticated",
+  "docs/native-host-install.md"
+);
+assertIncludes(nativeHostInstall, "command -v agy", "docs/native-host-install.md");
+assertIncludes(nativeHostInstall, "agy --version", "docs/native-host-install.md");
+assertIncludes(nativeHostInstall, "```bash\nagy\n```", "docs/native-host-install.md");
+assertIncludes(
+  nativeHostInstall,
   "provider authentication is verified by the selected CLI when a translation runs",
   "docs/native-host-install.md"
 );

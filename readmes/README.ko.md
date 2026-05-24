@@ -65,7 +65,7 @@ bash install-macos-native-host.sh uninstall
 
 Extension의 Options 페이지를 열고 `Check Native Host`와 `Check Provider`를 모두 실행합니다.
 
-Options는 선택한 provider의 model catalog를 native host에 요청합니다. Codex는 `codex debug models`로 CLI가 제공하는 모델 목록을 보여줄 수 있고, 안정적인 machine-readable 목록 명령이 없는 provider는 내장 fallback alias를 사용하되 custom model 값은 계속 허용합니다.
+Options는 선택한 provider의 model catalog를 native host에 요청합니다. Codex는 `codex debug models`로 CLI가 제공하는 모델 목록을 보여줄 수 있습니다. Claude와 Gemini는 내장 fallback alias를 사용하고 custom model 값도 계속 허용합니다. Antigravity는 `agy --print`가 CLI에 설정된 기본 모델을 사용하고 model flag를 받지 않기 때문에 `Default (Antigravity CLI)`만 노출합니다.
 
 ### Source에서 Extension build하기
 
