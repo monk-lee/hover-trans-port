@@ -193,7 +193,7 @@ assertIncludes(
 );
 assertIncludes(
   nativeHostInstall,
-  "Antigravity ignores the model dropdown because `agy --print` uses the CLI-configured default model",
+  "Antigravity exposes only `Default (Antigravity CLI)` because `agy --print` uses the CLI-configured default model and does not accept a model flag",
   "docs/native-host-install.md"
 );
 assertIncludes(
