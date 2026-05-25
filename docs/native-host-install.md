@@ -10,6 +10,7 @@ This guide covers the current macOS install path:
 - Codex CLI as the default executable provider
 - Claude CLI as an optional executable provider
 - Gemini CLI as an optional executable provider
+- OpenCode CLI as an optional executable provider
 
 Chrome Web Store installation is not currently supported.
 
@@ -55,7 +56,7 @@ bash install-macos-native-host.sh uninstall
 
 The installer writes the helper to `~/Library/Application Support/HoverTransPort/native-hosts/<version>/`, updates `current`, writes the stable launcher, and registers Chrome's Native Messaging manifest.
 
-Codex CLI, Claude CLI, and Gemini CLI are separate prerequisites. The installer does not store provider credentials, API keys, or browser session data.
+Codex CLI, Claude CLI, Gemini CLI, and OpenCode CLI are separate prerequisites. The installer does not store provider credentials, API keys, or browser session data.
 
 ## Updating From Options
 

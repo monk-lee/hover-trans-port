@@ -28,7 +28,8 @@ The native host should:
 
 - Use no shell invocation for provider execution.
 - Run Codex CLI in ephemeral mode and Claude CLI/Gemini CLI in non-interactive print mode.
-- Use read-only sandbox mode or an empty provider workspace/tool allowlist where the provider supports it.
+- Run OpenCode CLI with `--pure`, a temporary prompt file, and an explicit deny permission policy for file, shell, web, LSP, subagent, skill, and user-question tool actions.
+- Use read-only sandbox mode, an empty provider workspace/tool allowlist, or an explicit deny policy where the provider supports it.
 - Avoid approval prompts.
 - Use no browser cookies or service tokens.
 - Avoid storing API keys or OAuth tokens.
@@ -39,7 +40,7 @@ The extension can read selected or hovered page text on pages where its content 
 
 The native host can execute the configured provider CLI on the local machine.
 
-The selected provider CLI may communicate with upstream AI services according to that provider account, authentication, environment, and provider policies. HoverTransPort invokes Codex CLI with `--ignore-user-config`.
+The selected provider CLI may communicate with upstream AI services according to that provider account, authentication, environment, and provider policies. HoverTransPort invokes Codex CLI with `--ignore-user-config` and OpenCode CLI with `--pure` plus an explicit deny permission policy.
 
 ## Out Of Scope
 

@@ -6,10 +6,23 @@ fi
 
 if [ "$1" = "run" ]; then
   format=""
+  file=""
   pure=0
   dir=""
   previous=""
   prompt=""
+
+  require_permission_deny() {
+    for tool in bash edit external_directory glob grep read skill task webfetch websearch; do
+      case "$OPENCODE_PERMISSION" in
+        *"\"$tool\":\"deny\""*) ;;
+        *)
+          printf 'expected OPENCODE_PERMISSION to deny %s, got: %s\n' "$tool" "$OPENCODE_PERMISSION" >&2
+          exit 2
+          ;;
+      esac
+    done
+  }
 
   for arg in "$@"; do
     if [ "$previous" = "--format" ]; then
@@ -17,6 +30,9 @@ if [ "$1" = "run" ]; then
     fi
     if [ "$previous" = "--dir" ]; then
       dir="$arg"
+    fi
+    if [ "$previous" = "--file" ]; then
+      file="$arg"
     fi
     if [ "$arg" = "--pure" ]; then
       pure=1
@@ -37,11 +53,25 @@ if [ "$1" = "run" ]; then
     printf 'expected --dir\n' >&2
     exit 2
   fi
+  if [ -z "$file" ]; then
+    printf 'expected --file\n' >&2
+    exit 2
+  fi
+  if [ ! -f "$file" ]; then
+    printf 'expected prompt file to exist: %s\n' "$file" >&2
+    exit 2
+  fi
+  prompt="$(cat "$file")"
 
   case "$prompt" in
     *"Trigger auth error"*)
       printf '{"type":"error","error":{"message":"Not logged in"}}\n'
       exit 1
+      ;;
+    *"Assert safe OpenCode env"*)
+      require_permission_deny
+      printf '{"type":"message","message":{"content":[{"type":"text","text":"안전한 오픈코드 환경"}]}}\n'
+      exit 0
       ;;
     *"Translate the following text to Korean."*)
       printf '{"type":"message","message":{"content":[{"type":"text","text":"오픈코드 안녕하세요"}]}}\n'
