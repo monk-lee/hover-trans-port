@@ -27,6 +27,7 @@ const providerRegistry = read("native-host/src/providers/providerRegistry.mjs");
 
 assertIncludes(optionsHtml, '<option value="claude">Claude CLI</option>', "src/options.html");
 assertIncludes(optionsHtml, '<option value="gemini">Gemini CLI</option>', "src/options.html");
+assertIncludes(optionsHtml, '<option value="opencode">OpenCode CLI</option>', "src/options.html");
 assertIncludes(optionsHtml, '<select id="provider-model">', "src/options.html");
 assertNotIncludes(optionsHtml, '<input id="provider-model"', "src/options.html");
 
@@ -38,6 +39,7 @@ assertIncludes(
 );
 assertIncludes(providers, 'codex: "gpt-5.4-mini"', "src/shared/providers.ts");
 assertIncludes(providers, 'claude: "haiku"', "src/shared/providers.ts");
+assertIncludes(providers, 'opencode: ""', "src/shared/providers.ts");
 assertIncludes(providers, 'value: "gpt-5.5"', "src/shared/providers.ts");
 assertIncludes(providers, 'value: "gpt-5.4-mini"', "src/shared/providers.ts");
 assertNotIncludes(providers, 'value: "gpt-5.4-nano"', "src/shared/providers.ts");
@@ -47,6 +49,7 @@ assertIncludes(providers, 'value: "opus"', "src/shared/providers.ts");
 assertIncludes(providers, 'value: "default"', "src/shared/providers.ts");
 assertIncludes(providers, 'value: "gemini-2.5-flash"', "src/shared/providers.ts");
 assertIncludes(providers, 'value: "gemini-2.5-pro"', "src/shared/providers.ts");
+assertIncludes(providers, 'label: "Default (OpenCode CLI)"', "src/shared/providers.ts");
 assertIncludes(nativeProtocol, '"PROVIDER_MODELS"', "src/shared/nativeProtocol.ts");
 assertIncludes(
   nativeProtocol,

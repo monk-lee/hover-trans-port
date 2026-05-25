@@ -4,16 +4,16 @@ Language: English | [한국어](readmes/README.ko.md)
 
 ![HoverTransPort inline translation preview](docs/assets/hover-trans-port-preview.png)
 
-HoverTransPort is a Chrome Manifest V3 extension for translating selected or hovered web text on demand. It uses Chrome Native Messaging to reach a local compiled helper, and the helper calls the AI CLI that is already installed and authenticated on your machine. Supported executable providers are Codex CLI, Claude CLI, and Gemini CLI.
+HoverTransPort is a Chrome Manifest V3 extension for translating selected or hovered web text on demand. It uses Chrome Native Messaging to reach a local compiled helper, and the helper calls the AI CLI that is already installed and authenticated on your machine. Supported executable providers are Codex CLI, Claude CLI, Gemini CLI, and OpenCode CLI.
 
-This project is not affiliated with, endorsed by, or sponsored by OpenAI, Codex, Anthropic, Claude, Google, or Gemini.
+This project is not affiliated with, endorsed by, or sponsored by OpenAI, Codex, Anthropic, Claude, Google, Gemini, or OpenCode.
 
 ## Current Scope
 
 Works today:
 
 - macOS, Google Chrome, and an unpacked extension loaded from `dist/`.
-- Codex CLI provider, Claude CLI provider, and Gemini CLI provider.
+- Codex CLI provider, Claude CLI provider, Gemini CLI provider, and OpenCode CLI provider.
 - Selection-first translation and hovered readable block translation.
 - Inline translation rendering, local SQLite cache, and Options diagnostics.
 - macOS script installer for the native host.
@@ -28,7 +28,7 @@ Not yet:
 
 ### 1. Download The Extension Package
 
-Open the [latest GitHub Release](https://github.com/monk-lee/hover-trans-port/releases/latest) and download the asset named `hover-trans-port-extension-v<version>.zip`, for example `hover-trans-port-extension-v0.2.10.zip`.
+Open the [latest GitHub Release](https://github.com/monk-lee/hover-trans-port/releases/latest) and download the asset named `hover-trans-port-extension-v<version>.zip`, for example `hover-trans-port-extension-v0.2.11.zip`.
 
 Unzip it somewhere you can keep it, then open `chrome://extensions`, enable Developer mode, click `Load unpacked`, and select the unzipped extension folder. Chrome loads the unpacked folder; the `.zip` file is only the download package.
 
@@ -40,7 +40,7 @@ Install the prebuilt native host from the latest GitHub Release with `curl`:
 curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh | bash
 ```
 
-The installer downloads the architecture-specific helper, verifies `checksums.txt`, writes the stable launcher, and registers Chrome's Native Messaging manifest. Codex CLI, Claude CLI, and Gemini CLI are separate prerequisites; each local CLI must already be installed and authenticated before selecting it in Options.
+The installer downloads the architecture-specific helper, verifies `checksums.txt`, writes the stable launcher, and registers Chrome's Native Messaging manifest. Codex CLI, Claude CLI, Gemini CLI, and OpenCode CLI are separate prerequisites; each local CLI must already be installed and authenticated before selecting it in Options.
 
 When an older native host cannot update itself yet, the extension shows a manual update prompt in Popup or Options. Run the same `curl` command once, then reload the extension; later update-capable hosts can be updated from Options.
 
@@ -63,7 +63,7 @@ bash install-macos-native-host.sh uninstall
 
 Open the extension's Options page and run both `Check Native Host` and `Check Provider`.
 
-Options asks the native host for the selected provider's model catalog. Codex can show CLI-provided models through `codex debug models`; providers without a stable machine-readable model list use built-in fallback aliases and still allow custom model values.
+Options asks the native host for the selected provider's model catalog. Codex can show CLI-provided models through `codex debug models`; providers without a stable machine-readable model list use built-in fallback aliases and still allow custom model values. OpenCode defaults to the model configured in OpenCode itself unless you choose a custom `provider/model` value.
 
 ### Build The Extension From Source
 

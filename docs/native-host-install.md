@@ -10,6 +10,7 @@ This guide covers the current macOS install path:
 - Codex CLI as the default executable provider
 - Claude CLI as an optional executable provider
 - Gemini CLI as an optional executable provider
+- OpenCode CLI as an optional executable provider
 
 Chrome Web Store installation is not currently supported.
 
@@ -33,8 +34,8 @@ The release must include these individual assets so the curl installer can fetch
 The tarball form is also supported:
 
 ```bash
-tar -xzf hover-trans-port-native-host-macos-0.2.10.tar.gz
-cd hover-trans-port-native-host-macos-0.2.10
+tar -xzf hover-trans-port-native-host-macos-0.2.11.tar.gz
+cd hover-trans-port-native-host-macos-0.2.11
 bash install-macos-native-host.sh install
 ```
 
@@ -55,7 +56,7 @@ bash install-macos-native-host.sh uninstall
 
 The installer writes the helper to `~/Library/Application Support/HoverTransPort/native-hosts/<version>/`, updates `current`, writes the stable launcher, and registers Chrome's Native Messaging manifest.
 
-Codex CLI, Claude CLI, and Gemini CLI are separate prerequisites. The installer does not store provider credentials, API keys, or browser session data.
+Codex CLI, Claude CLI, Gemini CLI, and OpenCode CLI are separate prerequisites. The installer does not store provider credentials, API keys, or browser session data.
 
 ## Updating From Options
 
@@ -109,16 +110,16 @@ Common settings:
 
 - `Target language`: translation output language. Choose `Korean` for Korean output.
 - `Timeout seconds`: per-request provider CLI timeout. The default is 30 seconds. Values are clamped to 5-120.
-- `Provider`: executable CLI used for translation. Codex is the default provider; Claude and Gemini are optional and CLI-only.
+- `Provider`: executable CLI used for translation. Codex is the default provider; Claude, Gemini, and OpenCode are optional and CLI-only.
 - `Use cache`: when disabled, Local Bridge skips both cache lookup and cache write.
-- `Model`: provider model alias passed as `--model <model>`. The Options page asks the native host for a provider model catalog. Providers with a stable machine-readable list, such as Codex through `codex debug models`, can show CLI-provided models. Providers without a stable list command use built-in fallback aliases and still allow custom model values. Selecting `Default (Claude CLI)` or `Default (Gemini CLI)` omits `--model` so that CLI chooses its configured default. Codex reset restores `gpt-5.4-mini`; Claude reset restores `haiku`; Gemini reset restores the CLI default.
+- `Model`: provider model alias passed as `--model <model>`. The Options page asks the native host for a provider model catalog. Providers with a stable machine-readable list, such as Codex through `codex debug models`, can show CLI-provided models. Providers without a stable list command use built-in fallback aliases and still allow custom model values. Selecting `Default (Claude CLI)`, `Default (Gemini CLI)`, or `Default (OpenCode CLI)` omits `--model` so that CLI chooses its configured default. OpenCode expects explicit custom models in `provider/model` form. Codex reset restores `gpt-5.4-mini`; Claude reset restores `haiku`; Gemini and OpenCode reset restore the CLI default.
 
 Invalid or unavailable model names fail at translation time and render the inline provider execution error.
 
 Diagnostics:
 
 - `Check Native Host`: verifies Chrome can reach the native host.
-- `Check Provider`: verifies configured provider CLI binaries are available. For Claude and Gemini, it reports binary availability; provider authentication is verified by the selected CLI when a translation runs.
+- `Check Provider`: verifies configured provider CLI binaries are available. For Claude, Gemini, and OpenCode, it reports binary availability; provider authentication is verified by the selected CLI when a translation runs.
 - `Debug logging`: writes cache/provider diagnostics to `~/.hover-trans-port/hover-trans-port.log`. The Debug Log controls can show and clear that log.
 
 ## Cache And Logs
@@ -197,6 +198,23 @@ Then click `Check Provider` and check the resolved binary path. Chrome on macOS 
 ### Gemini is not authenticated
 
 Run Gemini CLI directly and complete its authentication flow. HoverTransPort does not store Google API keys, OAuth tokens, or Gemini session credentials.
+
+### OpenCode cannot be found
+
+Verify OpenCode CLI is installed and visible in your shell:
+
+```bash
+command -v opencode
+opencode --version
+```
+
+Then click `Check Provider` and check the resolved binary path. Chrome on macOS may not inherit your shell `PATH`, so OpenCode must be available from a standard install path, `~/.opencode/bin/opencode`, or from the environment used to launch Chrome.
+
+### OpenCode is not authenticated or has no default model
+
+Run OpenCode directly and complete its authentication flow. Configure a default model in OpenCode or select one in the OpenCode TUI. HoverTransPort does not store provider API keys, OAuth tokens, or OpenCode session credentials.
+
+HoverTransPort runs OpenCode with `--pure`, OpenCode's built-in `build` agent, stdin prompt input, and an explicit deny permission policy for tool actions. OpenCode's own permission model still governs the provider process.
 
 ### Translation times out
 

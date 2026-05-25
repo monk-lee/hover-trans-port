@@ -32,6 +32,11 @@ assertIncludes(
   '<option value="gemini">Gemini CLI</option>',
   "Gemini provider option is enabled"
 );
+assertIncludes(
+  optionsHtml,
+  '<option value="opencode">OpenCode CLI</option>',
+  "OpenCode provider option is enabled"
+);
 assertNotIncludes(
   optionsHtml,
   '<option value="claude" disabled>',
@@ -42,11 +47,18 @@ assertNotIncludes(
   '<option value="gemini" disabled>',
   "Gemini provider option is not disabled"
 );
+assertNotIncludes(
+  optionsHtml,
+  '<option value="opencode" disabled>',
+  "OpenCode provider option is not disabled"
+);
 
 assertIncludes(providersTs, 'claude: "Claude CLI"', "Claude provider label");
 assertIncludes(providersTs, 'gemini: "Gemini CLI"', "Gemini provider label");
+assertIncludes(providersTs, 'opencode: "OpenCode CLI"', "OpenCode provider label");
 assertIncludes(providersTs, 'claude: "haiku"', "Claude provider default model");
 assertIncludes(providersTs, 'gemini: ""', "Gemini provider default model");
+assertIncludes(providersTs, 'opencode: ""', "OpenCode provider default model");
 
 assertIncludes(
   optionsMainTs,

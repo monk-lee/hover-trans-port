@@ -34,7 +34,7 @@ This checklist is for the first public source release.
 - [ ] pnpm macos:script-installer:test
 - [ ] pnpm macos:script-installer:build
 - [ ] Release uploads `install-macos-native-host.sh`, `checksums.txt`, and architecture-specific helper files as individual assets so `curl .../latest/download/install-macos-native-host.sh | bash` works.
-- [ ] Release also includes `hover-trans-port-native-host-macos-0.2.10.tar.gz` for inspect-first/offline installation.
+- [ ] Release also includes `hover-trans-port-native-host-macos-0.2.11.tar.gz` for inspect-first/offline installation.
 - [ ] pnpm native:uninstall
 - [ ] Reload the extension and confirm `Check Native Host` returns `Native Host is not installed or not reachable.`
 - [ ] pnpm build
@@ -57,9 +57,9 @@ This checklist is for the first public source release.
 
 ## Release
 
-- [ ] Tag v0.2.10
-- [ ] Release title: v0.2.10
-- [ ] Release notes mention macOS + Chrome + Codex CLI, Claude CLI, and Gemini CLI support
+- [ ] Tag v0.2.11
+- [ ] Release title: v0.2.11
+- [ ] Release notes mention macOS + Chrome + Codex CLI, Claude CLI, Gemini CLI, and OpenCode CLI support
 - [ ] Release notes link docs/native-host-install.md
 - [ ] Release notes link PRIVACY.md
 - [ ] Release notes state this is not a Chrome Web Store release
@@ -70,7 +70,7 @@ This checklist is for the first public source release.
 - [ ] Confirm `pnpm verify` passes.
 - [ ] Confirm native host install/uninstall works on maintainer macOS.
 - [ ] Confirm README does not imply offline-only translation.
-- [ ] Confirm README does not imply official affiliation with OpenAI, Codex, Anthropic, or Claude.
-- [ ] Confirm privacy docs disclose that Codex CLI, Claude CLI, and Gemini CLI may send requested text upstream according to each CLI provider's account and policies.
+- [ ] Confirm README does not imply official affiliation with OpenAI, Codex, Anthropic, Claude, Google, Gemini, or OpenCode.
+- [ ] Confirm privacy docs disclose that Codex CLI, Claude CLI, Gemini CLI, and OpenCode CLI may send requested text upstream according to each CLI provider's account and policies.
 - [ ] Confirm SECURITY.md documents the private vulnerability reporting channel.
 - [ ] Add a README screenshot or short GIF of inline translation before broad public announcement.
