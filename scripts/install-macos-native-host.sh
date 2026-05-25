@@ -2,7 +2,7 @@
 set -euo pipefail
 
 HOST_NAME="com.monklabs.hover_trans_port"
-DEFAULT_HOST_VERSION="0.2.12"
+DEFAULT_HOST_VERSION="0.2.13"
 DEFAULT_EXTENSION_ID="mmbmjpmhmlkjknhcigafgplahdbicabe"
 APP_SUPPORT_DIR_NAME="Hover Trans Port"
 HELPER_EXECUTABLE_NAME="hover-trans-port-helper"
