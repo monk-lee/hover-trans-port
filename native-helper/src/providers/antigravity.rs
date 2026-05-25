@@ -12,7 +12,6 @@ use crate::providers::{
     ProviderTranslateResult,
 };
 
-const DEFAULT_STATUS_TIMEOUT_MS: u64 = 5_000;
 const PRINT_TIMEOUT_GRACE_MS: u64 = 500;
 
 #[derive(Clone, Debug)]
@@ -54,34 +53,12 @@ impl Provider for AntigravityProvider {
             };
         };
 
-        match run_process(ProcessRequest {
-            executable: binary.clone(),
-            args: vec!["--version".to_string()],
-            cwd: None,
-            env: provider_env(&self.env, &binary),
-            stdin: String::new(),
-            timeout_ms: DEFAULT_STATUS_TIMEOUT_MS,
-        }) {
-            Ok(output) => ProviderStatusEntry {
-                id: self.id(),
-                available: true,
-                binary_path: Some(binary.display().to_string()),
-                version: Some(
-                    output
-                        .stdout
-                        .split_whitespace()
-                        .collect::<Vec<_>>()
-                        .join(" "),
-                ),
-                error: None,
-            },
-            Err(error) => ProviderStatusEntry {
-                id: self.id(),
-                available: false,
-                binary_path: Some(binary.display().to_string()),
-                version: None,
-                error: Some(error.code().to_string()),
-            },
+        ProviderStatusEntry {
+            id: self.id(),
+            available: true,
+            binary_path: Some(binary.display().to_string()),
+            version: None,
+            error: None,
         }
     }
 

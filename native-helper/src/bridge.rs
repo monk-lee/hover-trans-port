@@ -10,8 +10,8 @@ use crate::debug_log::{
 };
 use crate::messages::{
     BaseRequest, DebugLogContentRequest, DebugLogWriteRequest, NativeHostUpdateRequest,
-    ProviderModelsRequest, TranslateRequest, NATIVE_BRIDGE_VERSION, NATIVE_HOST_PROTOCOL_VERSION,
-    NATIVE_HOST_VERSION,
+    ProviderModelsRequest, ProviderStatusRequest, TranslateRequest, NATIVE_BRIDGE_VERSION,
+    NATIVE_HOST_PROTOCOL_VERSION, NATIVE_HOST_VERSION,
 };
 use crate::process::ProviderError;
 use crate::providers::{resolve_provider_id, ProviderRegistry, ProviderTranslateRequest};
@@ -59,7 +59,7 @@ pub fn handle_request(value: Value, deps: BridgeDeps) -> Value {
     match base.message_type.as_deref() {
         Some("PING") => pong(request_id),
         Some("HOST_INFO") => host_info(request_id),
-        Some("PROVIDER_STATUS") => provider_status(request_id, deps),
+        Some("PROVIDER_STATUS") => provider_status(value, request_id, deps),
         Some("PROVIDER_MODELS") => provider_models(value, request_id, deps),
         Some("TRANSLATE") => translate(value, request_id, deps),
         Some("CLEAR_TRANSLATION_CACHE") => cache_clear(request_id),
@@ -98,13 +98,17 @@ fn host_info(request_id: Option<String>) -> Value {
     })
 }
 
-fn provider_status(request_id: Option<String>, deps: BridgeDeps) -> Value {
+fn provider_status(value: Value, request_id: Option<String>, deps: BridgeDeps) -> Value {
+    let request = serde_json::from_value::<ProviderStatusRequest>(value).ok();
+    let provider = request
+        .as_ref()
+        .and_then(|request| request.provider.as_deref());
     let registry = ProviderRegistry::new(deps.env);
     json!({
         "type": "PROVIDER_STATUS_RESULT",
         "requestId": request_id.unwrap_or_default(),
         "ok": true,
-        "providers": registry.status_entries()
+        "providers": registry.status_entries(provider)
     })
 }
 

@@ -1122,7 +1122,8 @@ async function checkProviderStatus() {
     ExtensionResponse
   >({
     type: "CHECK_PROVIDER_STATUS",
-    requestId
+    requestId,
+    provider: selectedProvider
   });
 
   if (!isCurrentProviderStatusCheck(statusCheckSequence, selectedProvider)) {

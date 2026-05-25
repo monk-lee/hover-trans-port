@@ -157,7 +157,23 @@ export class ProviderRegistry {
     };
   }
 
-  async getStatusEntries() {
+  async getStatusEntries(providerSelection) {
+    if (providerSelection !== undefined) {
+      const resolved = this.resolveProvider(providerSelection);
+      if (!resolved.ok) {
+        return [resolved.status];
+      }
+
+      const status = await resolved.selectedProvider.isAvailable();
+      return [
+        {
+          id: resolved.providerId,
+          label: resolved.selectedProvider.label,
+          ...status
+        }
+      ];
+    }
+
     const entries = [];
 
     for (const id of PROVIDER_IDS) {

@@ -83,6 +83,7 @@ export type ExtensionRequest =
   | {
       type: "CHECK_PROVIDER_STATUS";
       requestId: string;
+      provider: ProviderSelection;
     }
   | {
       type: "GET_PROVIDER_MODELS";

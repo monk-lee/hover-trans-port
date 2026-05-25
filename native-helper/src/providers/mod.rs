@@ -65,14 +65,30 @@ impl ProviderRegistry {
         Self { env }
     }
 
-    pub fn status_entries(&self) -> Vec<ProviderStatusEntry> {
-        vec![
-            codex::CodexProvider::new(self.env.clone()).status(),
-            claude::ClaudeProvider::new(self.env.clone()).status(),
-            gemini::GeminiProvider::new(self.env.clone()).status(),
-            opencode::OpencodeProvider::new(self.env.clone()).status(),
-            antigravity::AntigravityProvider::new(self.env.clone()).status(),
-        ]
+    pub fn status_entries(&self, selection: Option<&str>) -> Vec<ProviderStatusEntry> {
+        if selection.is_none() {
+            return vec![
+                codex::CodexProvider::new(self.env.clone()).status(),
+                claude::ClaudeProvider::new(self.env.clone()).status(),
+                gemini::GeminiProvider::new(self.env.clone()).status(),
+                opencode::OpencodeProvider::new(self.env.clone()).status(),
+                antigravity::AntigravityProvider::new(self.env.clone()).status(),
+            ];
+        }
+
+        vec![self.status_entry(self.provider_id_for_selection(selection))]
+    }
+
+    fn status_entry(&self, provider_id: ProviderId) -> ProviderStatusEntry {
+        match provider_id {
+            ProviderId::Codex => codex::CodexProvider::new(self.env.clone()).status(),
+            ProviderId::Claude => claude::ClaudeProvider::new(self.env.clone()).status(),
+            ProviderId::Gemini => gemini::GeminiProvider::new(self.env.clone()).status(),
+            ProviderId::Opencode => opencode::OpencodeProvider::new(self.env.clone()).status(),
+            ProviderId::Antigravity => {
+                antigravity::AntigravityProvider::new(self.env.clone()).status()
+            }
+        }
     }
 
     pub fn provider_id_for_selection(&self, selection: Option<&str>) -> ProviderId {

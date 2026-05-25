@@ -113,7 +113,8 @@ async function checkSelectedProviderStatus(options: StoredOptions): Promise<void
     ExtensionResponse
   >({
     type: "CHECK_PROVIDER_STATUS",
-    requestId
+    requestId,
+    provider: selectedProvider
   });
 
   if (response?.type !== "PROVIDER_STATUS" || response.requestId !== requestId) {

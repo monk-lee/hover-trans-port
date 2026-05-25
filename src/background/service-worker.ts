@@ -376,13 +376,14 @@ chrome.runtime.onMessage.addListener(
     }
 
     if (message.type === "CHECK_PROVIDER_STATUS") {
-      void checkProviderStatus(message.requestId).then((status) => {
-        sendResponse({
-          type: "PROVIDER_STATUS",
-          requestId: message.requestId,
-          ...status
+      void checkProviderStatus(message.requestId, message.provider).then(
+        (status) => {
+          sendResponse({
+            type: "PROVIDER_STATUS",
+            requestId: message.requestId,
+            ...status
+          });
         });
-      });
       return true;
     }
 

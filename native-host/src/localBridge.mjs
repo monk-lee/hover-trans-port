@@ -212,7 +212,7 @@ export async function handleNativeRequest(message, dependencies = {}) {
   const debugLogger = dependencies.debugLogger ?? getDefaultDebugLogger();
 
   if (message.type === "PROVIDER_STATUS") {
-    const providers = await providerRegistry.getStatusEntries();
+    const providers = await providerRegistry.getStatusEntries(message.provider);
     return {
       type: "PROVIDER_STATUS_RESULT",
       requestId: message.requestId,

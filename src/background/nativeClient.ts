@@ -11,6 +11,7 @@ import {
   type NativeHostUpdateResponse,
   type NativeHostUpdateStatusResponse,
   type NativeProviderModelsResponse,
+  type NativeProviderStatusRequest,
   type NativeProviderStatusResponse,
   type NativePongResponse,
   type NativeRequest,
@@ -698,11 +699,13 @@ export async function checkNativeHost(
 }
 
 export async function checkProviderStatus(
-  requestId: string
+  requestId: string,
+  provider: NativeProviderStatusRequest["provider"]
 ): Promise<ProviderStatus> {
   const request: NativeRequest = {
     type: "PROVIDER_STATUS",
-    requestId
+    requestId,
+    provider
   };
 
   try {

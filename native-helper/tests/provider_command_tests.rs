@@ -490,6 +490,35 @@ fn provider_registry_resolves_selected_provider_ids() {
 }
 
 #[test]
+fn antigravity_status_reports_binary_without_executing_it() {
+    let temp = tempdir().unwrap();
+    let agy = temp.path().join("agy");
+    let marker = temp.path().join("agy-ran");
+    fs::write(
+        &agy,
+        format!("#!/bin/sh\ntouch '{}'\nexit 42\n", marker.display()),
+    )
+    .unwrap();
+    make_executable(&agy);
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_ANTIGRAVITY_PATH".to_string(),
+        agy.to_string_lossy().into_owned(),
+    );
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+
+    let status = AntigravityProvider::new(env).status();
+
+    assert_eq!(status.id, ProviderId::Antigravity);
+    assert_eq!(status.available, true);
+    assert_eq!(status.binary_path, Some(agy.display().to_string()));
+    assert_eq!(status.version, None);
+    assert_eq!(status.error, None);
+    assert!(!marker.exists(), "Antigravity status check should not execute agy");
+}
+
+#[test]
 fn claude_json_output_parser_returns_result() {
     let output = r#"{"type":"result","subtype":"success","is_error":false,"result":"번역 결과"}"#;
 

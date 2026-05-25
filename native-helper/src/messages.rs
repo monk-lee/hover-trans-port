@@ -42,6 +42,12 @@ pub struct ProviderStatusEntry {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ProviderStatusRequest {
+    pub provider: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BaseRequest {
     #[serde(rename = "type")]
     pub message_type: Option<String>,

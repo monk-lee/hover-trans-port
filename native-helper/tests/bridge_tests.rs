@@ -73,6 +73,53 @@ fn provider_status_returns_all_provider_ids() {
 }
 
 #[test]
+fn provider_status_with_provider_returns_only_selected_provider() {
+    let temp = tempdir().unwrap();
+    let codex = fixture_path("codex");
+    make_executable(&codex);
+
+    let agy = temp.path().join("agy");
+    let agy_marker = temp.path().join("agy-ran");
+    fs::write(
+        &agy,
+        format!("#!/bin/sh\ntouch '{}'\nexit 42\n", agy_marker.display()),
+    )
+    .unwrap();
+    make_executable(&agy);
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CODEX_PATH".to_string(),
+        codex.to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "HOVER_TRANS_PORT_ANTIGRAVITY_PATH".to_string(),
+        agy.to_string_lossy().into_owned(),
+    );
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+    env.insert("HOME".to_string(), temp.path().display().to_string());
+
+    let response = handle_request(
+        json!({
+            "type": "PROVIDER_STATUS",
+            "requestId": "req-codex-status",
+            "provider": "codex"
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "PROVIDER_STATUS_RESULT");
+    assert_eq!(response["requestId"], "req-codex-status");
+    assert_eq!(response["ok"], true);
+
+    let providers = response["providers"].as_array().unwrap();
+    assert_eq!(providers.len(), 1);
+    assert_eq!(providers[0]["id"], "codex");
+    assert_eq!(providers[0]["available"], true);
+    assert!(!agy_marker.exists(), "unselected Antigravity provider should not run");
+}
+
+#[test]
 fn provider_models_returns_catalog_for_selected_provider() {
     let codex = fixture_path("codex");
     make_executable(&codex);

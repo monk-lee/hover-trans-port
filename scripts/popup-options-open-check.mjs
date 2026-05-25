@@ -161,6 +161,7 @@ let openOptionsPageCalls = 0;
 const createdTabs = [];
 const unhandledRejections = [];
 const sentMessageTypes = [];
+const sentProviderStatusProviders = [];
 
 global.chrome = {
   storage: {
@@ -186,6 +187,9 @@ global.chrome = {
     },
     async sendMessage(message) {
       sentMessageTypes.push(message.type);
+      if (message.type === "CHECK_PROVIDER_STATUS") {
+        sentProviderStatusProviders.push(message.provider);
+      }
       if (message.type === "GET_STORED_NATIVE_HOST_UPDATE_STATUS") {
         return {
           type: "NATIVE_HOST_UPDATE_STATUS",
@@ -220,6 +224,7 @@ async function importPopupWithStatus(status, cacheKey) {
   nativeHostUpdateStatus = status;
   currentElements = createElements();
   sentMessageTypes.length = 0;
+  sentProviderStatusProviders.length = 0;
 
   await import(`${pathToFileURL(join(tempPopupDir, "main.js")).href}?${cacheKey}`);
   await settlePromises();

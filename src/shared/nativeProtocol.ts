@@ -38,6 +38,7 @@ export type NativeTranslateRequest = {
 export type NativeProviderStatusRequest = {
   type: "PROVIDER_STATUS";
   requestId: string;
+  provider?: ProviderId | ProviderSelection;
 };
 
 export type NativeProviderModelsRequest = {

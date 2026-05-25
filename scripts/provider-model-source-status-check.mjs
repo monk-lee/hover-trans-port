@@ -174,6 +174,9 @@ async function runOptionsWithCatalogSource(source) {
     runtime: {
       async sendMessage(message) {
         if (message.type === "CHECK_PROVIDER_STATUS") {
+          if (message.provider !== "codex") {
+            throw new Error(`Expected codex provider status request, got ${message.provider}`);
+          }
           return {
             type: "PROVIDER_STATUS",
             requestId: message.requestId,
