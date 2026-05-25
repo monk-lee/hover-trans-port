@@ -1,0 +1,92 @@
+#!/bin/sh
+if [ "$1" = "--version" ]; then
+  printf 'opencode test-version\n'
+  exit 0
+fi
+
+if [ "$1" = "run" ]; then
+  format=""
+  pure=0
+  dir=""
+  agent=""
+  title=""
+  previous=""
+  prompt=""
+
+  require_permission_deny() {
+    for tool in bash edit external_directory glob grep read skill task webfetch websearch; do
+      case "$OPENCODE_PERMISSION" in
+        *"\"$tool\":\"deny\""*) ;;
+        *)
+          printf 'expected OPENCODE_PERMISSION to deny %s, got: %s\n' "$tool" "$OPENCODE_PERMISSION" >&2
+          exit 2
+          ;;
+      esac
+    done
+  }
+
+  for arg in "$@"; do
+    if [ "$previous" = "--format" ]; then
+      format="$arg"
+    fi
+    if [ "$previous" = "--dir" ]; then
+      dir="$arg"
+    fi
+    if [ "$previous" = "--agent" ]; then
+      agent="$arg"
+    fi
+    if [ "$previous" = "--title" ]; then
+      title="$arg"
+    fi
+    if [ "$arg" = "--pure" ]; then
+      pure=1
+    fi
+    prompt="$arg"
+    previous="$arg"
+  done
+
+  if [ "$format" != "json" ]; then
+    printf 'expected --format json, got: %s\n' "$format" >&2
+    exit 2
+  fi
+  if [ "$pure" -ne 1 ]; then
+    printf 'expected --pure\n' >&2
+    exit 2
+  fi
+  if [ -z "$dir" ]; then
+    printf 'expected --dir\n' >&2
+    exit 2
+  fi
+  if [ "$agent" != "build" ]; then
+    printf 'expected --agent build, got: %s\n' "$agent" >&2
+    exit 2
+  fi
+  if [ "$title" != "HoverTransPort translation" ]; then
+    printf 'expected --title HoverTransPort translation, got: %s\n' "$title" >&2
+    exit 2
+  fi
+  prompt="$(cat)"
+
+  case "$prompt" in
+    *"Trigger auth error"*)
+      printf '{"type":"error","error":{"message":"Not logged in"}}\n'
+      exit 1
+      ;;
+    *"Assert safe OpenCode env"*)
+      require_permission_deny
+      printf '{"type":"message","message":{"content":[{"type":"text","text":"안전한 오픈코드 환경"}]}}\n'
+      exit 0
+      ;;
+    *"Translate the following text to Korean."*)
+      printf '{"type":"message","message":{"content":[{"type":"text","text":"오픈코드 안녕하세요"}]}}\n'
+      exit 0
+      ;;
+    *)
+      printf 'unexpected prompt: %s\n' "$prompt" >&2
+      exit 2
+      ;;
+  esac
+fi
+
+printf 'unexpected opencode args: %s\n' "$*" >&2
+exit 2

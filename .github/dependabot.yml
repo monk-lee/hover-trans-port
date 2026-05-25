@@ -3,8 +3,8 @@ updates:
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 1
     groups:
       npm-dependencies:
         patterns:
@@ -13,8 +13,8 @@ updates:
   - package-ecosystem: "cargo"
     directory: "/native-helper"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 1
     groups:
       rust-dependencies:
         patterns:
@@ -23,8 +23,8 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 1
     groups:
       github-actions:
         patterns:

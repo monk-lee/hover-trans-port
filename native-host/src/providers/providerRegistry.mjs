@@ -1,4 +1,4 @@
-export const PROVIDER_IDS = ["codex", "claude", "gemini", "antigravity"];
+export const PROVIDER_IDS = ["codex", "claude", "gemini", "opencode", "antigravity"];
 export const PROVIDER_SELECTION_IDS = [...PROVIDER_IDS, "auto"];
 export const DEFAULT_PROVIDER_ID = "codex";
 
@@ -6,6 +6,7 @@ const PROVIDER_LABELS = {
   codex: "Codex CLI",
   claude: "Claude CLI",
   gemini: "Gemini CLI",
+  opencode: "OpenCode CLI",
   antigravity: "Antigravity CLI"
 };
 
@@ -43,6 +44,15 @@ const PROVIDER_FALLBACK_MODEL_CATALOGS = {
       { value: "", label: "Default (Gemini CLI)", recommended: true },
       { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
       { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro" }
+    ],
+    supportsCustomModel: true,
+    source: "fallback"
+  },
+  opencode: {
+    provider: "opencode",
+    defaultModel: "",
+    models: [
+      { value: "", label: "Default (OpenCode CLI)", recommended: true }
     ],
     supportsCustomModel: true,
     source: "fallback"
