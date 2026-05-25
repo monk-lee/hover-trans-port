@@ -79,13 +79,13 @@ jobs:
           - install-macos-native-host.sh: one-line native host installer
           - checksums.txt: SHA-256 checksums for native host assets
           - hover-trans-port-helper-macos-arm64: macOS ARM64 native helper
-          - hover-trans-port-native-host-macos-0.2.11.tar.gz: inspect-first native host package
+          - hover-trans-port-native-host-macos-0.2.12.tar.gz: inspect-first native host package
           - hover-trans-port-extension-${TAG_NAME}.zip: unpacked Chrome extension package built from dist/
 
           Highlights:
-          - Adds OpenCode CLI as an optional translation provider alongside Codex CLI, Claude CLI, and Gemini CLI.
-          - Uses OpenCode's configured default model unless a custom provider/model value is selected in Options.
-          - Runs OpenCode with --pure, stdin prompt input, a pinned built-in build agent, and an explicit deny permission policy for tool actions.
+          - Adds Antigravity CLI as an optional translation provider alongside Codex CLI, Claude CLI, Gemini CLI, and OpenCode CLI.
+          - Invokes Antigravity through agy --print using the CLI-configured default model.
+          - Documents Antigravity privacy and security boundaries, including prompt-in-argv visibility while agy runs and local workspace artifacts.
 
           Native host update required:
           - Existing v0.2.4 installs that still report helper version v0.2.3 need one manual install command because their persisted updater copied the old helper.
@@ -110,7 +110,7 @@ jobs:
           test -f "$NATIVE_DIR/install-macos-native-host.sh"
           test -f "$NATIVE_DIR/checksums.txt"
           test -f "$NATIVE_DIR/hover-trans-port-helper-macos-arm64"
-          test -f "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.11.tar.gz"
+          test -f "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.12.tar.gz"
           test -f "$EXTENSION_ZIP"
           test -f build/release/release-notes.md
 
@@ -129,7 +129,7 @@ jobs:
             "$NATIVE_DIR/install-macos-native-host.sh" \
             "$NATIVE_DIR/checksums.txt" \
             "$NATIVE_DIR/hover-trans-port-helper-macos-arm64" \
-            "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.11.tar.gz" \
+            "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.12.tar.gz" \
             "$EXTENSION_ZIP" \
             --verify-tag \
             --latest \

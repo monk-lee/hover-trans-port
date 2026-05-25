@@ -293,10 +293,10 @@ fn native_host_update_status_reports_available_release() {
     write_release_fixture(
         &releases_path,
         r#"[{
-          "tag_name": "v0.2.12",
+          "tag_name": "v0.2.13",
           "prerelease": false,
           "draft": false,
-          "html_url": "https://github.com/monk-lee/hover-trans-port/releases/tag/v0.2.12",
+          "html_url": "https://github.com/monk-lee/hover-trans-port/releases/tag/v0.2.13",
           "assets": [
             {"name": "install-macos-native-host.sh"},
             {"name": "checksums.txt"},
@@ -324,9 +324,9 @@ fn native_host_update_status_reports_available_release() {
     assert_eq!(response["type"], "NATIVE_HOST_UPDATE_STATUS_RESULT");
     assert_eq!(response["requestId"], "req-update-status");
     assert_eq!(response["ok"], true);
-    assert_eq!(response["installedVersion"], "0.2.11");
-    assert_eq!(response["latestVersion"], "0.2.12");
-    assert_eq!(response["latestTag"], "v0.2.12");
+    assert_eq!(response["installedVersion"], "0.2.12");
+    assert_eq!(response["latestVersion"], "0.2.13");
+    assert_eq!(response["latestTag"], "v0.2.13");
     assert_eq!(response["updateAvailable"], true);
 }
 
