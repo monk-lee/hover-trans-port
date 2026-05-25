@@ -6,9 +6,10 @@ fi
 
 if [ "$1" = "run" ]; then
   format=""
-  file=""
   pure=0
   dir=""
+  agent=""
+  title=""
   previous=""
   prompt=""
 
@@ -31,8 +32,11 @@ if [ "$1" = "run" ]; then
     if [ "$previous" = "--dir" ]; then
       dir="$arg"
     fi
-    if [ "$previous" = "--file" ]; then
-      file="$arg"
+    if [ "$previous" = "--agent" ]; then
+      agent="$arg"
+    fi
+    if [ "$previous" = "--title" ]; then
+      title="$arg"
     fi
     if [ "$arg" = "--pure" ]; then
       pure=1
@@ -53,15 +57,15 @@ if [ "$1" = "run" ]; then
     printf 'expected --dir\n' >&2
     exit 2
   fi
-  if [ -z "$file" ]; then
-    printf 'expected --file\n' >&2
+  if [ "$agent" != "build" ]; then
+    printf 'expected --agent build, got: %s\n' "$agent" >&2
     exit 2
   fi
-  if [ ! -f "$file" ]; then
-    printf 'expected prompt file to exist: %s\n' "$file" >&2
+  if [ "$title" != "HoverTransPort translation" ]; then
+    printf 'expected --title HoverTransPort translation, got: %s\n' "$title" >&2
     exit 2
   fi
-  prompt="$(cat "$file")"
+  prompt="$(cat)"
 
   case "$prompt" in
     *"Trigger auth error"*)

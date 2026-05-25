@@ -139,7 +139,7 @@ assertIncludes(security, "Chrome Native Messaging", "SECURITY.md");
 assertIncludes(security, "read-only sandbox", "SECURITY.md");
 assertIncludes(
   security,
-  "OpenCode CLI with `--pure` plus an explicit deny permission policy",
+  "OpenCode CLI with `--pure`, OpenCode's built-in `build` agent, stdin prompt input, and an explicit deny permission policy",
   "SECURITY.md"
 );
 assertIncludes(security, "private vulnerability reporting", "SECURITY.md");

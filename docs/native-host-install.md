@@ -214,6 +214,8 @@ Then click `Check Provider` and check the resolved binary path. Chrome on macOS 
 
 Run OpenCode directly and complete its authentication flow. Configure a default model in OpenCode or select one in the OpenCode TUI. HoverTransPort does not store provider API keys, OAuth tokens, or OpenCode session credentials.
 
+HoverTransPort runs OpenCode with `--pure`, OpenCode's built-in `build` agent, stdin prompt input, and an explicit deny permission policy for tool actions. OpenCode's own permission model still governs the provider process.
+
 ### Translation times out
 
 Increase Options `Timeout seconds`. The UI clamps this setting to 5-120 seconds.

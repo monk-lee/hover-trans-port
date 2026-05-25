@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::fs;
 use std::path::{Path, PathBuf};
 
 use tempfile::tempdir;
@@ -13,9 +12,8 @@ use crate::providers::{
 };
 
 const DEFAULT_STATUS_TIMEOUT_MS: u64 = 5_000;
-const OPENCODE_PROMPT_FILE_NAME: &str = "hover-trans-port-prompt.txt";
-const OPENCODE_PROMPT_MESSAGE: &str =
-    "Translate the attached prompt file. Return only the translated text.";
+const OPENCODE_TRANSLATION_AGENT: &str = "build";
+const OPENCODE_SESSION_TITLE: &str = "HoverTransPort translation";
 const OPENCODE_TRANSLATION_PERMISSION: &str = r#"{"*":"deny","bash":"deny","doom_loop":"deny","edit":"deny","external_directory":"deny","glob":"deny","grep":"deny","lsp":"deny","question":"deny","read":"deny","skill":"deny","task":"deny","webfetch":"deny","websearch":"deny"}"#;
 
 #[derive(Clone, Debug)]
@@ -101,17 +99,13 @@ impl Provider for OpencodeProvider {
         })?;
         let prompt =
             build_translate_prompt(&request.text, &request.source_lang, &request.target_lang);
-        let prompt_file = temp_dir.path().join(OPENCODE_PROMPT_FILE_NAME);
-        fs::write(&prompt_file, prompt).map_err(|error| ProviderError::SpawnFailed {
-            message: error.to_string(),
-        })?;
 
         let output = run_process(ProcessRequest {
             executable: binary.clone(),
-            args: build_opencode_args(request.model.as_deref(), temp_dir.path(), &prompt_file),
+            args: build_opencode_args(request.model.as_deref(), temp_dir.path()),
             cwd: Some(temp_dir.path().to_path_buf()),
             env: provider_env(&self.env, &binary),
-            stdin: String::new(),
+            stdin: prompt,
             timeout_ms: request.timeout_ms,
         })
         .map_err(map_opencode_process_error)?;
@@ -123,7 +117,7 @@ impl Provider for OpencodeProvider {
     }
 }
 
-pub fn build_opencode_args(model: Option<&str>, dir: &Path, prompt_file: &Path) -> Vec<String> {
+pub fn build_opencode_args(model: Option<&str>, dir: &Path) -> Vec<String> {
     let mut args = vec![
         "run".to_string(),
         "--format".to_string(),
@@ -131,8 +125,6 @@ pub fn build_opencode_args(model: Option<&str>, dir: &Path, prompt_file: &Path) 
         "--pure".to_string(),
         "--dir".to_string(),
         dir.display().to_string(),
-        "--file".to_string(),
-        prompt_file.display().to_string(),
     ];
 
     if let Some(model) = model
@@ -143,7 +135,10 @@ pub fn build_opencode_args(model: Option<&str>, dir: &Path, prompt_file: &Path) 
         args.push(model.to_string());
     }
 
-    args.push(OPENCODE_PROMPT_MESSAGE.to_string());
+    args.push("--agent".to_string());
+    args.push(OPENCODE_TRANSLATION_AGENT.to_string());
+    args.push("--title".to_string());
+    args.push(OPENCODE_SESSION_TITLE.to_string());
     args
 }
 

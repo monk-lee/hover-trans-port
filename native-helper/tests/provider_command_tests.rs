@@ -481,11 +481,7 @@ fn gemini_output_parser_accepts_json_result_and_plain_text() {
 
 #[test]
 fn opencode_command_builder_uses_default_model_when_model_is_empty() {
-    let args = build_opencode_args(
-        Some("  "),
-        Path::new("/tmp/htp"),
-        Path::new("/tmp/htp/hover-trans-port-prompt.txt"),
-    );
+    let args = build_opencode_args(Some("  "), Path::new("/tmp/htp"));
 
     assert_eq!(
         args,
@@ -496,32 +492,34 @@ fn opencode_command_builder_uses_default_model_when_model_is_empty() {
             "--pure",
             "--dir",
             "/tmp/htp",
-            "--file",
-            "/tmp/htp/hover-trans-port-prompt.txt",
-            "Translate the attached prompt file. Return only the translated text.",
+            "--agent",
+            "build",
+            "--title",
+            "HoverTransPort translation",
         ]
     );
 }
 
 #[test]
-fn opencode_command_builder_keeps_prompt_text_out_of_argv() {
-    let args = build_opencode_args(
-        Some("  "),
-        Path::new("/tmp/htp"),
-        Path::new("/tmp/htp/hover-trans-port-prompt.txt"),
-    );
+fn opencode_command_builder_pins_primary_agent() {
+    let args = build_opencode_args(None, Path::new("/tmp/htp"));
 
-    assert!(args.iter().any(|arg| arg == "--file"));
+    let agent_flag = args.iter().position(|arg| arg == "--agent").unwrap();
+
+    assert_eq!(args.get(agent_flag + 1).map(String::as_str), Some("build"));
+}
+
+#[test]
+fn opencode_command_builder_keeps_prompt_text_out_of_argv() {
+    let args = build_opencode_args(Some("  "), Path::new("/tmp/htp"));
+
+    assert!(!args.iter().any(|arg| arg == "--file"));
     assert!(!args.iter().any(|arg| arg.contains("secret source text")));
 }
 
 #[test]
 fn opencode_command_builder_passes_explicit_model() {
-    let args = build_opencode_args(
-        Some("opencode/gpt-5"),
-        Path::new("/tmp/htp"),
-        Path::new("/tmp/htp/hover-trans-port-prompt.txt"),
-    );
+    let args = build_opencode_args(Some("opencode/gpt-5"), Path::new("/tmp/htp"));
 
     assert_eq!(
         args,
@@ -532,11 +530,12 @@ fn opencode_command_builder_passes_explicit_model() {
             "--pure",
             "--dir",
             "/tmp/htp",
-            "--file",
-            "/tmp/htp/hover-trans-port-prompt.txt",
             "--model",
             "opencode/gpt-5",
-            "Translate the attached prompt file. Return only the translated text.",
+            "--agent",
+            "build",
+            "--title",
+            "HoverTransPort translation",
         ]
     );
 }
