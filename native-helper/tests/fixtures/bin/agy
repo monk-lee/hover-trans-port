@@ -1,0 +1,74 @@
+#!/bin/sh
+if [ "$1" = "--version" ]; then
+  printf '1.0.2-test\n'
+  exit 0
+fi
+
+log_file=""
+print_timeout=""
+sandbox_seen="0"
+prompt=""
+previous=""
+
+for arg in "$@"; do
+  if [ "$previous" = "--log-file" ]; then
+    log_file="$arg"
+  fi
+  if [ "$previous" = "--print-timeout" ]; then
+    print_timeout="$arg"
+  fi
+  if [ "$arg" = "--sandbox" ]; then
+    sandbox_seen="1"
+  fi
+  if [ "$previous" = "--print" ]; then
+    prompt="$arg"
+  fi
+  previous="$arg"
+done
+
+if [ -z "$log_file" ]; then
+  printf 'expected --log-file\n' >&2
+  exit 2
+fi
+if [ "$print_timeout" != "5s" ]; then
+  printf 'expected --print-timeout 5s, got: %s\n' "$print_timeout" >&2
+  exit 2
+fi
+if [ "$sandbox_seen" != "1" ]; then
+  printf 'expected --sandbox\n' >&2
+  exit 2
+fi
+if [ -z "$prompt" ]; then
+  printf 'expected --print prompt\n' >&2
+  exit 2
+fi
+
+if [ -n "$HOVER_TRANS_PORT_ANTIGRAVITY_WORKSPACE_DIR" ]; then
+  current_dir="$(pwd)"
+  if [ "$current_dir" != "$HOVER_TRANS_PORT_ANTIGRAVITY_WORKSPACE_DIR" ]; then
+    printf 'expected cwd %s, got: %s\n' "$HOVER_TRANS_PORT_ANTIGRAVITY_WORKSPACE_DIR" "$current_dir" >&2
+    exit 2
+  fi
+fi
+
+if [ -n "$HOME" ]; then
+  pwd > "$HOME/agy-cwd.txt"
+fi
+
+mkdir -p .antigravitycli
+printf 'test log\n' > "$log_file"
+
+case "$prompt" in
+  *"Trigger auth error"*)
+    printf 'You are not logged into Antigravity.\n' >&2
+    exit 1
+    ;;
+  *"Translate the following text to Korean."*)
+    printf '안티그래비티 안녕하세요\n'
+    exit 0
+    ;;
+  *)
+    printf 'unexpected prompt: %s\n' "$prompt" >&2
+    exit 2
+    ;;
+esac

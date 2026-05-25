@@ -66,7 +66,10 @@ fn provider_status_returns_all_provider_ids() {
         .map(|provider| provider["id"].as_str().unwrap())
         .collect::<Vec<_>>();
 
-    assert_eq!(ids, vec!["codex", "claude", "gemini", "opencode"]);
+    assert_eq!(
+        ids,
+        vec!["codex", "claude", "gemini", "opencode", "antigravity"]
+    );
 }
 
 #[test]

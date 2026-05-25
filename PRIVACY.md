@@ -26,7 +26,9 @@ Requested text flows through these local components:
 4. HoverTransPort local native helper.
 5. The configured local provider CLI.
 
-Supported executable providers are Codex CLI, Claude CLI, Gemini CLI, and OpenCode CLI. Each configured local provider CLI may send requested text upstream according to that provider CLI's account, authentication, environment, and provider policies. HoverTransPort does not store provider credentials or API keys. HoverTransPort invokes Codex CLI with `--ignore-user-config`. OpenCode CLI runs with `--pure` and an explicit `OPENCODE_PERMISSION` deny policy for tool actions, and pins OpenCode's built-in `build` agent to avoid ambient default-agent selection; OpenCode's own permission model still governs the provider process. The requested translation prompt is sent to OpenCode through stdin so page text is not placed in OpenCode process arguments. Claude CLI, Gemini CLI, and OpenCode CLI support is CLI-only; HoverTransPort does not make direct Anthropic, Google, or OpenCode provider API calls.
+Supported executable providers are Codex CLI, Claude CLI, Gemini CLI, OpenCode CLI, and Antigravity CLI. Each configured local provider CLI may send requested text upstream according to that provider CLI's account, authentication, environment, and provider policies. HoverTransPort does not store provider credentials or API keys. HoverTransPort invokes Codex CLI with `--ignore-user-config`. OpenCode CLI runs with `--pure` and an explicit `OPENCODE_PERMISSION` deny policy for tool actions, and pins OpenCode's built-in `build` agent to avoid ambient default-agent selection; OpenCode's own permission model still governs the provider process. The requested translation prompt is sent to OpenCode through stdin so page text is not placed in OpenCode process arguments. Claude CLI, Gemini CLI, OpenCode CLI, and Antigravity CLI support is CLI-only; HoverTransPort does not make direct Anthropic or Google API calls for these providers, and does not make direct OpenCode provider API calls.
+
+For Antigravity, requested text may be visible in local process metadata while `agy` runs because `agy --print` takes the full translation prompt as a process argument.
 
 ## What Is Stored
 
@@ -47,6 +49,14 @@ The native helper may store successful translations in a local SQLite cache. The
 Cached entries include the normalized source text and translated text. They are stored locally in plaintext SQLite unless you disable or clear the cache.
 
 The cache key includes provider, model, target language, and normalized source text.
+
+Antigravity may create local workspace artifacts under this default path:
+
+```text
+~/.hover-trans-port/antigravity-workspace
+```
+
+These artifacts are separate from the translation cache and debug log. You can remove that directory manually if you want to clear local Antigravity provider workspace state.
 
 ## What Is Not Stored By The Extension
 
@@ -73,6 +83,12 @@ Debug logging, when enabled, writes diagnostic messages to:
 ```
 
 Use the Options page Debug Log controls to view or clear that log.
+
+Antigravity workspace artifacts are separate from the cache and debug log. To clear that local provider workspace state, remove:
+
+```text
+~/.hover-trans-port/antigravity-workspace
+```
 
 To remove the native host:
 

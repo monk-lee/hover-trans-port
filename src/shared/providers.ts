@@ -1,4 +1,10 @@
-export const PROVIDER_IDS = ["codex", "claude", "gemini", "opencode"] as const;
+export const PROVIDER_IDS = [
+  "codex",
+  "claude",
+  "gemini",
+  "opencode",
+  "antigravity"
+] as const;
 export const AUTO_PROVIDER = "auto" as const;
 export const PROVIDER_SELECTION_IDS = [...PROVIDER_IDS, AUTO_PROVIDER] as const;
 
@@ -24,14 +30,16 @@ export const PROVIDER_LABELS: Record<ProviderId, string> = {
   codex: "Codex CLI",
   claude: "Claude CLI",
   gemini: "Gemini CLI",
-  opencode: "OpenCode CLI"
+  opencode: "OpenCode CLI",
+  antigravity: "Antigravity CLI"
 };
 
 export const PROVIDER_DEFAULT_MODELS: Record<ProviderId, string> = {
   codex: "gpt-5.4-mini",
   claude: "haiku",
   gemini: "",
-  opencode: ""
+  opencode: "",
+  antigravity: ""
 };
 
 export const PROVIDER_FALLBACK_MODEL_CATALOGS: Record<
@@ -82,6 +90,15 @@ export const PROVIDER_FALLBACK_MODEL_CATALOGS: Record<
       { value: "", label: "Default (OpenCode CLI)", recommended: true }
     ],
     supportsCustomModel: true,
+    source: "fallback"
+  },
+  antigravity: {
+    provider: "antigravity",
+    defaultModel: "",
+    models: [
+      { value: "", label: "Default (Antigravity CLI)", recommended: true }
+    ],
+    supportsCustomModel: false,
     source: "fallback"
   }
 };

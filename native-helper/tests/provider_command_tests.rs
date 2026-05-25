@@ -1,5 +1,9 @@
 use hover_trans_port_helper::bridge::{handle_request, BridgeDeps};
 use hover_trans_port_helper::messages::ProviderId;
+use hover_trans_port_helper::providers::antigravity::{
+    antigravity_process_timeout_ms, build_antigravity_args, parse_antigravity_output,
+    AntigravityProvider,
+};
 use hover_trans_port_helper::providers::claude::{
     build_claude_args, parse_claude_output, ClaudeProvider,
 };
@@ -111,6 +115,166 @@ fn codex_model_catalog_filters_visible_debug_models() {
         .models
         .iter()
         .any(|model| model.value == "gpt-5.4-nano"));
+}
+
+#[test]
+fn antigravity_command_builder_uses_print_mode_shape() {
+    let args = build_antigravity_args(
+        30_000,
+        Path::new("/tmp/htp-agy.log"),
+        "Translate 'Hello' to Korean.",
+    );
+
+    assert_eq!(
+        args,
+        vec![
+            "--log-file",
+            "/tmp/htp-agy.log",
+            "--print-timeout",
+            "30s",
+            "--sandbox",
+            "--print",
+            "Translate 'Hello' to Korean.",
+        ]
+    );
+}
+
+#[test]
+fn antigravity_command_builder_rounds_timeout_up_to_seconds() {
+    let args = build_antigravity_args(5_500, Path::new("/tmp/htp-agy.log"), "prompt");
+
+    assert_eq!(
+        args,
+        vec![
+            "--log-file",
+            "/tmp/htp-agy.log",
+            "--print-timeout",
+            "6s",
+            "--sandbox",
+            "--print",
+            "prompt",
+        ]
+    );
+}
+
+#[test]
+fn antigravity_process_timeout_allows_print_timeout_grace() {
+    assert_eq!(antigravity_process_timeout_ms(5_500), 6_500);
+    assert_eq!(antigravity_process_timeout_ms(5_000), 5_500);
+    assert_eq!(antigravity_process_timeout_ms(0), 1_500);
+}
+
+#[test]
+fn antigravity_model_catalog_uses_default_only_shape() {
+    let provider = AntigravityProvider::new(BTreeMap::new());
+    let catalog = provider.model_catalog();
+
+    assert_eq!(catalog.provider, ProviderId::Antigravity);
+    assert_eq!(catalog.default_model, "");
+    assert!(!catalog.supports_custom_model);
+    assert_eq!(catalog.models.len(), 1);
+    assert_eq!(catalog.models[0].value, "");
+    assert_eq!(catalog.models[0].label, "Default (Antigravity CLI)");
+}
+
+#[test]
+fn antigravity_output_parser_returns_plain_text() {
+    assert_eq!(
+        parse_antigravity_output("안녕하세요\n").unwrap(),
+        "안녕하세요"
+    );
+}
+
+#[test]
+fn antigravity_output_parser_rejects_empty_stdout() {
+    let error = parse_antigravity_output(" \n").unwrap_err();
+
+    assert_eq!(error.code(), "PROVIDER_OUTPUT_PARSE_FAILED");
+}
+
+#[test]
+fn antigravity_fake_cli_translation_returns_success_result() {
+    let agy = fixture_path("agy");
+    make_executable(&agy);
+    let home_dir = tempdir().unwrap();
+    let workspace_dir = home_dir.path().join("agy-workspace");
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_ANTIGRAVITY_PATH".to_string(),
+        agy.to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "HOVER_TRANS_PORT_ANTIGRAVITY_WORKSPACE_DIR".to_string(),
+        workspace_dir.to_string_lossy().into_owned(),
+    );
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+    env.insert("HOME".to_string(), home_dir.path().display().to_string());
+
+    let response = handle_request(
+        json!({
+            "type": "TRANSLATE",
+            "requestId": "req-antigravity",
+            "provider": "antigravity",
+            "model": "ignored-by-provider",
+            "targetLang": "Korean",
+            "text": "Hello",
+            "cacheEnabled": false,
+            "timeoutMs": 5_000
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "TRANSLATE_RESULT");
+    assert_eq!(response["requestId"], "req-antigravity");
+    assert_eq!(response["ok"], true);
+    assert_eq!(response["provider"], "antigravity");
+    assert_eq!(response["translatedText"], "안티그래비티 안녕하세요");
+    assert_eq!(response["cached"], false);
+    assert!(workspace_dir.join(".antigravitycli").is_dir());
+    let recorded_cwd = fs::read_to_string(home_dir.path().join("agy-cwd.txt")).unwrap();
+    assert_eq!(
+        fs::canonicalize(recorded_cwd.trim_end()).unwrap(),
+        fs::canonicalize(&workspace_dir).unwrap()
+    );
+}
+
+#[test]
+fn antigravity_nonzero_error_surfaces_stderr_message() {
+    let agy = fixture_path("agy");
+    make_executable(&agy);
+    let home_dir = tempdir().unwrap();
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_ANTIGRAVITY_PATH".to_string(),
+        agy.to_string_lossy().into_owned(),
+    );
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+    env.insert("HOME".to_string(), home_dir.path().display().to_string());
+
+    let response = handle_request(
+        json!({
+            "type": "TRANSLATE",
+            "requestId": "req-antigravity-auth",
+            "provider": "antigravity",
+            "model": "",
+            "targetLang": "Korean",
+            "text": "Trigger auth error",
+            "cacheEnabled": false,
+            "timeoutMs": 5_000
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "TRANSLATE_RESULT");
+    assert_eq!(response["requestId"], "req-antigravity-auth");
+    assert_eq!(response["ok"], false);
+    assert_eq!(response["error"], "PROVIDER_EXIT_NONZERO");
+    assert!(response["message"]
+        .as_str()
+        .unwrap()
+        .contains("You are not logged into Antigravity"));
 }
 
 #[test]
@@ -313,6 +477,10 @@ fn provider_registry_resolves_selected_provider_ids() {
     assert_eq!(
         registry.provider_id_for_selection(Some("codex")),
         ProviderId::Codex
+    );
+    assert_eq!(
+        registry.provider_id_for_selection(Some("antigravity")),
+        ProviderId::Antigravity
     );
     assert_eq!(
         registry.provider_id_for_selection(Some("auto")),

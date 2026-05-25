@@ -4,16 +4,16 @@ Language: English | [한국어](readmes/README.ko.md)
 
 ![HoverTransPort inline translation preview](docs/assets/hover-trans-port-preview.png)
 
-HoverTransPort is a Chrome Manifest V3 extension for translating selected or hovered web text on demand. It uses Chrome Native Messaging to reach a local compiled helper, and the helper calls the AI CLI that is already installed and authenticated on your machine. Supported executable providers are Codex CLI, Claude CLI, Gemini CLI, and OpenCode CLI.
+HoverTransPort is a Chrome Manifest V3 extension for translating selected or hovered web text on demand. It uses Chrome Native Messaging to reach a local compiled helper, and the helper calls the AI CLI that is already installed and authenticated on your machine. Supported executable providers are Codex CLI, Claude CLI, Gemini CLI, OpenCode CLI, and Antigravity CLI.
 
-This project is not affiliated with, endorsed by, or sponsored by OpenAI, Codex, Anthropic, Claude, Google, Gemini, or OpenCode.
+This project is not affiliated with, endorsed by, or sponsored by OpenAI, Codex, Anthropic, Claude, Google, Gemini, OpenCode, or Antigravity.
 
 ## Current Scope
 
 Works today:
 
 - macOS, Google Chrome, and an unpacked extension loaded from `dist/`.
-- Codex CLI provider, Claude CLI provider, Gemini CLI provider, and OpenCode CLI provider.
+- Codex CLI provider, Claude CLI provider, Gemini CLI provider, OpenCode CLI provider, and Antigravity CLI provider.
 - Selection-first translation and hovered readable block translation.
 - Inline translation rendering, local SQLite cache, and Options diagnostics.
 - macOS script installer for the native host.
@@ -40,7 +40,7 @@ Install the prebuilt native host from the latest GitHub Release with `curl`:
 curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh | bash
 ```
 
-The installer downloads the architecture-specific helper, verifies `checksums.txt`, writes the stable launcher, and registers Chrome's Native Messaging manifest. Codex CLI, Claude CLI, Gemini CLI, and OpenCode CLI are separate prerequisites; each local CLI must already be installed and authenticated before selecting it in Options.
+The installer downloads the architecture-specific helper, verifies `checksums.txt`, writes the stable launcher, and registers Chrome's Native Messaging manifest. Codex CLI, Claude CLI, Gemini CLI, OpenCode CLI, and Antigravity CLI are separate prerequisites; each local CLI must already be installed and authenticated before selecting it in Options.
 
 When an older native host cannot update itself yet, the extension shows a manual update prompt in Popup or Options. Run the same `curl` command once, then reload the extension; later update-capable hosts can be updated from Options.
 
@@ -63,7 +63,7 @@ bash install-macos-native-host.sh uninstall
 
 Open the extension's Options page and run both `Check Native Host` and `Check Provider`.
 
-Options asks the native host for the selected provider's model catalog. Codex can show CLI-provided models through `codex debug models`; providers without a stable machine-readable model list use built-in fallback aliases and still allow custom model values. OpenCode defaults to the model configured in OpenCode itself unless you choose a custom `provider/model` value.
+Options asks the native host for the selected provider's model catalog. Codex can show CLI-provided models through `codex debug models`. Claude, Gemini, and OpenCode use built-in fallback aliases and still allow custom model values where the CLI supports a model flag. OpenCode defaults to the model configured in OpenCode itself unless you choose a custom `provider/model` value. Antigravity exposes only `Default (Antigravity CLI)` because `agy --print` uses the CLI-configured default model and does not accept a model flag.
 
 ### Build The Extension From Source
 
