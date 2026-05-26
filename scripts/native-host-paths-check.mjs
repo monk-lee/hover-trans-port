@@ -33,7 +33,7 @@ try {
     HOVER_TRANS_PORT_INSTALL_ROOT: installRoot
   };
 
-  assert.equal(NATIVE_HOST_VERSION, "0.2.13");
+  assert.equal(NATIVE_HOST_VERSION, "0.2.14");
   assert.equal(manifestJson.version, packageJson.version);
   assert.match(cargoToml, new RegExp(`^version = "${packageJson.version}"`, "m"));
   assert.match(

@@ -79,13 +79,13 @@ jobs:
           - install-macos-native-host.sh: one-line native host installer
           - checksums.txt: SHA-256 checksums for native host assets
           - hover-trans-port-helper-macos-arm64: macOS ARM64 native helper
-          - hover-trans-port-native-host-macos-0.2.13.tar.gz: inspect-first native host package
+          - hover-trans-port-native-host-macos-0.2.14.tar.gz: inspect-first native host package
           - hover-trans-port-extension-${TAG_NAME}.zip: unpacked Chrome extension package built from dist/
 
           Highlights:
-          - Checks only the selected translation provider from Options and Popup instead of touching every installed provider CLI.
-          - Avoids executing Antigravity during provider status checks; Antigravity is only launched for explicit translations.
-          - Keeps Antigravity provider status limited to binary availability so macOS does not prompt while merely opening diagnostics.
+          - Detects tooltip copy wrapped in inline spans, including links inside Radix tooltip content.
+          - Keeps tooltip translation scoped to the visible inline text instead of duplicating hidden accessibility text.
+          - Adds release verification for tooltip translation target detection.
 
           Native host update required:
           - Existing v0.2.4 installs that still report helper version v0.2.3 need one manual install command because their persisted updater copied the old helper.
@@ -110,7 +110,7 @@ jobs:
           test -f "$NATIVE_DIR/install-macos-native-host.sh"
           test -f "$NATIVE_DIR/checksums.txt"
           test -f "$NATIVE_DIR/hover-trans-port-helper-macos-arm64"
-          test -f "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.13.tar.gz"
+          test -f "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.14.tar.gz"
           test -f "$EXTENSION_ZIP"
           test -f build/release/release-notes.md
 
@@ -129,7 +129,7 @@ jobs:
             "$NATIVE_DIR/install-macos-native-host.sh" \
             "$NATIVE_DIR/checksums.txt" \
             "$NATIVE_DIR/hover-trans-port-helper-macos-arm64" \
-            "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.13.tar.gz" \
+            "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.14.tar.gz" \
             "$EXTENSION_ZIP" \
             --verify-tag \
             --latest \
