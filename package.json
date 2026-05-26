@@ -39,6 +39,7 @@
     "provider-model-options:check": "node scripts/provider-model-options-check.mjs",
     "popup-options:check": "node scripts/popup-options-open-check.mjs",
     "inline-renderer:check": "node scripts/inline-renderer-check.mjs",
+    "translatable-element:check": "node scripts/translatable-element-check.mjs",
     "hotkey": "node scripts/hotkey-check.mjs",
     "provider-options:check": "node scripts/provider-options-check.mjs",
     "open-source:check": "node scripts/open-source-check.mjs",
@@ -46,7 +47,7 @@
     "provider-model-source-status:check": "node scripts/provider-model-source-status-check.mjs",
     "provider-model-catalog:check": "node scripts/provider-model-catalog-check.mjs",
     "translation-latency:check": "node scripts/translation-latency-check.mjs",
-    "verify": "pnpm typecheck && pnpm build && pnpm validate && pnpm hotkey && pnpm provider-options:check && pnpm provider-model-options:check && pnpm provider-model-source-status:check && pnpm provider-model-catalog:check && pnpm translation-latency:check && pnpm popup-options:check && pnpm inline-renderer:check && pnpm helper:test && pnpm macos:script-installer:test && pnpm native:compatibility-check && pnpm native:paths-check && pnpm native-host-update:check && pnpm release:workflow-check && pnpm open-source:check",
+    "verify": "pnpm typecheck && pnpm build && pnpm validate && pnpm hotkey && pnpm provider-options:check && pnpm provider-model-options:check && pnpm provider-model-source-status:check && pnpm provider-model-catalog:check && pnpm translation-latency:check && pnpm popup-options:check && pnpm inline-renderer:check && pnpm translatable-element:check && pnpm helper:test && pnpm macos:script-installer:test && pnpm native:compatibility-check && pnpm native:paths-check && pnpm native-host-update:check && pnpm release:workflow-check && pnpm open-source:check",
     "test": "pnpm verify"
   },
   "devDependencies": {

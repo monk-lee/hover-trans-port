@@ -10,7 +10,7 @@ const SEMANTIC_BLOCK_SELECTOR = [
   "h4"
 ].join(",");
 
-const FALLBACK_TAG_NAMES = new Set(["DIV", "SECTION", "ARTICLE"]);
+const FALLBACK_TAG_NAMES = new Set(["DIV", "SECTION", "ARTICLE", "SPAN"]);
 const INLINE_SELECTOR = "[data-hover-trans-port-inline]";
 const MAX_FALLBACK_TEXT_LENGTH = 4000;
 
