@@ -4,7 +4,7 @@
 
 > 이 한국어 README는 빠른 이해를 위한 요약입니다. 릴리스, 보안, 개인정보, Native Host 세부 기준은 영어 원문 문서를 우선합니다.
 
-![HoverTransPort inline translation preview](../docs/assets/hover-trans-port-preview.png)
+![HoverTransPort inline translation preview](../docs/assets/github-social-preview.png)
 
 HoverTransPort는 웹페이지에서 텍스트를 선택하거나 마우스를 올린 뒤 지정한 단축키를 누르면 원문 근처에 번역을 보여주는 Chrome 확장 프로그램입니다. Chrome Native Messaging으로 로컬 helper를 호출하고, helper는 사용자가 이미 설치하고 로그인한 Codex CLI, Claude CLI, Gemini CLI, OpenCode CLI, 또는 Antigravity CLI를 실행합니다.
 

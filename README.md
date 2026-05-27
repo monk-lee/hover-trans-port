@@ -2,7 +2,7 @@
 
 Language: English | [한국어](readmes/README.ko.md)
 
-![HoverTransPort inline translation preview](docs/assets/hover-trans-port-preview.png)
+![HoverTransPort inline translation preview](docs/assets/github-social-preview.png)
 
 HoverTransPort is a Chrome Manifest V3 extension for translating selected or hovered web text on demand. It uses Chrome Native Messaging to reach a local compiled helper, and the helper calls the AI CLI that is already installed and authenticated on your machine. Supported executable providers are Codex CLI, Claude CLI, Gemini CLI, OpenCode CLI, and Antigravity CLI.
 
