@@ -73,4 +73,4 @@ This checklist is for the first public source release.
 - [ ] Confirm README does not imply official affiliation with OpenAI, Codex, Anthropic, Claude, Google, Gemini, OpenCode, or Antigravity.
 - [ ] Confirm privacy docs disclose that Codex CLI, Claude CLI, Gemini CLI, OpenCode CLI, and Antigravity CLI may send requested text upstream according to each CLI provider's account and policies.
 - [ ] Confirm SECURITY.md documents the private vulnerability reporting channel.
-- [x] Add a README screenshot or short GIF of inline translation before broad public announcement.
+- [ ] Add a README screenshot or short GIF of inline translation before broad public announcement.
