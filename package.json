@@ -31,6 +31,7 @@
     "helper:build:release": "cargo build --release --manifest-path native-helper/Cargo.toml",
     "helper:test": "cargo test --manifest-path native-helper/Cargo.toml",
     "native:installer:check": "node scripts/native-host-installer-check.mjs",
+    "native-host:release-assets:build": "node scripts/build-native-host-release-assets.mjs",
     "macos:script-installer:test": "pnpm native:installer:check",
     "macos:script-installer:build": "bash scripts/build-macos-script-installer-release.sh",
     "windows:script-installer:test": "pnpm native:installer:check",
