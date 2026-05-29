@@ -305,7 +305,9 @@ resolve_helper_source() {
   fi
 
   script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-  asset_name="$(detect_asset_name)"
+  if ! asset_name="$(detect_asset_name)"; then
+    exit 1
+  fi
   bundled="$script_dir/$asset_name"
 
   if [ -x "$bundled" ]; then
@@ -337,7 +339,9 @@ resolve_helper_source() {
 }
 
 install_helper() {
-  helper_source="$(resolve_helper_source)"
+  if ! helper_source="$(resolve_helper_source)"; then
+    exit 1
+  fi
   staging_dir="$VERSION_DIR.staging"
   backup_dir="$VERSION_DIR.backup"
 

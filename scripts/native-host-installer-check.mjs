@@ -48,6 +48,20 @@ function runJson(args, env) {
   return JSON.parse(run(args.concat("--json"), env));
 }
 
+function runFailure(args, env) {
+  try {
+    run(args, env);
+  } catch (error) {
+    return {
+      status: error.status,
+      stdout: error.stdout ?? "",
+      stderr: error.stderr ?? ""
+    };
+  }
+
+  throw new Error(`expected installer to fail for args: ${args.join(" ")}`);
+}
+
 function runInstallerJson(installerPath, args, env) {
   return JSON.parse(runWithInstaller(installerPath, args.concat("--json"), env));
 }
@@ -196,6 +210,28 @@ withTempRoot("linux-release-download", (root) => {
   assert(
     readFileSync(result.helperPath, "utf8") === helperBody,
     "linux release install should download the linux helper asset"
+  );
+});
+
+withTempRoot("linux-unsupported-arch", (root) => {
+  const home = join(root, "home");
+  const env = {
+    HOME: home,
+    HOVER_TRANS_PORT_TEST_OS: "linux",
+    HOVER_TRANS_PORT_TEST_ARCH: "s390x",
+    HOVER_TRANS_PORT_INSTALL_ROOT: join(home, ".local/share/hover-trans-port")
+  };
+
+  const result = runFailure(["install"], env);
+
+  assert(result.status !== 0, "unsupported linux architecture should fail");
+  assert(
+    result.stderr.includes("install.sh: unsupported architecture: linux/s390x"),
+    "unsupported linux architecture should report installer error"
+  );
+  assert(
+    !result.stderr.includes("cp:"),
+    "unsupported linux architecture should not continue into copy helper"
   );
 });
 
