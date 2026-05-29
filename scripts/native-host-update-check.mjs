@@ -108,6 +108,9 @@ const checks = [
     path: "native-helper/src/update.rs",
     needles: [
       "fn required_release_assets",
+      "fn supported_release_assets",
+      "let _ = supported_release_assets(env)?;",
+      '"UPDATE_UNSUPPORTED_PLATFORM"',
       '("macos", "arm64") | ("macos", "aarch64")',
       '("linux", "arm64") | ("linux", "aarch64")',
       '("linux", "x86_64")',

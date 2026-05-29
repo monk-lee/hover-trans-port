@@ -54,12 +54,7 @@ pub fn check_update(
     env: &BTreeMap<String, String>,
     installed_version: &str,
 ) -> Result<UpdateStatus, UpdateFailure> {
-    let required_assets = required_release_assets(env).ok_or_else(|| UpdateFailure {
-        code: "UPDATE_UNSUPPORTED_PLATFORM",
-        message: "Native host updates are not supported for this platform or architecture."
-            .to_string(),
-        retryable: false,
-    })?;
+    let required_assets = supported_release_assets(env)?;
 
     let releases = load_releases(env)?;
 
@@ -170,6 +165,7 @@ pub fn run_update(
     target_tag: &str,
     target_version: &str,
 ) -> Result<UpdateInstallResult, UpdateFailure> {
+    let _ = supported_release_assets(env)?;
     validate_update_target(target_tag, target_version)?;
 
     let metadata_path = active_metadata_path(env)?;
@@ -262,6 +258,17 @@ fn required_release_assets(env: &BTreeMap<String, String>) -> Option<(&'static s
         )),
         _ => None,
     }
+}
+
+fn supported_release_assets(
+    env: &BTreeMap<String, String>,
+) -> Result<(&'static str, &'static str), UpdateFailure> {
+    required_release_assets(env).ok_or_else(|| UpdateFailure {
+        code: "UPDATE_UNSUPPORTED_PLATFORM",
+        message: "Native host updates are not supported for this platform or architecture."
+            .to_string(),
+        retryable: false,
+    })
 }
 
 fn has_required_assets(release: &ReleaseEntry, required_assets: (&str, &str)) -> bool {
@@ -712,5 +719,55 @@ mod tests {
                 .join("share")
                 .join("hover-trans-port")
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn run_update_rejects_unsupported_platform_before_invoking_updater() {
+        use std::os::unix::fs::PermissionsExt;
+        use std::os::unix::fs::symlink;
+
+        let temp = tempdir().unwrap();
+        let install_root = temp.path().join("Hover Trans Port");
+        let current_dir = install_root.join("native-hosts/0.2.3");
+        fs::create_dir_all(&current_dir).unwrap();
+        symlink(&current_dir, install_root.join("current")).unwrap();
+
+        let marker_path = temp.path().join("updater-invoked");
+        let updater_path = current_dir.join("install.sh");
+        fs::write(
+            &updater_path,
+            format!(
+                "#!/bin/sh\nprintf invoked > '{}'\nprintf '%s\n' '{{\"ok\":true,\"previousVersion\":\"0.2.3\",\"installedVersion\":\"0.2.4\",\"helperPath\":\"/tmp/helper\"}}'\n",
+                marker_path.display()
+            ),
+        )
+        .unwrap();
+        let mut permissions = fs::metadata(&updater_path).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&updater_path, permissions).unwrap();
+
+        fs::write(
+            install_root.join("current").join("metadata.json"),
+            format!(
+                "{{\"hostVersion\":\"0.2.3\",\"protocolVersion\":1,\"source\":\"unix-script-installer\",\"updaterPath\":\"{}\"}}",
+                updater_path.display()
+            ),
+        )
+        .unwrap();
+
+        let mut env = BTreeMap::new();
+        env.insert(
+            "HOVER_TRANS_PORT_INSTALL_ROOT".to_string(),
+            install_root.to_string_lossy().into_owned(),
+        );
+        env.insert("HOVER_TRANS_PORT_TEST_OS".to_string(), "linux".to_string());
+        env.insert("HOVER_TRANS_PORT_TEST_ARCH".to_string(), "sparc".to_string());
+
+        let error = run_update(&env, "v0.2.4", "0.2.4").unwrap_err();
+
+        assert_eq!(error.code, "UPDATE_UNSUPPORTED_PLATFORM");
+        assert!(!error.retryable);
+        assert!(!marker_path.exists());
     }
 }
