@@ -77,13 +77,19 @@ fn provider_binary_discovery_finds_windows_cmd_from_path() {
 fn provider_binary_discovery_prefers_override() {
     let temp = tempfile::tempdir().unwrap();
     let override_path = temp.path().join("custom-codex.exe");
+    let path_dir = temp.path().join("path-bin");
+    fs::create_dir_all(&path_dir).unwrap();
+    let path_candidate = path_dir.join("codex.cmd");
     fs::write(&override_path, "binary").unwrap();
+    fs::write(&path_candidate, "echo path codex\r\n").unwrap();
     make_executable(&override_path);
+    make_executable(&path_candidate);
     let mut env = BTreeMap::new();
     env.insert(
         "HOVER_TRANS_PORT_CODEX_PATH".to_string(),
         override_path.display().to_string(),
     );
+    env.insert("PATH".to_string(), path_dir.display().to_string());
     env.insert(
         "HOVER_TRANS_PORT_TEST_OS".to_string(),
         "windows".to_string(),
@@ -96,6 +102,7 @@ fn provider_binary_discovery_prefers_override() {
     );
 
     assert_eq!(found, Some(override_path));
+    assert_ne!(found, Some(path_candidate));
 }
 
 #[test]
