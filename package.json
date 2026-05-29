@@ -30,7 +30,8 @@
     "helper:build": "cargo build --manifest-path native-helper/Cargo.toml",
     "helper:build:release": "cargo build --release --manifest-path native-helper/Cargo.toml",
     "helper:test": "cargo test --manifest-path native-helper/Cargo.toml",
-    "macos:script-installer:test": "node scripts/macos-script-installer-check.mjs",
+    "native:installer:check": "node scripts/native-host-installer-check.mjs",
+    "macos:script-installer:test": "pnpm native:installer:check",
     "macos:script-installer:build": "bash scripts/build-macos-script-installer-release.sh",
     "native:protocol-check": "node scripts/native-host-protocol-check.mjs",
     "native:compatibility-check": "node scripts/native-host-compatibility-check.mjs",
@@ -48,7 +49,7 @@
     "provider-model-source-status:check": "node scripts/provider-model-source-status-check.mjs",
     "provider-model-catalog:check": "node scripts/provider-model-catalog-check.mjs",
     "translation-latency:check": "node scripts/translation-latency-check.mjs",
-    "verify": "pnpm typecheck && pnpm build && pnpm validate && pnpm hotkey && pnpm provider-options:check && pnpm provider-model-options:check && pnpm provider-model-source-status:check && pnpm provider-model-catalog:check && pnpm translation-latency:check && pnpm popup-options:check && pnpm inline-renderer:check && pnpm translatable-element:check && pnpm helper:test && pnpm macos:script-installer:test && pnpm native:compatibility-check && pnpm native:browser-targets-check && pnpm native:paths-check && pnpm native-host-update:check && pnpm release:workflow-check && pnpm open-source:check",
+    "verify": "pnpm typecheck && pnpm build && pnpm validate && pnpm hotkey && pnpm provider-options:check && pnpm provider-model-options:check && pnpm provider-model-source-status:check && pnpm provider-model-catalog:check && pnpm translation-latency:check && pnpm popup-options:check && pnpm inline-renderer:check && pnpm translatable-element:check && pnpm helper:test && pnpm native:installer:check && pnpm native:compatibility-check && pnpm native:browser-targets-check && pnpm native:paths-check && pnpm native-host-update:check && pnpm release:workflow-check && pnpm open-source:check",
     "test": "pnpm verify"
   },
   "devDependencies": {

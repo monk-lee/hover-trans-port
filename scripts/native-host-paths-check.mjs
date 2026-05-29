@@ -23,7 +23,11 @@ const manifestJson = JSON.parse(readFileSync("public/manifest.json", "utf8"));
 const cargoToml = readFileSync("native-helper/Cargo.toml", "utf8");
 const nativeMessages = readFileSync("native-helper/src/messages.rs", "utf8");
 const nativeProtocol = readFileSync("src/shared/nativeProtocol.ts", "utf8");
-const scriptInstaller = readFileSync("scripts/install-macos-native-host.sh", "utf8");
+const scriptInstaller = readFileSync("scripts/install.sh", "utf8");
+const macosInstallerWrapper = readFileSync(
+  "scripts/install-macos-native-host.sh",
+  "utf8"
+);
 const releaseAssetBuilder = readFileSync(
   "scripts/build-macos-script-installer-release.sh",
   "utf8"
@@ -58,6 +62,7 @@ try {
     scriptInstaller,
     new RegExp(`DEFAULT_HOST_VERSION="${packageJson.version}"`)
   );
+  assert.match(macosInstallerWrapper, /exec "\$SCRIPT_DIR\/install\.sh" "\$@"/);
   assert.match(
     releaseAssetBuilder,
     new RegExp(`HOST_VERSION="${packageJson.version}"`)
