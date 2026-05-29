@@ -42,31 +42,30 @@ fn candidate_paths(env: &BTreeMap<String, String>, binary_name: &str) -> Vec<Pat
         }
     }
 
-    if let Some(home) = env
-        .get("HOME")
-        .or_else(|| env.get("USERPROFILE"))
-        .filter(|value| !value.trim().is_empty())
-    {
-        for dir in provider_user_local_dirs(binary_name, home) {
-            for name in &names {
-                candidates.push(dir.join(name));
-            }
-        }
-
-        for dir in user_local_dirs(env, home) {
-            for name in &names {
-                candidates.push(dir.join(name));
-            }
-        }
+    if platform_os(env) == "windows" {
+        append_dirs(&mut candidates, &names, windows_env_local_dirs(env));
     }
 
-    for dir in system_local_dirs(env) {
-        for name in &names {
+    if let Some(home) = home_profile(env) {
+        append_dirs(
+            &mut candidates,
+            &names,
+            provider_user_local_dirs(binary_name, home),
+        );
+        append_dirs(&mut candidates, &names, user_local_dirs(env, home));
+    }
+
+    append_dirs(&mut candidates, &names, system_local_dirs(env));
+
+    candidates
+}
+
+fn append_dirs(candidates: &mut Vec<PathBuf>, names: &[String], dirs: Vec<PathBuf>) {
+    for dir in dirs {
+        for name in names {
             candidates.push(dir.join(name));
         }
     }
-
-    candidates
 }
 
 fn binary_names(env: &BTreeMap<String, String>, binary_name: &str) -> Vec<String> {
@@ -84,13 +83,8 @@ fn binary_names(env: &BTreeMap<String, String>, binary_name: &str) -> Vec<String
 fn user_local_dirs(env: &BTreeMap<String, String>, home: &str) -> Vec<PathBuf> {
     if platform_os(env) == "windows" {
         return vec![
-            env_path(env, "APPDATA").join("npm"),
-            env_path(env, "LOCALAPPDATA").join("pnpm"),
             Path::new(home).join(".local").join("bin"),
             Path::new(home).join("scoop").join("shims"),
-            env_path(env, "LOCALAPPDATA")
-                .join("Microsoft")
-                .join("WindowsApps"),
         ];
     }
 
@@ -100,6 +94,21 @@ fn user_local_dirs(env: &BTreeMap<String, String>, home: &str) -> Vec<PathBuf> {
         Path::new(home).join(".bun").join("bin"),
         Path::new(home).join(".cargo").join("bin"),
     ]
+}
+
+fn windows_env_local_dirs(env: &BTreeMap<String, String>) -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+
+    if let Some(appdata) = env_path(env, "APPDATA") {
+        dirs.push(appdata.join("npm"));
+    }
+
+    if let Some(local_appdata) = env_path(env, "LOCALAPPDATA") {
+        dirs.push(local_appdata.join("pnpm"));
+        dirs.push(local_appdata.join("Microsoft").join("WindowsApps"));
+    }
+
+    dirs
 }
 
 fn provider_user_local_dirs(binary_name: &str, home: &str) -> Vec<PathBuf> {
@@ -121,8 +130,18 @@ fn system_local_dirs(env: &BTreeMap<String, String>) -> Vec<PathBuf> {
     ]
 }
 
-fn env_path(env: &BTreeMap<String, String>, key: &str) -> PathBuf {
-    env.get(key).map(PathBuf::from).unwrap_or_default()
+fn home_profile(env: &BTreeMap<String, String>) -> Option<&str> {
+    env.get("HOME")
+        .or_else(|| env.get("USERPROFILE"))
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+}
+
+fn env_path(env: &BTreeMap<String, String>, key: &str) -> Option<PathBuf> {
+    env.get(key)
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
 }
 
 fn platform_os(env: &BTreeMap<String, String>) -> String {

@@ -99,6 +99,61 @@ fn provider_binary_discovery_prefers_override() {
 }
 
 #[test]
+fn provider_binary_discovery_finds_windows_appdata_npm_without_home() {
+    let temp = tempfile::tempdir().unwrap();
+    let appdata = temp.path().join("AppData").join("Roaming");
+    let npm_dir = appdata.join("npm");
+    fs::create_dir_all(&npm_dir).unwrap();
+    let bin = npm_dir.join("codex.cmd");
+    fs::write(&bin, "echo codex\r\n").unwrap();
+    make_executable(&bin);
+    let mut env = BTreeMap::new();
+    env.insert("APPDATA".to_string(), appdata.display().to_string());
+    env.insert(
+        "HOVER_TRANS_PORT_TEST_OS".to_string(),
+        "windows".to_string(),
+    );
+
+    let found = hover_trans_port_helper::providers::binary_discovery::find_provider_binary(
+        &env,
+        "HOVER_TRANS_PORT_CODEX_PATH",
+        "codex",
+    );
+
+    assert_eq!(found, Some(bin));
+}
+
+#[test]
+fn provider_binary_discovery_ignores_relative_windows_env_root_traps() {
+    let temp = tempfile::tempdir().unwrap();
+    let trap_dir = temp.path().join("npm");
+    fs::create_dir_all(&trap_dir).unwrap();
+    let trap = trap_dir.join("codex.cmd");
+    fs::write(&trap, "echo trapped\r\n").unwrap();
+    make_executable(&trap);
+    let previous_cwd = std::env::current_dir().unwrap();
+    std::env::set_current_dir(temp.path()).unwrap();
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_TEST_OS".to_string(),
+        "windows".to_string(),
+    );
+    env.insert(
+        "USERPROFILE".to_string(),
+        temp.path().join("profile").display().to_string(),
+    );
+
+    let found = hover_trans_port_helper::providers::binary_discovery::find_provider_binary(
+        &env,
+        "HOVER_TRANS_PORT_CODEX_PATH",
+        "codex",
+    );
+
+    std::env::set_current_dir(previous_cwd).unwrap();
+    assert_eq!(found, None);
+}
+
+#[test]
 fn provider_binary_discovery_preserves_opencode_user_bin() {
     let temp = tempfile::tempdir().unwrap();
     let user_bin = temp.path().join(".opencode").join("bin");
