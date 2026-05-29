@@ -130,6 +130,60 @@ fn provider_binary_discovery_launch_env_uses_windows_path_separator() {
 }
 
 #[test]
+fn provider_binary_discovery_launch_env_accepts_mixed_case_windows_keys() {
+    let temp = tempfile::tempdir().unwrap();
+    let binary = temp.path().join("bin").join("codex.cmd");
+    let mut env = BTreeMap::new();
+    env.insert("Path".to_string(), "C\\Tools".to_string());
+    env.insert("AppData".to_string(), "appdata-value".to_string());
+    env.insert("LocalAppData".to_string(), "localappdata-value".to_string());
+    env.insert("UserProfile".to_string(), "userprofile-value".to_string());
+    env.insert("SystemRoot".to_string(), "systemroot-value".to_string());
+    env.insert("ComSpec".to_string(), "comspec-value".to_string());
+    env.insert("PathExt".to_string(), "pathext-value".to_string());
+    env.insert(
+        "HOVER_TRANS_PORT_TEST_OS".to_string(),
+        "windows".to_string(),
+    );
+
+    let launch_env = hover_trans_port_helper::providers::binary_discovery::provider_launch_env(
+        &env,
+        &binary,
+        &[],
+    );
+    let expected_path = format!("C\\Tools;{}", binary.parent().unwrap().display());
+
+    assert_eq!(
+        launch_env.get("PATH").map(String::as_str),
+        Some(expected_path.as_str())
+    );
+    assert_eq!(
+        launch_env.get("APPDATA").map(String::as_str),
+        Some("appdata-value")
+    );
+    assert_eq!(
+        launch_env.get("LOCALAPPDATA").map(String::as_str),
+        Some("localappdata-value")
+    );
+    assert_eq!(
+        launch_env.get("USERPROFILE").map(String::as_str),
+        Some("userprofile-value")
+    );
+    assert_eq!(
+        launch_env.get("SystemRoot").map(String::as_str),
+        Some("systemroot-value")
+    );
+    assert_eq!(
+        launch_env.get("COMSPEC").map(String::as_str),
+        Some("comspec-value")
+    );
+    assert_eq!(
+        launch_env.get("PATHEXT").map(String::as_str),
+        Some("pathext-value")
+    );
+}
+
+#[test]
 fn provider_binary_discovery_launch_env_preserves_windows_shim_env_keys() {
     let temp = tempfile::tempdir().unwrap();
     let binary = temp.path().join("codex.cmd");
@@ -165,6 +219,81 @@ fn provider_binary_discovery_launch_env_preserves_windows_shim_env_keys() {
     ] {
         assert_eq!(launch_env.get(key), env.get(key));
     }
+}
+
+#[test]
+fn provider_binary_discovery_finds_windows_cmd_from_mixed_case_path() {
+    let temp = tempfile::tempdir().unwrap();
+    let bin = temp.path().join("codex.cmd");
+    fs::write(&bin, "echo codex\r\n").unwrap();
+    make_executable(&bin);
+    let mut env = BTreeMap::new();
+    env.insert("Path".to_string(), temp.path().display().to_string());
+    env.insert(
+        "HOVER_TRANS_PORT_TEST_OS".to_string(),
+        "windows".to_string(),
+    );
+
+    let found = hover_trans_port_helper::providers::binary_discovery::find_provider_binary(
+        &env,
+        "HOVER_TRANS_PORT_CODEX_PATH",
+        "codex",
+    );
+
+    assert_eq!(found, Some(bin));
+}
+
+#[test]
+fn provider_binary_discovery_finds_windows_appdata_npm_from_mixed_case_key() {
+    let temp = tempfile::tempdir().unwrap();
+    let appdata = temp.path().join("AppData").join("Roaming");
+    let npm_dir = appdata.join("npm");
+    fs::create_dir_all(&npm_dir).unwrap();
+    let bin = npm_dir.join("codex.cmd");
+    fs::write(&bin, "echo codex\r\n").unwrap();
+    make_executable(&bin);
+    let mut env = BTreeMap::new();
+    env.insert("AppData".to_string(), appdata.display().to_string());
+    env.insert(
+        "HOVER_TRANS_PORT_TEST_OS".to_string(),
+        "windows".to_string(),
+    );
+
+    let found = hover_trans_port_helper::providers::binary_discovery::find_provider_binary(
+        &env,
+        "HOVER_TRANS_PORT_CODEX_PATH",
+        "codex",
+    );
+
+    assert_eq!(found, Some(bin));
+}
+
+#[test]
+fn provider_binary_discovery_finds_windows_localappdata_pnpm_from_mixed_case_key() {
+    let temp = tempfile::tempdir().unwrap();
+    let local_appdata = temp.path().join("AppData").join("Local");
+    let pnpm_dir = local_appdata.join("pnpm");
+    fs::create_dir_all(&pnpm_dir).unwrap();
+    let bin = pnpm_dir.join("codex.cmd");
+    fs::write(&bin, "echo codex\r\n").unwrap();
+    make_executable(&bin);
+    let mut env = BTreeMap::new();
+    env.insert(
+        "LocalAppData".to_string(),
+        local_appdata.display().to_string(),
+    );
+    env.insert(
+        "HOVER_TRANS_PORT_TEST_OS".to_string(),
+        "windows".to_string(),
+    );
+
+    let found = hover_trans_port_helper::providers::binary_discovery::find_provider_binary(
+        &env,
+        "HOVER_TRANS_PORT_CODEX_PATH",
+        "codex",
+    );
+
+    assert_eq!(found, Some(bin));
 }
 
 #[test]

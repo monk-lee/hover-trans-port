@@ -41,8 +41,8 @@ pub fn provider_launch_env(
     }
 
     let mut path_parts = Vec::new();
-    if let Some(path) = env.get("PATH").filter(|value| !value.is_empty()) {
-        path_parts.push(path.clone());
+    if let Some(path) = env_value(env, "PATH").filter(|value| !value.is_empty()) {
+        path_parts.push(path.to_string());
     }
     if let Some(parent) = binary.parent() {
         path_parts.push(parent.display().to_string());
@@ -69,7 +69,7 @@ fn candidate_paths(env: &BTreeMap<String, String>, binary_name: &str) -> Vec<Pat
     let mut candidates = Vec::new();
     let names = binary_names(env, binary_name);
 
-    if let Some(path) = env.get("PATH") {
+    if let Some(path) = env_value(env, "PATH") {
         for dir in path
             .split(provider_path_separator(env))
             .filter(|value| !value.is_empty())
@@ -112,8 +112,8 @@ fn copy_env_keys(
     keys: &[&str],
 ) {
     for key in keys.iter().filter(|key| **key != "PATH") {
-        if let Some(value) = env.get(*key).filter(|value| !value.is_empty()) {
-            next.insert((*key).to_string(), value.clone());
+        if let Some(value) = env_value(env, *key).filter(|value| !value.is_empty()) {
+            next.insert((*key).to_string(), value.to_string());
         }
     }
 }
@@ -187,11 +187,30 @@ fn home_profile(env: &BTreeMap<String, String>) -> Option<PathBuf> {
 }
 
 fn env_path(env: &BTreeMap<String, String>, key: &str) -> Option<PathBuf> {
-    env.get(key)
+    env_value(env, key)
         .map(|value| value.trim())
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
         .filter(|path| path.is_absolute())
+}
+
+fn env_value<'a>(env: &'a BTreeMap<String, String>, key: &str) -> Option<&'a str> {
+    if platform_os(env) == "windows" {
+        return env_value_ignore_ascii_case(env, key);
+    }
+
+    env.get(key).map(String::as_str)
+}
+
+fn env_value_ignore_ascii_case<'a>(
+    env: &'a BTreeMap<String, String>,
+    key: &str,
+) -> Option<&'a str> {
+    env.get(key).map(String::as_str).or_else(|| {
+        env.iter()
+            .find(|(candidate, _)| candidate.eq_ignore_ascii_case(key))
+            .map(|(_, value)| value.as_str())
+    })
 }
 
 fn platform_os(env: &BTreeMap<String, String>) -> String {
