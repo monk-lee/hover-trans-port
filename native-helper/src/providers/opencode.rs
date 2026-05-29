@@ -361,29 +361,23 @@ fn extract_content_text(value: &serde_json::Value) -> String {
 }
 
 fn provider_env(env: &BTreeMap<String, String>, binary: &Path) -> BTreeMap<String, String> {
-    let mut next = BTreeMap::new();
-    for key in [
-        "HOME",
-        "PATH",
-        "TMPDIR",
-        "USER",
-        "LANG",
-        "LC_ALL",
-        "XDG_CONFIG_HOME",
-        "XDG_DATA_HOME",
-        "XDG_CACHE_HOME",
-        "OPENCODE_CONFIG",
-        "OPENCODE_SERVER_PASSWORD",
-        "OPENCODE_SERVER_USERNAME",
-    ] {
-        if let Some(value) = env.get(key).filter(|value| !value.is_empty()) {
-            next.insert(key.to_string(), value.clone());
-        }
-    }
-    if let Some(parent) = binary.parent() {
-        let path = next.remove("PATH").unwrap_or_default();
-        next.insert("PATH".to_string(), format!("{path}:{}", parent.display()));
-    }
+    let mut next = binary_discovery::provider_launch_env(
+        env,
+        binary,
+        &[
+            "HOME",
+            "TMPDIR",
+            "USER",
+            "LANG",
+            "LC_ALL",
+            "XDG_CONFIG_HOME",
+            "XDG_DATA_HOME",
+            "XDG_CACHE_HOME",
+            "OPENCODE_CONFIG",
+            "OPENCODE_SERVER_PASSWORD",
+            "OPENCODE_SERVER_USERNAME",
+        ],
+    );
     next.entry("LANG".to_string())
         .or_insert_with(|| "en_US.UTF-8".to_string());
     next.insert(

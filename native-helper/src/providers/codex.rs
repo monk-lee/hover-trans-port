@@ -293,23 +293,11 @@ pub fn build_codex_exec_args(model: &str, temp_dir: &Path, output_file: &Path) -
 }
 
 fn provider_env(env: &BTreeMap<String, String>, binary: &Path) -> BTreeMap<String, String> {
-    let mut next = BTreeMap::new();
-    for key in ["HOME", "CODEX_HOME", "TMPDIR", "USER", "LANG", "LC_ALL"] {
-        if let Some(value) = env.get(key).filter(|value| !value.is_empty()) {
-            next.insert(key.to_string(), value.clone());
-        }
-    }
-
-    let mut path_parts = Vec::new();
-    if let Some(path) = env.get("PATH").filter(|value| !value.is_empty()) {
-        path_parts.push(path.clone());
-    }
-    if let Some(parent) = binary.parent() {
-        path_parts.push(parent.display().to_string());
-    }
-    if !path_parts.is_empty() {
-        next.insert("PATH".to_string(), path_parts.join(":"));
-    }
+    let mut next = binary_discovery::provider_launch_env(
+        env,
+        binary,
+        &["HOME", "CODEX_HOME", "TMPDIR", "USER", "LANG", "LC_ALL"],
+    );
     next.entry("LANG".to_string())
         .or_insert_with(|| "en_US.UTF-8".to_string());
 

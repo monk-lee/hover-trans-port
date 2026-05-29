@@ -106,6 +106,68 @@ fn provider_binary_discovery_prefers_override() {
 }
 
 #[test]
+fn provider_binary_discovery_launch_env_uses_windows_path_separator() {
+    let temp = tempfile::tempdir().unwrap();
+    let binary = temp.path().join("bin").join("codex.cmd");
+    let mut env = BTreeMap::new();
+    env.insert("PATH".to_string(), "C\\Tools".to_string());
+    env.insert(
+        "HOVER_TRANS_PORT_TEST_OS".to_string(),
+        "windows".to_string(),
+    );
+
+    let launch_env = hover_trans_port_helper::providers::binary_discovery::provider_launch_env(
+        &env,
+        &binary,
+        &[],
+    );
+    let expected_path = format!("C\\Tools;{}", binary.parent().unwrap().display());
+
+    assert_eq!(
+        launch_env.get("PATH").map(String::as_str),
+        Some(expected_path.as_str())
+    );
+}
+
+#[test]
+fn provider_binary_discovery_launch_env_preserves_windows_shim_env_keys() {
+    let temp = tempfile::tempdir().unwrap();
+    let binary = temp.path().join("codex.cmd");
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_TEST_OS".to_string(),
+        "windows".to_string(),
+    );
+    for key in [
+        "APPDATA",
+        "LOCALAPPDATA",
+        "USERPROFILE",
+        "SystemRoot",
+        "COMSPEC",
+        "PATHEXT",
+    ] {
+        env.insert(key.to_string(), format!("{key}-value"));
+    }
+
+    let launch_env = hover_trans_port_helper::providers::binary_discovery::provider_launch_env(
+        &env,
+        &binary,
+        &[],
+    );
+
+    for key in [
+        "APPDATA",
+        "LOCALAPPDATA",
+        "USERPROFILE",
+        "SystemRoot",
+        "COMSPEC",
+        "PATHEXT",
+    ] {
+        assert_eq!(launch_env.get(key), env.get(key));
+    }
+}
+
+#[test]
 fn provider_binary_discovery_finds_windows_appdata_npm_without_home() {
     let temp = tempfile::tempdir().unwrap();
     let appdata = temp.path().join("AppData").join("Roaming");
@@ -131,24 +193,19 @@ fn provider_binary_discovery_finds_windows_appdata_npm_without_home() {
 }
 
 #[test]
-fn provider_binary_discovery_ignores_relative_windows_env_root_traps() {
-    let temp = tempfile::tempdir().unwrap();
-    let trap_dir = temp.path().join("npm");
+fn provider_binary_discovery_ignores_relative_windows_appdata() {
+    let relative_root = relative_tempdir();
+    let trap_dir = relative_root.path().join("npm");
     fs::create_dir_all(&trap_dir).unwrap();
     let trap = trap_dir.join("codex.cmd");
     fs::write(&trap, "echo trapped\r\n").unwrap();
     make_executable(&trap);
-    let previous_cwd = std::env::current_dir().unwrap();
-    std::env::set_current_dir(temp.path()).unwrap();
     let mut env = BTreeMap::new();
     env.insert(
         "HOVER_TRANS_PORT_TEST_OS".to_string(),
         "windows".to_string(),
     );
-    env.insert(
-        "USERPROFILE".to_string(),
-        temp.path().join("profile").display().to_string(),
-    );
+    env.insert("APPDATA".to_string(), relative_root.relative_path());
 
     let found = hover_trans_port_helper::providers::binary_discovery::find_provider_binary(
         &env,
@@ -156,7 +213,78 @@ fn provider_binary_discovery_ignores_relative_windows_env_root_traps() {
         "codex",
     );
 
-    std::env::set_current_dir(previous_cwd).unwrap();
+    assert_eq!(found, None);
+}
+
+#[test]
+fn provider_binary_discovery_ignores_relative_windows_localappdata() {
+    let relative_root = relative_tempdir();
+    let trap_dir = relative_root.path().join("pnpm");
+    fs::create_dir_all(&trap_dir).unwrap();
+    let trap = trap_dir.join("codex.cmd");
+    fs::write(&trap, "echo trapped\r\n").unwrap();
+    make_executable(&trap);
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_TEST_OS".to_string(),
+        "windows".to_string(),
+    );
+    env.insert("LOCALAPPDATA".to_string(), relative_root.relative_path());
+
+    let found = hover_trans_port_helper::providers::binary_discovery::find_provider_binary(
+        &env,
+        "HOVER_TRANS_PORT_CODEX_PATH",
+        "codex",
+    );
+
+    assert_eq!(found, None);
+}
+
+#[test]
+fn provider_binary_discovery_ignores_relative_windows_home() {
+    let relative_root = relative_tempdir();
+    let trap_dir = relative_root.path().join(".local").join("bin");
+    fs::create_dir_all(&trap_dir).unwrap();
+    let trap = trap_dir.join("codex.cmd");
+    fs::write(&trap, "echo trapped\r\n").unwrap();
+    make_executable(&trap);
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_TEST_OS".to_string(),
+        "windows".to_string(),
+    );
+    env.insert("HOME".to_string(), relative_root.relative_path());
+
+    let found = hover_trans_port_helper::providers::binary_discovery::find_provider_binary(
+        &env,
+        "HOVER_TRANS_PORT_CODEX_PATH",
+        "codex",
+    );
+
+    assert_eq!(found, None);
+}
+
+#[test]
+fn provider_binary_discovery_ignores_relative_windows_userprofile() {
+    let relative_root = relative_tempdir();
+    let trap_dir = relative_root.path().join(".local").join("bin");
+    fs::create_dir_all(&trap_dir).unwrap();
+    let trap = trap_dir.join("codex.cmd");
+    fs::write(&trap, "echo trapped\r\n").unwrap();
+    make_executable(&trap);
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_TEST_OS".to_string(),
+        "windows".to_string(),
+    );
+    env.insert("USERPROFILE".to_string(), relative_root.relative_path());
+
+    let found = hover_trans_port_helper::providers::binary_discovery::find_provider_binary(
+        &env,
+        "HOVER_TRANS_PORT_CODEX_PATH",
+        "codex",
+    );
+
     assert_eq!(found, None);
 }
 
@@ -1020,6 +1148,39 @@ fn fixture_path(name: &str) -> PathBuf {
         .join("fixtures")
         .join("bin")
         .join(name)
+}
+
+struct RelativeTempDir {
+    _dir: tempfile::TempDir,
+    relative_path: String,
+}
+
+impl RelativeTempDir {
+    fn path(&self) -> &Path {
+        Path::new(&self.relative_path)
+    }
+
+    fn relative_path(&self) -> String {
+        self.relative_path.clone()
+    }
+}
+
+fn relative_tempdir() -> RelativeTempDir {
+    let dir = tempfile::Builder::new()
+        .prefix(".provider-discovery-")
+        .tempdir_in(std::env::current_dir().unwrap())
+        .unwrap();
+    let relative_path = dir
+        .path()
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
+
+    RelativeTempDir {
+        _dir: dir,
+        relative_path,
+    }
 }
 
 fn make_executable(path: &Path) {
