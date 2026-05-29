@@ -199,6 +199,51 @@ assertIncludes(
   "install.sh",
   "docs must include Unix install"
 );
+assertIncludes(
+  readText("docs/native-host-install.md"),
+  "~/.local/share/hover-trans-port",
+  "docs must include actual Linux install root"
+);
+assertIncludes(
+  readText("docs/native-host-install.md"),
+  "$env:LOCALAPPDATA\\Hover Trans Port",
+  "docs must include Windows install root"
+);
+assertIncludes(
+  readText("docs/open-source-release-checklist.md"),
+  "install.sh",
+  "release checklist must include Unix installer"
+);
+assertIncludes(
+  readText("docs/open-source-release-checklist.md"),
+  "install.ps1",
+  "release checklist must include Windows PowerShell installer"
+);
+assertIncludes(
+  readText("docs/open-source-release-checklist.md"),
+  "hover-trans-port-native-host-linux-0.2.14.tar.gz",
+  "release checklist must include Linux inspect-first tarball"
+);
+assertIncludes(
+  readText("docs/open-source-release-checklist.md"),
+  "hover-trans-port-native-host-windows-0.2.14.zip",
+  "release checklist must include Windows inspect-first zip"
+);
+assertIncludes(
+  readText("docs/open-source-release-checklist.md"),
+  "~/Library/Application Support/Hover Trans Port/current",
+  "release checklist must include actual macOS install root"
+);
+assertIncludes(
+  readText("docs/open-source-release-checklist.md"),
+  "~/.local/share/hover-trans-port/current",
+  "release checklist must include actual Linux install root"
+);
+assertIncludes(
+  readText("docs/open-source-release-checklist.md"),
+  "$env:LOCALAPPDATA\\Hover Trans Port\\current",
+  "release checklist must include Windows install root"
+);
 
 const serviceWorkerText = readText("src/background/service-worker.ts");
 const alarmListenerText = extractBlock(

@@ -35,12 +35,12 @@ This checklist is for the first public source release.
 - [ ] pnpm macos:script-installer:build
 - [ ] pnpm windows:script-installer:test
 - [ ] Release uploads `install.sh`, `install.ps1`, `install-windows-native-host.ps1`, `install-macos-native-host.sh`, `checksums.txt`, and architecture-specific helper files as individual assets so `curl .../latest/download/install.sh | bash` and `irm .../latest/download/install.ps1 | iex` work.
-- [ ] Release also includes `hover-trans-port-native-host-macos-0.2.14.tar.gz` for macOS inspect-first/offline installation.
+- [ ] Release also includes `hover-trans-port-native-host-macos-0.2.14.tar.gz`, `hover-trans-port-native-host-linux-0.2.14.tar.gz`, and `hover-trans-port-native-host-windows-0.2.14.zip` for inspect-first/offline installation.
 - [ ] pnpm native:uninstall
 - [ ] Reload the extension and confirm `Check Native Host` returns `Native Host is not installed or not reachable.`
 - [ ] pnpm build
 - [ ] pnpm native:install
-- [ ] Script installer `install` creates the platform install root: `~/Library/Application Support/Hover Trans Port/current`, `~/.local/share/Hover Trans Port/current`, or `%LOCALAPPDATA%\Hover Trans Port\current`.
+- [ ] Script installer `install` creates the platform install root: `~/Library/Application Support/Hover Trans Port/current`, `~/.local/share/hover-trans-port/current`, or `$env:LOCALAPPDATA\Hover Trans Port\current`.
 - [ ] Script installer `status` reports installed native host version.
 - [ ] Script installer `update` switches `current` to the new version and keeps the previous version directory.
 - [ ] Script installer `uninstall` removes the Chrome manifest and install root.
@@ -48,7 +48,7 @@ This checklist is for the first public source release.
 - [ ] Options Diagnostics / Check Native Host succeeds
 - [ ] Options Diagnostics / Check Native Host shows host version, bridge version, and protocol version.
 - [ ] Native Host update-required state blocks translation before provider execution when protocol is too old.
-- [ ] `~/Library/Application Support/HoverTransPort/current` points at the expected versioned host directory after install.
+- [ ] `~/Library/Application Support/Hover Trans Port/current` points at the expected versioned host directory after macOS install.
 - [ ] Options Translation Provider / Check Provider succeeds
 - [ ] Selection translation succeeds
 - [ ] Hover block translation succeeds

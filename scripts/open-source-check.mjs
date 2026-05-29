@@ -177,7 +177,22 @@ assertIncludes(
 );
 
 const nativeHostInstall = read("docs/native-host-install.md");
-assertIncludes(nativeHostInstall, "current macOS install path", "docs/native-host-install.md");
+assertIncludes(nativeHostInstall, "current native host install paths", "docs/native-host-install.md");
+assertIncludes(
+  nativeHostInstall,
+  "~/Library/Application Support/Hover Trans Port",
+  "docs/native-host-install.md"
+);
+assertIncludes(
+  nativeHostInstall,
+  "~/.local/share/hover-trans-port",
+  "docs/native-host-install.md"
+);
+assertIncludes(
+  nativeHostInstall,
+  "$env:LOCALAPPDATA\\Hover Trans Port",
+  "docs/native-host-install.md"
+);
 assertIncludes(nativeHostInstall, "pnpm native:install", "docs/native-host-install.md");
 assertIncludes(nativeHostInstall, "pnpm native:uninstall", "docs/native-host-install.md");
 assertIncludes(nativeHostInstall, "Target language", "docs/native-host-install.md");
@@ -255,6 +270,35 @@ assertIncludes(
   nativeHostInstall,
   "The extension does not silently replace the native helper",
   "docs/native-host-install.md"
+);
+
+const releaseChecklist = read("docs/open-source-release-checklist.md");
+assertIncludes(releaseChecklist, "install.sh", "docs/open-source-release-checklist.md");
+assertIncludes(releaseChecklist, "install.ps1", "docs/open-source-release-checklist.md");
+assertIncludes(
+  releaseChecklist,
+  "hover-trans-port-native-host-linux-0.2.14.tar.gz",
+  "docs/open-source-release-checklist.md"
+);
+assertIncludes(
+  releaseChecklist,
+  "hover-trans-port-native-host-windows-0.2.14.zip",
+  "docs/open-source-release-checklist.md"
+);
+assertIncludes(
+  releaseChecklist,
+  "~/Library/Application Support/Hover Trans Port/current",
+  "docs/open-source-release-checklist.md"
+);
+assertIncludes(
+  releaseChecklist,
+  "~/.local/share/hover-trans-port/current",
+  "docs/open-source-release-checklist.md"
+);
+assertIncludes(
+  releaseChecklist,
+  "$env:LOCALAPPDATA\\Hover Trans Port\\current",
+  "docs/open-source-release-checklist.md"
 );
 
 const optionsHtml = read("src/options.html");

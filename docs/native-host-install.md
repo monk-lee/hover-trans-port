@@ -92,7 +92,7 @@ Useful Windows PowerShell commands:
 
 The installer writes the helper to `~/Library/Application Support/Hover Trans Port/native-hosts/<version>/`, updates `current`, writes the stable launcher, and registers Chrome's Native Messaging manifest.
 
-On Linux, the installer writes the helper under `~/.local/share/Hover Trans Port/native-hosts/<version>/`. On Windows, the installer writes under `%LOCALAPPDATA%\Hover Trans Port\native-hosts\<version>` and registers Chrome's Native Messaging host in the current user's registry hive.
+On Linux, the installer writes the helper under `~/.local/share/hover-trans-port/native-hosts/<version>/`. On Windows, the installer writes under `$env:LOCALAPPDATA\Hover Trans Port\native-hosts\<version>` and registers Chrome's Native Messaging host in the current user's registry hive.
 
 Codex CLI, Claude CLI, Gemini CLI, OpenCode CLI, and Antigravity CLI are separate prerequisites. The installer does not store provider credentials, API keys, or browser session data.
 
