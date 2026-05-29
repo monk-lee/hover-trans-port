@@ -1,4 +1,4 @@
-import { resolve } from "node:path";
+import { resolve, win32 } from "node:path";
 
 export const NATIVE_HOST_NAME = "com.monklabs.hover_trans_port";
 
@@ -42,6 +42,11 @@ export function normalizeBrowserSelection(rawValue) {
     .split(",")
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);
+
+  if (selected.length === 0) {
+    throw new Error("No browser targets selected.");
+  }
+
   const unsupported = selected.filter(
     (value) => !BROWSER_TARGET_IDS.includes(value)
   );
@@ -93,12 +98,7 @@ function createTarget(platform, homeDir, id) {
       label: BROWSER_LABELS[id],
       kind: "windows-registry",
       support: SUPPORT[id],
-      manifestDir: resolve(
-        "%LOCALAPPDATA%",
-        "Hover Trans Port",
-        "NativeMessagingHosts",
-        id
-      ),
+      manifestDir: windowsManifestDir(homeDir, id),
       registryKey: windowsRegistryKey(id)
     };
   }
@@ -174,6 +174,17 @@ function linuxManifestDir(homeDir, id) {
     vivaldi: [".config", "vivaldi", "NativeMessagingHosts"]
   };
   return resolve(homeDir, ...roots[id]);
+}
+
+function windowsManifestDir(homeDir, id) {
+  return win32.resolve(
+    homeDir,
+    "AppData",
+    "Local",
+    "Hover Trans Port",
+    "NativeMessagingHosts",
+    id
+  );
 }
 
 function windowsRegistryKey(id) {
