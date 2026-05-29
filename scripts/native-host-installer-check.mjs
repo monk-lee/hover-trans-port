@@ -175,6 +175,14 @@ function assertNot(condition, message) {
   assert(!condition, message);
 }
 
+function assertBefore(source, before, after, message) {
+  const beforeIndex = source.indexOf(before);
+  const afterIndex = source.indexOf(after);
+  assert(beforeIndex !== -1, `${message}: missing ${before}`);
+  assert(afterIndex !== -1, `${message}: missing ${after}`);
+  assert(beforeIndex < afterIndex, message);
+}
+
 function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
@@ -278,6 +286,53 @@ assertNot(
   powershellInstaller.includes('-File "%~dp0install.ps1" update %*'),
   "PowerShell updater cmd should not prepend a duplicate update command"
 );
+
+for (const [flag, variable] of [
+  ["--host-version", "$script:HostVersion"],
+  ["--release-tag", "$script:ReleaseTag"],
+  ["--helper-source", "$script:HelperSource"],
+  ["--skip-checksum", "$script:SkipChecksum"],
+  ["--json", "$script:Json"]
+]) {
+  assert(
+    powershellInstaller.includes(`"${flag}"`),
+    `PowerShell installer should recognize Unix-style ${flag}`
+  );
+  assert(
+    powershellInstaller.includes(variable),
+    `PowerShell installer should normalize Unix-style ${flag} into ${variable}`
+  );
+}
+assert(
+  powershellInstaller.includes('[Parameter(ValueFromRemainingArguments = $true)]'),
+  "PowerShell installer should capture remaining Unix-style updater args"
+);
+assert(
+  powershellInstaller.includes("[string[]]$UnixStyleArgs"),
+  "PowerShell installer should store remaining Unix-style updater args"
+);
+assert(
+  powershellInstaller.includes("function Normalize-UnixStyleArgs"),
+  "PowerShell installer should have an explicit Unix-style argument normalizer"
+);
+assert(
+  powershellInstaller.includes("Normalize-UnixStyleArgs $UnixStyleArgs"),
+  "PowerShell installer should run Unix-style argument normalization"
+);
+assertBefore(
+  powershellInstaller,
+  "Normalize-UnixStyleArgs $UnixStyleArgs",
+  '$VersionDir = Join-Path $NativeHostsRoot $HostVersion',
+  "PowerShell installer should normalize HostVersion before deriving versioned paths"
+);
+assert(
+  powershellInstaller.includes('[Alias("--host-version", "-host-version", "host-version")]') &&
+    powershellInstaller.includes('[Alias("--release-tag", "-release-tag", "release-tag")]') &&
+    powershellInstaller.includes('[Alias("--helper-source", "-helper-source", "helper-source")]') &&
+    powershellInstaller.includes('[Alias("--skip-checksum", "-skip-checksum", "skip-checksum")]') &&
+    powershellInstaller.includes('[Alias("--json", "-json", "json")]'),
+  "PowerShell installer should expose Unix-style aliases for updater flags"
+);
 assert(
   powershellInstaller.includes('Join-Path $InstallRoot "NativeMessagingHosts"'),
   "PowerShell installer should write manifests under the install-root NativeMessagingHosts directory"
@@ -310,8 +365,24 @@ for (const view of getWindowsRegistryViews()) {
 }
 
 assert(
-  powershellInstaller.includes('$AllTargets = @($BrowserTargets | ForEach-Object'),
+  powershellInstaller.includes('$targets = @($KnownTargets | ForEach-Object'),
   "PowerShell installer should build an all-target list for shared uninstall cleanup"
+);
+assert(
+  powershellInstaller.includes("function Get-UninstallTargets"),
+  "PowerShell installer should build uninstall targets explicitly"
+);
+assert(
+  powershellInstaller.includes("Get-DedupedRegistryTargets"),
+  "PowerShell installer should dedupe uninstall targets by registry key"
+);
+assert(
+  powershellInstaller.includes('RegistryKey = $CustomRegistryKey'),
+  "PowerShell uninstall should include an explicitly supplied custom registry key"
+);
+assert(
+  powershellInstaller.includes('$AllTargets = @(Get-UninstallTargets $BrowserTargets $RegistryKey)'),
+  "PowerShell uninstall should include all known targets plus any custom registry key"
 );
 assert(
   powershellInstaller.includes('if ($Command -eq "uninstall") {'),

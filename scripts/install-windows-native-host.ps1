@@ -2,14 +2,21 @@ param(
   [Parameter(Position = 0)]
   [ValidateSet("install", "update", "status", "uninstall")]
   [string]$Command = "install",
+  [Alias("--host-version", "-host-version", "host-version")]
   [string]$HostVersion = "0.2.14",
+  [Alias("--release-tag", "-release-tag", "release-tag")]
   [string]$ReleaseTag = "latest",
+  [Alias("--helper-source", "-helper-source", "helper-source")]
   [string]$HelperSource = "",
+  [Alias("--skip-checksum", "-skip-checksum", "skip-checksum")]
   [switch]$SkipChecksum,
+  [Alias("--json", "-json", "json")]
   [switch]$Json,
   [string]$ExtensionId = "mmbmjpmhmlkjknhcigafgplahdbicabe",
   [string]$Browser = "all",
-  [string]$RegistryKey = ""
+  [string]$RegistryKey = "",
+  [Parameter(ValueFromRemainingArguments = $true)]
+  [string[]]$UnixStyleArgs
 )
 
 $ErrorActionPreference = "Stop"
@@ -21,6 +28,68 @@ if (-not (Test-Path variable:IsWindows)) {
 if (-not $IsWindows) {
   throw "HoverTransPort install.ps1 is supported only from PowerShell on Windows."
 }
+
+function Normalize-UnixStyleArgs {
+  param([string[]]$ArgsToNormalize)
+
+  $index = 0
+  while ($index -lt $ArgsToNormalize.Count) {
+    $arg = $ArgsToNormalize[$index]
+
+    switch ($arg) {
+      "install" {
+        $script:Command = "install"
+        $index += 1
+      }
+      "update" {
+        $script:Command = "update"
+        $index += 1
+      }
+      "status" {
+        $script:Command = "status"
+        $index += 1
+      }
+      "uninstall" {
+        $script:Command = "uninstall"
+        $index += 1
+      }
+      "--host-version" {
+        if ($index + 1 -ge $ArgsToNormalize.Count) {
+          throw "install.ps1: --host-version requires a value"
+        }
+        $script:HostVersion = $ArgsToNormalize[$index + 1]
+        $index += 2
+      }
+      "--release-tag" {
+        if ($index + 1 -ge $ArgsToNormalize.Count) {
+          throw "install.ps1: --release-tag requires a value"
+        }
+        $script:ReleaseTag = $ArgsToNormalize[$index + 1]
+        $index += 2
+      }
+      "--helper-source" {
+        if ($index + 1 -ge $ArgsToNormalize.Count) {
+          throw "install.ps1: --helper-source requires a value"
+        }
+        $script:HelperSource = $ArgsToNormalize[$index + 1]
+        $index += 2
+      }
+      "--skip-checksum" {
+        $script:SkipChecksum = $true
+        $index += 1
+      }
+      "--json" {
+        $script:Json = $true
+        $index += 1
+      }
+      default {
+        throw "install.ps1: unknown argument: $arg"
+      }
+    }
+  }
+}
+
+Normalize-UnixStyleArgs $UnixStyleArgs
 
 $HostName = "com.monklabs.hover_trans_port"
 $AppDirName = "Hover Trans Port"
@@ -504,12 +573,53 @@ function Uninstall-Host {
   Write-Output "uninstalled native host"
 }
 
-$AllTargets = @($BrowserTargets | ForEach-Object {
-  @{
-    Id = $_["Id"]
-    RegistryKey = $_["RegistryKey"]
+function Get-DedupedRegistryTargets {
+  param([array]$Targets)
+
+  $seen = @{}
+  $deduped = @()
+  foreach ($target in $Targets) {
+    $registryPath = $target["RegistryKey"]
+    if ([string]::IsNullOrWhiteSpace($registryPath)) {
+      continue
+    }
+
+    $dedupeKey = $registryPath.ToLowerInvariant()
+    if ($seen.ContainsKey($dedupeKey)) {
+      continue
+    }
+
+    $seen[$dedupeKey] = $true
+    $deduped += $target
   }
-})
+
+  return $deduped
+}
+
+function Get-UninstallTargets {
+  param(
+    [array]$KnownTargets,
+    [string]$CustomRegistryKey
+  )
+
+  $targets = @($KnownTargets | ForEach-Object {
+    @{
+      Id = $_["Id"]
+      RegistryKey = $_["RegistryKey"]
+    }
+  })
+
+  if (-not [string]::IsNullOrWhiteSpace($CustomRegistryKey)) {
+    $targets += @{
+      Id = "custom"
+      RegistryKey = $CustomRegistryKey
+    }
+  }
+
+  return @(Get-DedupedRegistryTargets $targets)
+}
+
+$AllTargets = @(Get-UninstallTargets $BrowserTargets $RegistryKey)
 
 if ($Command -eq "uninstall") {
   Uninstall-Host $AllTargets
