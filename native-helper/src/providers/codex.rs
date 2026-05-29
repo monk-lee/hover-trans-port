@@ -8,8 +8,8 @@ use crate::messages::{ProviderId, ProviderStatusEntry};
 use crate::process::{run_process, ProcessRequest, ProviderError};
 use crate::prompt::build_translate_prompt;
 use crate::providers::{
-    Provider, ProviderModelCatalog, ProviderModelOption, ProviderTranslateRequest,
-    ProviderTranslateResult,
+    binary_discovery, Provider, ProviderModelCatalog, ProviderModelOption,
+    ProviderTranslateRequest, ProviderTranslateResult,
 };
 
 const DEFAULT_CODEX_MODEL: &str = "gpt-5.4-mini";
@@ -27,7 +27,7 @@ impl CodexProvider {
     }
 
     fn find_binary(&self) -> Option<PathBuf> {
-        find_codex_binary(&self.env)
+        binary_discovery::find_provider_binary(&self.env, "HOVER_TRANS_PORT_CODEX_PATH", "codex")
     }
 }
 
@@ -290,50 +290,6 @@ pub fn build_codex_exec_args(model: &str, temp_dir: &Path, output_file: &Path) -
         output_file.display().to_string(),
         "-".to_string(),
     ]
-}
-
-fn find_codex_binary(env: &BTreeMap<String, String>) -> Option<PathBuf> {
-    if let Some(path) = env
-        .get("HOVER_TRANS_PORT_CODEX_PATH")
-        .filter(|value| !value.trim().is_empty())
-    {
-        let candidate = PathBuf::from(path);
-        return is_executable(&candidate).then_some(candidate);
-    }
-
-    let mut candidates = Vec::new();
-    if let Some(path) = env.get("PATH") {
-        candidates.extend(
-            path.split(':')
-                .filter(|value| !value.is_empty())
-                .map(|dir| Path::new(dir).join("codex")),
-        );
-    }
-    candidates.push(PathBuf::from("/opt/homebrew/bin/codex"));
-    candidates.push(PathBuf::from("/usr/local/bin/codex"));
-    candidates.push(PathBuf::from("/usr/bin/codex"));
-
-    candidates
-        .into_iter()
-        .find(|candidate| is_executable(candidate))
-}
-
-fn is_executable(path: &Path) -> bool {
-    path.is_file()
-        && path
-            .metadata()
-            .map(|metadata| {
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt;
-                    metadata.permissions().mode() & 0o111 != 0
-                }
-                #[cfg(not(unix))]
-                {
-                    !metadata.permissions().readonly()
-                }
-            })
-            .unwrap_or(false)
 }
 
 fn provider_env(env: &BTreeMap<String, String>, binary: &Path) -> BTreeMap<String, String> {

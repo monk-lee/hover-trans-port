@@ -52,6 +52,73 @@ fn codex_command_builder_matches_node_provider_shape() {
 }
 
 #[test]
+fn provider_binary_discovery_finds_windows_cmd_from_path() {
+    let temp = tempfile::tempdir().unwrap();
+    let bin = temp.path().join("codex.cmd");
+    fs::write(&bin, "echo codex\r\n").unwrap();
+    make_executable(&bin);
+    let mut env = BTreeMap::new();
+    env.insert("PATH".to_string(), temp.path().display().to_string());
+    env.insert(
+        "HOVER_TRANS_PORT_TEST_OS".to_string(),
+        "windows".to_string(),
+    );
+
+    let found = hover_trans_port_helper::providers::binary_discovery::find_provider_binary(
+        &env,
+        "HOVER_TRANS_PORT_CODEX_PATH",
+        "codex",
+    );
+
+    assert_eq!(found, Some(bin));
+}
+
+#[test]
+fn provider_binary_discovery_prefers_override() {
+    let temp = tempfile::tempdir().unwrap();
+    let override_path = temp.path().join("custom-codex.exe");
+    fs::write(&override_path, "binary").unwrap();
+    make_executable(&override_path);
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CODEX_PATH".to_string(),
+        override_path.display().to_string(),
+    );
+    env.insert(
+        "HOVER_TRANS_PORT_TEST_OS".to_string(),
+        "windows".to_string(),
+    );
+
+    let found = hover_trans_port_helper::providers::binary_discovery::find_provider_binary(
+        &env,
+        "HOVER_TRANS_PORT_CODEX_PATH",
+        "codex",
+    );
+
+    assert_eq!(found, Some(override_path));
+}
+
+#[test]
+fn provider_binary_discovery_preserves_opencode_user_bin() {
+    let temp = tempfile::tempdir().unwrap();
+    let user_bin = temp.path().join(".opencode").join("bin");
+    fs::create_dir_all(&user_bin).unwrap();
+    let bin = user_bin.join("opencode");
+    fs::write(&bin, "#!/bin/sh\necho opencode\n").unwrap();
+    make_executable(&bin);
+    let mut env = BTreeMap::new();
+    env.insert("HOME".to_string(), temp.path().display().to_string());
+
+    let found = hover_trans_port_helper::providers::binary_discovery::find_provider_binary(
+        &env,
+        "HOVER_TRANS_PORT_OPENCODE_PATH",
+        "opencode",
+    );
+
+    assert_eq!(found, Some(bin));
+}
+
+#[test]
 fn codex_fake_cli_translation_returns_success_result() {
     let codex = fixture_path("codex");
     make_executable(&codex);
@@ -515,7 +582,10 @@ fn antigravity_status_reports_binary_without_executing_it() {
     assert_eq!(status.binary_path, Some(agy.display().to_string()));
     assert_eq!(status.version, None);
     assert_eq!(status.error, None);
-    assert!(!marker.exists(), "Antigravity status check should not execute agy");
+    assert!(
+        !marker.exists(),
+        "Antigravity status check should not execute agy"
+    );
 }
 
 #[test]

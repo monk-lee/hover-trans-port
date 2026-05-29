@@ -8,8 +8,8 @@ use crate::messages::{ProviderId, ProviderStatusEntry};
 use crate::process::{run_process, ProcessRequest, ProviderError};
 use crate::prompt::build_translate_prompt;
 use crate::providers::{
-    Provider, ProviderModelCatalog, ProviderModelOption, ProviderTranslateRequest,
-    ProviderTranslateResult,
+    binary_discovery, Provider, ProviderModelCatalog, ProviderModelOption,
+    ProviderTranslateRequest, ProviderTranslateResult,
 };
 
 const PROMPT_ARG: &str =
@@ -28,7 +28,7 @@ impl GeminiProvider {
     }
 
     fn find_binary(&self) -> Option<PathBuf> {
-        find_binary(&self.env, "HOVER_TRANS_PORT_GEMINI_PATH", "gemini")
+        binary_discovery::find_provider_binary(&self.env, "HOVER_TRANS_PORT_GEMINI_PATH", "gemini")
     }
 }
 
@@ -275,26 +275,6 @@ fn parse_gemini_error_message_from_value(value: &serde_json::Value) -> Option<St
     Some(error.to_string())
 }
 
-fn find_binary(
-    env: &BTreeMap<String, String>,
-    override_key: &str,
-    binary_name: &str,
-) -> Option<PathBuf> {
-    if let Some(path) = env
-        .get(override_key)
-        .filter(|value| !value.trim().is_empty())
-    {
-        let candidate = PathBuf::from(path);
-        return is_executable(&candidate).then_some(candidate);
-    }
-    env.get("PATH")
-        .into_iter()
-        .flat_map(|path| path.split(':'))
-        .filter(|value| !value.is_empty())
-        .map(|dir| Path::new(dir).join(binary_name))
-        .find(|candidate| is_executable(candidate))
-}
-
 fn provider_env(env: &BTreeMap<String, String>, binary: &Path) -> BTreeMap<String, String> {
     let mut next = BTreeMap::new();
     for key in ["HOME", "PATH", "TMPDIR", "USER", "LANG", "LC_ALL"] {
@@ -309,22 +289,4 @@ fn provider_env(env: &BTreeMap<String, String>, binary: &Path) -> BTreeMap<Strin
     next.entry("LANG".to_string())
         .or_insert_with(|| "en_US.UTF-8".to_string());
     next
-}
-
-fn is_executable(path: &Path) -> bool {
-    path.is_file()
-        && path
-            .metadata()
-            .map(|metadata| {
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt;
-                    metadata.permissions().mode() & 0o111 != 0
-                }
-                #[cfg(not(unix))]
-                {
-                    !metadata.permissions().readonly()
-                }
-            })
-            .unwrap_or(false)
 }

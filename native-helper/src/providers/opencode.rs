@@ -7,8 +7,8 @@ use crate::messages::{ProviderId, ProviderStatusEntry};
 use crate::process::{run_process, ProcessRequest, ProviderError};
 use crate::prompt::build_translate_prompt;
 use crate::providers::{
-    Provider, ProviderModelCatalog, ProviderModelOption, ProviderTranslateRequest,
-    ProviderTranslateResult,
+    binary_discovery, Provider, ProviderModelCatalog, ProviderModelOption,
+    ProviderTranslateRequest, ProviderTranslateResult,
 };
 
 const DEFAULT_STATUS_TIMEOUT_MS: u64 = 5_000;
@@ -27,7 +27,11 @@ impl OpencodeProvider {
     }
 
     fn find_binary(&self) -> Option<PathBuf> {
-        find_opencode_binary(&self.env)
+        binary_discovery::find_provider_binary(
+            &self.env,
+            "HOVER_TRANS_PORT_OPENCODE_PATH",
+            "opencode",
+        )
     }
 }
 
@@ -356,41 +360,6 @@ fn extract_content_text(value: &serde_json::Value) -> String {
     extract_text_from_opencode_value(value)
 }
 
-fn find_opencode_binary(env: &BTreeMap<String, String>) -> Option<PathBuf> {
-    if let Some(path) = env
-        .get("HOVER_TRANS_PORT_OPENCODE_PATH")
-        .filter(|value| !value.trim().is_empty())
-    {
-        let candidate = PathBuf::from(path);
-        return is_executable(&candidate).then_some(candidate);
-    }
-
-    let mut candidates = Vec::new();
-    if let Some(path) = env.get("PATH") {
-        candidates.extend(
-            path.split(':')
-                .filter(|value| !value.is_empty())
-                .map(|dir| Path::new(dir).join("opencode")),
-        );
-    }
-    if let Some(home) = env.get("HOME").filter(|value| !value.trim().is_empty()) {
-        candidates.push(
-            Path::new(home)
-                .join(".opencode")
-                .join("bin")
-                .join("opencode"),
-        );
-        candidates.push(Path::new(home).join(".local").join("bin").join("opencode"));
-    }
-    candidates.push(PathBuf::from("/opt/homebrew/bin/opencode"));
-    candidates.push(PathBuf::from("/usr/local/bin/opencode"));
-    candidates.push(PathBuf::from("/usr/bin/opencode"));
-
-    candidates
-        .into_iter()
-        .find(|candidate| is_executable(candidate))
-}
-
 fn provider_env(env: &BTreeMap<String, String>, binary: &Path) -> BTreeMap<String, String> {
     let mut next = BTreeMap::new();
     for key in [
@@ -426,22 +395,4 @@ fn provider_env(env: &BTreeMap<String, String>, binary: &Path) -> BTreeMap<Strin
 
 fn compact_version(stdout: &str) -> String {
     stdout.split_whitespace().collect::<Vec<_>>().join(" ")
-}
-
-fn is_executable(path: &Path) -> bool {
-    path.is_file()
-        && path
-            .metadata()
-            .map(|metadata| {
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt;
-                    metadata.permissions().mode() & 0o111 != 0
-                }
-                #[cfg(not(unix))]
-                {
-                    !metadata.permissions().readonly()
-                }
-            })
-            .unwrap_or(false)
 }

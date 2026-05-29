@@ -8,8 +8,8 @@ use crate::messages::{ProviderId, ProviderStatusEntry};
 use crate::process::{run_process, ProcessRequest, ProviderError};
 use crate::prompt::build_translate_prompt;
 use crate::providers::{
-    Provider, ProviderModelCatalog, ProviderModelOption, ProviderTranslateRequest,
-    ProviderTranslateResult,
+    binary_discovery, Provider, ProviderModelCatalog, ProviderModelOption,
+    ProviderTranslateRequest, ProviderTranslateResult,
 };
 
 const PRINT_TIMEOUT_GRACE_MS: u64 = 500;
@@ -25,7 +25,11 @@ impl AntigravityProvider {
     }
 
     fn find_binary(&self) -> Option<PathBuf> {
-        find_binary(&self.env, "HOVER_TRANS_PORT_ANTIGRAVITY_PATH", "agy")
+        binary_discovery::find_provider_binary(
+            &self.env,
+            "HOVER_TRANS_PORT_ANTIGRAVITY_PATH",
+            "agy",
+        )
     }
 }
 
@@ -203,39 +207,6 @@ fn resolve_antigravity_workspace(env: &BTreeMap<String, String>) -> PathBuf {
     Path::new("/tmp").join("hover-trans-port-antigravity-workspace")
 }
 
-fn find_binary(
-    env: &BTreeMap<String, String>,
-    override_key: &str,
-    binary_name: &str,
-) -> Option<PathBuf> {
-    if let Some(path) = env
-        .get(override_key)
-        .filter(|value| !value.trim().is_empty())
-    {
-        let candidate = PathBuf::from(path);
-        return is_executable(&candidate).then_some(candidate);
-    }
-
-    let mut candidates = Vec::new();
-    if let Some(path) = env.get("PATH") {
-        candidates.extend(
-            path.split(':')
-                .filter(|value| !value.is_empty())
-                .map(|dir| Path::new(dir).join(binary_name)),
-        );
-    }
-    if let Some(home) = env.get("HOME").filter(|value| !value.trim().is_empty()) {
-        candidates.push(Path::new(home).join(".local").join("bin").join(binary_name));
-    }
-    candidates.push(Path::new("/opt/homebrew/bin").join(binary_name));
-    candidates.push(Path::new("/usr/local/bin").join(binary_name));
-    candidates.push(Path::new("/usr/bin").join(binary_name));
-
-    candidates
-        .into_iter()
-        .find(|candidate| is_executable(candidate))
-}
-
 fn provider_env(env: &BTreeMap<String, String>, binary: &Path) -> BTreeMap<String, String> {
     let mut next = BTreeMap::new();
     for key in ["HOME", "PATH", "TMPDIR", "USER", "LANG", "LC_ALL"] {
@@ -250,22 +221,4 @@ fn provider_env(env: &BTreeMap<String, String>, binary: &Path) -> BTreeMap<Strin
     next.entry("LANG".to_string())
         .or_insert_with(|| "en_US.UTF-8".to_string());
     next
-}
-
-fn is_executable(path: &Path) -> bool {
-    path.is_file()
-        && path
-            .metadata()
-            .map(|metadata| {
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt;
-                    metadata.permissions().mode() & 0o111 != 0
-                }
-                #[cfg(not(unix))]
-                {
-                    !metadata.permissions().readonly()
-                }
-            })
-            .unwrap_or(false)
 }
