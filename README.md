@@ -23,10 +23,18 @@ This project is not affiliated with, endorsed by, or sponsored by OpenAI, Codex,
 
 1. Download `hover-trans-port-extension-v<version>.zip` from the [latest GitHub Release](https://github.com/monk-lee/hover-trans-port/releases/latest).
 2. Unzip it, open `chrome://extensions`, enable Developer mode, and load the unzipped folder.
-3. Install the macOS native host:
+3. Install the native host for your platform.
+
+   macOS/Linux:
 
    ```bash
-   curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh | bash
+   curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.sh | bash
+   ```
+
+   Windows PowerShell:
+
+   ```powershell
+   irm https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.ps1 | iex
    ```
 
 4. Open the extension Options page and run `Check Native Host` and `Check Provider`.
@@ -49,8 +57,8 @@ Common browser and editing shortcuts such as Ctrl+C or Ctrl+F are blocked from t
 
 | Works today | Not yet |
 | --- | --- |
-| macOS and Google Chrome | Chrome Web Store install |
-| Unpacked extension loaded from `dist/` | Windows/Linux native host guide |
+| macOS, Linux, Windows, and Google Chrome | Chrome Web Store install |
+| Unpacked extension loaded from `dist/` | Packaged browser-store distribution |
 | Codex, Claude, Gemini, OpenCode, and Antigravity CLI providers | Full-page automatic translation |
 | Hovered readable block and selection translation | PDF, iframe, OCR, or subtitle translation |
 | Inline rendering, local SQLite cache, and Options diagnostics | Hosted translation service |

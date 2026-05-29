@@ -184,6 +184,22 @@ for (const check of checks) {
   }
 }
 
+assertIncludes(
+  readText("src/shared/nativeHostUpdate.ts"),
+  "getManualNativeHostUpdateCommand",
+  "manual update command must be platform-aware"
+);
+assertIncludes(
+  readText("docs/native-host-install.md"),
+  "install.ps1",
+  "docs must include Windows PowerShell install"
+);
+assertIncludes(
+  readText("docs/native-host-install.md"),
+  "install.sh",
+  "docs must include Unix install"
+);
+
 const serviceWorkerText = readText("src/background/service-worker.ts");
 const alarmListenerText = extractBlock(
   serviceWorkerText,

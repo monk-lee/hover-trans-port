@@ -25,10 +25,18 @@ Chrome Native Messaging으로 로컬 helper를 호출하고, helper는 사용자
 
 1. [최신 GitHub Release](https://github.com/monk-lee/hover-trans-port/releases/latest)에서 `hover-trans-port-extension-v<version>.zip`을 다운로드합니다.
 2. 압축을 해제한 뒤 `chrome://extensions`에서 Developer mode를 켜고 압축 해제한 폴더를 불러옵니다.
-3. macOS native host를 설치합니다.
+3. 사용 중인 플랫폼의 native host를 설치합니다.
+
+   macOS/Linux:
 
    ```bash
-   curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh | bash
+   curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.sh | bash
+   ```
+
+   Windows PowerShell:
+
+   ```powershell
+   irm https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.ps1 | iex
    ```
 
 4. Options 페이지에서 `Check Native Host`와 `Check Provider`를 실행합니다.
@@ -51,8 +59,8 @@ Ctrl+C 또는 Ctrl+F 같은 일반 브라우저/편집 단축키는 trigger로 �
 
 | 현재 동작 | 아직 아님 |
 | --- | --- |
-| macOS와 Google Chrome | Chrome Web Store 설치 |
-| `dist/` 폴더를 직접 불러오는 unpacked extension | Windows/Linux Native Host 설치 가이드 |
+| macOS, Linux, Windows와 Google Chrome | Chrome Web Store 설치 |
+| `dist/` 폴더를 직접 불러오는 unpacked extension | browser store 배포 패키지 |
 | Codex, Claude, Gemini, OpenCode, Antigravity CLI provider | 전체 페이지 자동 번역 |
 | 마우스로 가리킨 읽기 가능한 블록과 선택 영역 번역 | PDF, iframe, OCR, 자막 번역 |
 | 원문 안에 번역 표시, 로컬 SQLite 캐시, Options 진단 | hosted translation service |

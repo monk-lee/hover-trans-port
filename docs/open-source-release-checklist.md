@@ -31,15 +31,16 @@ This checklist is for the first public source release.
 
 - [ ] pnpm install
 - [ ] pnpm verify
-- [ ] pnpm macos:script-installer:test
+- [ ] pnpm native:installer:check
 - [ ] pnpm macos:script-installer:build
-- [ ] Release uploads `install-macos-native-host.sh`, `checksums.txt`, and architecture-specific helper files as individual assets so `curl .../latest/download/install-macos-native-host.sh | bash` works.
-- [ ] Release also includes `hover-trans-port-native-host-macos-0.2.14.tar.gz` for inspect-first/offline installation.
+- [ ] pnpm windows:script-installer:test
+- [ ] Release uploads `install.sh`, `install.ps1`, `install-windows-native-host.ps1`, `install-macos-native-host.sh`, `checksums.txt`, and architecture-specific helper files as individual assets so `curl .../latest/download/install.sh | bash` and `irm .../latest/download/install.ps1 | iex` work.
+- [ ] Release also includes `hover-trans-port-native-host-macos-0.2.14.tar.gz` for macOS inspect-first/offline installation.
 - [ ] pnpm native:uninstall
 - [ ] Reload the extension and confirm `Check Native Host` returns `Native Host is not installed or not reachable.`
 - [ ] pnpm build
 - [ ] pnpm native:install
-- [ ] Script installer `install` creates `~/Library/Application Support/HoverTransPort/current`.
+- [ ] Script installer `install` creates the platform install root: `~/Library/Application Support/Hover Trans Port/current`, `~/.local/share/Hover Trans Port/current`, or `%LOCALAPPDATA%\Hover Trans Port\current`.
 - [ ] Script installer `status` reports installed native host version.
 - [ ] Script installer `update` switches `current` to the new version and keeps the previous version directory.
 - [ ] Script installer `uninstall` removes the Chrome manifest and install root.
@@ -68,7 +69,7 @@ This checklist is for the first public source release.
 
 - [ ] Confirm no secret, token, private path, or private account identifier appears in committed files.
 - [ ] Confirm `pnpm verify` passes.
-- [ ] Confirm native host install/uninstall works on maintainer macOS.
+- [ ] Confirm native host install/uninstall works on maintainer macOS, Linux, and Windows smoke environments.
 - [ ] Confirm README does not imply offline-only translation.
 - [ ] Confirm README does not imply official affiliation with OpenAI, Codex, Anthropic, Claude, Google, Gemini, OpenCode, or Antigravity.
 - [ ] Confirm privacy docs disclose that Codex CLI, Claude CLI, Gemini CLI, OpenCode CLI, and Antigravity CLI may send requested text upstream according to each CLI provider's account and policies.

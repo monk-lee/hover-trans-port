@@ -2,9 +2,11 @@
 
 HoverTransPort uses Chrome Native Messaging to connect the browser extension to a local compiled native helper. The helper calls local AI CLIs for requested translations.
 
-This guide covers the current macOS install path:
+This guide covers the current native host install paths:
 
 - macOS
+- Linux
+- Windows PowerShell
 - Google Chrome
 - Unpacked extension loaded from this repository's `dist/` folder
 - Codex CLI as the default executable provider
@@ -17,45 +19,80 @@ Chrome Web Store installation is not currently supported.
 
 ## Script Installer
 
-The macOS install path is the script installer. It installs the prebuilt native helper without Node.js, pnpm, Cargo, or Xcode.
+The script installers use prebuilt native helpers from GitHub Releases. They do not require Node.js, pnpm, Cargo, Xcode, or Visual Studio on the target machine.
 
-For a one-line install from GitHub Releases:
+For a one-line install from GitHub Releases on macOS or Linux:
 
 ```bash
-curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh | bash
+curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.sh | bash
 ```
 
-The release must include these individual assets so the curl installer can fetch the right helper for the current Mac:
+For a one-line install from GitHub Releases on Windows, run PowerShell:
 
+```powershell
+irm https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.ps1 | iex
+```
+
+The release must include these individual assets so the installer can fetch the right helper for the current platform:
+
+- `install.sh`
+- `install.ps1`
+- `install-windows-native-host.ps1`
 - `install-macos-native-host.sh`
 - `checksums.txt`
 - `hover-trans-port-helper-macos-arm64`
 - `hover-trans-port-helper-macos-x64`, when an Intel build is available
+- `hover-trans-port-helper-linux-arm64`
+- `hover-trans-port-helper-linux-x64`
+- `hover-trans-port-helper-windows-arm64.exe`
+- `hover-trans-port-helper-windows-x64.exe`
 
-The tarball form is also supported:
+User-facing docs prefer `install.sh` for macOS/Linux and `install.ps1` for Windows. The legacy current macOS install path, `install-macos-native-host.sh`, remains available as a compatibility entrypoint. `install-windows-native-host.ps1` remains available for updater and release compatibility.
+
+The macOS tarball form is also supported:
 
 ```bash
 tar -xzf hover-trans-port-native-host-macos-0.2.14.tar.gz
 cd hover-trans-port-native-host-macos-0.2.14
-bash install-macos-native-host.sh install
+bash install.sh install
 ```
 
-The safer inspect-first form is:
+The safer inspect-first form on macOS or Linux is:
 
 ```bash
-curl -fLO https://github.com/monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh
-bash install-macos-native-host.sh install
+curl -fLO https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.sh
+bash install.sh install
 ```
 
-Useful commands:
+Useful macOS/Linux commands:
 
 ```bash
-bash install-macos-native-host.sh status
-bash install-macos-native-host.sh update
-bash install-macos-native-host.sh uninstall
+bash install.sh install
+bash install.sh status
+bash install.sh update
+bash install.sh uninstall
 ```
 
-The installer writes the helper to `~/Library/Application Support/HoverTransPort/native-hosts/<version>/`, updates `current`, writes the stable launcher, and registers Chrome's Native Messaging manifest.
+The Windows PowerShell download form is:
+
+```powershell
+Invoke-WebRequest https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.ps1 -OutFile install.ps1
+.\install.ps1 status
+.\install.ps1 uninstall
+```
+
+Useful Windows PowerShell commands:
+
+```powershell
+.\install.ps1 install
+.\install.ps1 status
+.\install.ps1 update
+.\install.ps1 uninstall
+```
+
+The installer writes the helper to `~/Library/Application Support/Hover Trans Port/native-hosts/<version>/`, updates `current`, writes the stable launcher, and registers Chrome's Native Messaging manifest.
+
+On Linux, the installer writes the helper under `~/.local/share/Hover Trans Port/native-hosts/<version>/`. On Windows, the installer writes under `%LOCALAPPDATA%\Hover Trans Port\native-hosts\<version>` and registers Chrome's Native Messaging host in the current user's registry hive.
 
 Codex CLI, Claude CLI, Gemini CLI, OpenCode CLI, and Antigravity CLI are separate prerequisites. The installer does not store provider credentials, API keys, or browser session data.
 
@@ -70,7 +107,13 @@ The first update-capable native host must be installed manually because older na
 The extension also checks occasionally when it is opened or used. If it detects an older native host that cannot update itself, Popup and Options show the one-time manual update command:
 
 ```bash
-curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh | bash
+curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.sh | bash
+```
+
+On Windows PowerShell, run:
+
+```powershell
+irm https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.ps1 | iex
 ```
 
 Updates are user-confirmed. The extension does not silently replace the native helper.
@@ -142,7 +185,13 @@ Antigravity may create local workspace artifacts under `~/.hover-trans-port/anti
 From a script installer payload:
 
 ```bash
-bash install-macos-native-host.sh uninstall
+bash install.sh uninstall
+```
+
+On Windows PowerShell:
+
+```powershell
+.\install.ps1 uninstall
 ```
 
 From the repository root during development:
@@ -157,7 +206,7 @@ Reload the extension, expand `Diagnostics`, and click `Check Native Host` again.
 
 ### Native Host is not installed or not reachable
 
-Run `bash install-macos-native-host.sh install` from the release payload, then reload HoverTransPort from `chrome://extensions`. During development, run `pnpm helper:build:release` and `pnpm native:install`.
+Run `bash install.sh install` from a macOS/Linux release payload, or `.\install.ps1 install` from a Windows PowerShell release payload, then reload HoverTransPort from `chrome://extensions`. During development, run `pnpm helper:build:release` and `pnpm native:install`.
 
 ### Codex cannot be found
 
@@ -256,7 +305,7 @@ Use the Options Cache section, or remove `~/.hover-trans-port/cache.sqlite`.
 
 ## Quick Translation Test
 
-1. Install the native host with `bash install-macos-native-host.sh install` from the release payload, or run `pnpm build`, `pnpm helper:build:release`, and `pnpm native:install` during development.
+1. Install the native host with `bash install.sh install` from a macOS/Linux release payload or `.\install.ps1 install` from a Windows PowerShell release payload. During development, run `pnpm build`, `pnpm helper:build:release`, and `pnpm native:install`.
 2. Reload the unpacked extension from `dist/` in Chrome.
 3. Open Options and confirm `Check Native Host` and `Check Provider` both succeed.
 4. Open a normal page with readable text.
