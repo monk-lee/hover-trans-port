@@ -1,11 +1,21 @@
 import { strict as assert } from "node:assert";
+import { readFileSync } from "node:fs";
 import {
   BROWSER_TARGET_IDS,
+  NATIVE_HOST_NAME,
   getNativeHostBrowserTargets,
   getWindowsRegistryViews,
   normalizeBrowserSelection
 } from "./native-host-browser-targets.mjs";
 
+const browserTargetsSource = readFileSync(
+  "scripts/native-host-browser-targets.mjs",
+  "utf8"
+);
+const nativeProtocolSource = readFileSync("src/shared/nativeProtocol.ts", "utf8");
+const nativeProtocolNameMatch = nativeProtocolSource.match(
+  /export const NATIVE_HOST_NAME = "([^"]+)"/
+);
 const TARGET_CONTRACTS = {
   chrome: {
     label: "Google Chrome",
@@ -64,6 +74,18 @@ const TARGET_CONTRACTS = {
     registryKey: "HKCU\\Software\\Vivaldi\\NativeMessagingHosts\\com.monklabs.hover_trans_port"
   }
 };
+
+assert.match(
+  browserTargetsSource,
+  /import \{ posix, win32 \} from "node:path";/,
+  "target path construction must use explicit target-platform path helpers"
+);
+assert.equal(
+  browserTargetsSource.match(/return posix\.resolve\(\s*homeDir,/g)?.length,
+  2
+);
+assert.match(browserTargetsSource, /return win32\.resolve\(\s*homeDir,/);
+assert.equal(nativeProtocolNameMatch?.[1], NATIVE_HOST_NAME);
 
 assert.deepEqual(BROWSER_TARGET_IDS, [
   "chrome",

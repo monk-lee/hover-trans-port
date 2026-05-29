@@ -1,4 +1,4 @@
-import { resolve, win32 } from "node:path";
+import { posix, win32 } from "node:path";
 
 export const NATIVE_HOST_NAME = "com.monklabs.hover_trans_port";
 
@@ -155,7 +155,7 @@ function macManifestDir(homeDir, id) {
       "NativeMessagingHosts"
     ]
   };
-  return resolve(homeDir, ...roots[id]);
+  return posix.resolve(homeDir, ...roots[id]);
 }
 
 function linuxManifestDir(homeDir, id) {
@@ -173,7 +173,7 @@ function linuxManifestDir(homeDir, id) {
     atlas: [".config", "chatgpt-atlas", "NativeMessagingHosts"],
     vivaldi: [".config", "vivaldi", "NativeMessagingHosts"]
   };
-  return resolve(homeDir, ...roots[id]);
+  return posix.resolve(homeDir, ...roots[id]);
 }
 
 function windowsManifestDir(homeDir, id) {
