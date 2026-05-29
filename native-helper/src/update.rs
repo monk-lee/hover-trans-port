@@ -54,26 +54,19 @@ pub fn check_update(
     env: &BTreeMap<String, String>,
     installed_version: &str,
 ) -> Result<UpdateStatus, UpdateFailure> {
-    if platform_os(env) != "macos" {
-        return Err(UpdateFailure {
-            code: "UPDATE_UNSUPPORTED_PLATFORM",
-            message: "Native host updates are only supported on macOS.".to_string(),
-            retryable: false,
-        });
-    }
-
-    let releases = load_releases(env)?;
-
-    let required_helper_asset = required_helper_asset(env).ok_or_else(|| UpdateFailure {
+    let required_assets = required_release_assets(env).ok_or_else(|| UpdateFailure {
         code: "UPDATE_UNSUPPORTED_PLATFORM",
-        message: "Native host updates are not supported for this architecture.".to_string(),
+        message: "Native host updates are not supported for this platform or architecture."
+            .to_string(),
         retryable: false,
     })?;
+
+    let releases = load_releases(env)?;
 
     let latest = releases
         .iter()
         .filter(|release| !release.prerelease && !release.draft)
-        .filter(|release| has_required_assets(release, required_helper_asset))
+        .filter(|release| has_required_assets(release, required_assets))
         .filter_map(|release| Some((parse_version(&release.tag_name)?, release)))
         .max_by_key(|(version, _)| *version)
         .map(|(_, release)| release)
@@ -183,14 +176,7 @@ pub fn run_update(
 
     let output = run_process(ProcessRequest {
         executable: PathBuf::from(updater_path),
-        args: vec![
-            "update".to_string(),
-            "--release-tag".to_string(),
-            target_tag.to_string(),
-            "--host-version".to_string(),
-            target_version.to_string(),
-            "--json".to_string(),
-        ],
+        args: update_args(env, target_tag, target_version),
         cwd: None,
         env: env.clone(),
         stdin: String::new(),
@@ -240,24 +226,70 @@ fn platform_arch(env: &BTreeMap<String, String>) -> String {
         .unwrap_or_else(|| std::env::consts::ARCH.to_string())
 }
 
-fn required_helper_asset(env: &BTreeMap<String, String>) -> Option<&'static str> {
-    match platform_arch(env).as_str() {
-        "arm64" | "aarch64" => Some("hover-trans-port-helper-macos-arm64"),
-        "x86_64" => Some("hover-trans-port-helper-macos-x64"),
+fn required_release_assets(env: &BTreeMap<String, String>) -> Option<(&'static str, &'static str)> {
+    match (platform_os(env).as_str(), platform_arch(env).as_str()) {
+        ("macos", "arm64") | ("macos", "aarch64") => {
+            Some(("install.sh", "hover-trans-port-helper-macos-arm64"))
+        }
+        ("macos", "x86_64") => Some(("install.sh", "hover-trans-port-helper-macos-x64")),
+        ("linux", "arm64") | ("linux", "aarch64") => {
+            Some(("install.sh", "hover-trans-port-helper-linux-arm64"))
+        }
+        ("linux", "x86_64") => Some(("install.sh", "hover-trans-port-helper-linux-x64")),
+        ("windows", "x86_64") => Some(("install.ps1", "hover-trans-port-helper-windows-x64.exe")),
         _ => None,
     }
 }
 
-fn has_required_assets(release: &ReleaseEntry, helper_asset: &str) -> bool {
+fn has_required_assets(release: &ReleaseEntry, required_assets: (&str, &str)) -> bool {
+    let (installer_asset, helper_asset) = required_assets;
     let assets = release
         .assets
         .iter()
         .map(|asset| asset.name.as_str())
         .collect::<BTreeSet<_>>();
 
-    assets.contains("install-macos-native-host.sh")
+    has_required_installer_asset(&assets, installer_asset, helper_asset)
         && assets.contains("checksums.txt")
         && assets.contains(helper_asset)
+}
+
+fn has_required_installer_asset(
+    assets: &BTreeSet<&str>,
+    installer_asset: &str,
+    helper_asset: &str,
+) -> bool {
+    assets.contains(installer_asset)
+        || (installer_asset == "install.sh"
+            && helper_asset.starts_with("hover-trans-port-helper-macos-")
+            && assets.contains("install-macos-native-host.sh"))
+}
+
+fn update_args(
+    env: &BTreeMap<String, String>,
+    target_tag: &str,
+    target_version: &str,
+) -> Vec<String> {
+    if platform_os(env) == "windows" {
+        return vec![
+            "-Command".to_string(),
+            "update".to_string(),
+            "-ReleaseTag".to_string(),
+            target_tag.to_string(),
+            "-HostVersion".to_string(),
+            target_version.to_string(),
+            "-Json".to_string(),
+        ];
+    }
+
+    vec![
+        "update".to_string(),
+        "--release-tag".to_string(),
+        target_tag.to_string(),
+        "--host-version".to_string(),
+        target_version.to_string(),
+        "--json".to_string(),
+    ]
 }
 
 fn parse_version(version: &str) -> Option<(u64, u64, u64)> {
@@ -417,5 +449,86 @@ mod tests {
 
         assert_eq!(status.latest_version, "0.2.6");
         assert_eq!(status.release_url, "https://example.invalid/good");
+    }
+
+    #[test]
+    fn check_update_accepts_macos_release_install_sh_asset() {
+        let temp = tempdir().unwrap();
+        let releases_path = temp.path().join("releases.json");
+        fs::write(
+            &releases_path,
+            r#"[{"tag_name":"v0.2.15","prerelease":false,"draft":false,"html_url":"https://example.invalid/macos","assets":[{"name":"install.sh"},{"name":"checksums.txt"},{"name":"hover-trans-port-helper-macos-arm64"}]}]"#,
+        )
+        .unwrap();
+        let mut env = BTreeMap::new();
+        env.insert(
+            "HOVER_TRANS_PORT_RELEASES_JSON_PATH".to_string(),
+            releases_path.to_string_lossy().into_owned(),
+        );
+        env.insert(
+            "HOVER_TRANS_PORT_TEST_ARCH".to_string(),
+            "arm64".to_string(),
+        );
+        env.insert("HOVER_TRANS_PORT_TEST_OS".to_string(), "macos".to_string());
+
+        let status = check_update(&env, "0.2.14").unwrap();
+
+        assert_eq!(status.latest_version, "0.2.15");
+        assert!(status.update_available);
+    }
+
+    #[test]
+    fn check_update_accepts_linux_release_assets() {
+        let temp = tempdir().unwrap();
+        let releases_path = temp.path().join("releases.json");
+        fs::write(
+            &releases_path,
+            r#"[{"tag_name":"v0.2.15","prerelease":false,"draft":false,"html_url":"https://example.invalid/linux","assets":[{"name":"install.sh"},{"name":"checksums.txt"},{"name":"hover-trans-port-helper-linux-x64"}]}]"#,
+        )
+        .unwrap();
+        let mut env = BTreeMap::new();
+        env.insert(
+            "HOVER_TRANS_PORT_RELEASES_JSON_PATH".to_string(),
+            releases_path.to_string_lossy().into_owned(),
+        );
+        env.insert(
+            "HOVER_TRANS_PORT_TEST_ARCH".to_string(),
+            "x86_64".to_string(),
+        );
+        env.insert("HOVER_TRANS_PORT_TEST_OS".to_string(), "linux".to_string());
+
+        let status = check_update(&env, "0.2.14").unwrap();
+
+        assert_eq!(status.latest_version, "0.2.15");
+        assert!(status.update_available);
+    }
+
+    #[test]
+    fn check_update_accepts_windows_release_assets() {
+        let temp = tempdir().unwrap();
+        let releases_path = temp.path().join("releases.json");
+        fs::write(
+            &releases_path,
+            r#"[{"tag_name":"v0.2.15","prerelease":false,"draft":false,"html_url":"https://example.invalid/windows","assets":[{"name":"install.ps1"},{"name":"checksums.txt"},{"name":"hover-trans-port-helper-windows-x64.exe"}]}]"#,
+        )
+        .unwrap();
+        let mut env = BTreeMap::new();
+        env.insert(
+            "HOVER_TRANS_PORT_RELEASES_JSON_PATH".to_string(),
+            releases_path.to_string_lossy().into_owned(),
+        );
+        env.insert(
+            "HOVER_TRANS_PORT_TEST_ARCH".to_string(),
+            "x86_64".to_string(),
+        );
+        env.insert(
+            "HOVER_TRANS_PORT_TEST_OS".to_string(),
+            "windows".to_string(),
+        );
+
+        let status = check_update(&env, "0.2.14").unwrap();
+
+        assert_eq!(status.latest_version, "0.2.15");
+        assert!(status.update_available);
     }
 }

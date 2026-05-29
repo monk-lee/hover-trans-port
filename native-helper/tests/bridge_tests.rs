@@ -116,7 +116,10 @@ fn provider_status_with_provider_returns_only_selected_provider() {
     assert_eq!(providers.len(), 1);
     assert_eq!(providers[0]["id"], "codex");
     assert_eq!(providers[0]["available"], true);
-    assert!(!agy_marker.exists(), "unselected Antigravity provider should not run");
+    assert!(
+        !agy_marker.exists(),
+        "unselected Antigravity provider should not run"
+    );
 }
 
 #[test]
@@ -423,6 +426,66 @@ fn native_host_update_invokes_persisted_updater() {
     assert_eq!(response["ok"], true);
     assert_eq!(response["previousVersion"], "0.2.3");
     assert_eq!(response["installedVersion"], "0.2.4");
+}
+
+#[test]
+fn native_host_update_invokes_windows_updater_with_powershell_args() {
+    let temp = tempdir().unwrap();
+    let install_root = temp.path().join("Hover Trans Port");
+    let current_dir = install_root.join("native-hosts/0.2.3");
+    fs::create_dir_all(&current_dir).unwrap();
+    symlink(&current_dir, install_root.join("current")).unwrap();
+
+    let args_path = temp.path().join("updater-args");
+    let updater_path = current_dir.join("update-native-host.cmd");
+    fs::write(
+        &updater_path,
+        format!(
+            "#!/bin/sh\nprintf '%s\\n' \"$@\" > '{}'\nif [ \"$#\" -ne 7 ] || [ \"$1\" != \"-Command\" ] || [ \"$2\" != \"update\" ] || [ \"$3\" != \"-ReleaseTag\" ] || [ \"$4\" != \"v0.2.4\" ] || [ \"$5\" != \"-HostVersion\" ] || [ \"$6\" != \"0.2.4\" ] || [ \"$7\" != \"-Json\" ]; then\n  exit 64\nfi\nprintf '%s\\n' '{{\"command\":\"update\",\"ok\":true,\"previousVersion\":\"0.2.3\",\"installedVersion\":\"0.2.4\",\"helperPath\":\"C:\\\\Users\\\\example\\\\Hover Trans Port\\\\native-hosts\\\\0.2.4\\\\hover-trans-port-helper.exe\"}}'\n",
+            args_path.display()
+        ),
+    )
+    .unwrap();
+    make_executable(&updater_path);
+
+    fs::write(
+        install_root.join("current").join("metadata.json"),
+        format!(
+            "{{\"hostVersion\":\"0.2.3\",\"protocolVersion\":1,\"source\":\"powershell-script-installer\",\"updaterPath\":\"{}\"}}",
+            updater_path.display()
+        ),
+    )
+    .unwrap();
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_INSTALL_ROOT".to_string(),
+        install_root.to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "HOVER_TRANS_PORT_TEST_OS".to_string(),
+        "windows".to_string(),
+    );
+
+    let response = handle_request(
+        json!({
+            "type":"NATIVE_HOST_UPDATE",
+            "requestId":"req-update-windows",
+            "targetTag":"v0.2.4",
+            "targetVersion":"0.2.4"
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "NATIVE_HOST_UPDATE_RESULT");
+    assert_eq!(response["requestId"], "req-update-windows");
+    assert_eq!(response["ok"], true);
+    assert_eq!(response["previousVersion"], "0.2.3");
+    assert_eq!(response["installedVersion"], "0.2.4");
+    assert_eq!(
+        fs::read_to_string(args_path).unwrap(),
+        "-Command\nupdate\n-ReleaseTag\nv0.2.4\n-HostVersion\n0.2.4\n-Json\n"
+    );
 }
 
 #[test]

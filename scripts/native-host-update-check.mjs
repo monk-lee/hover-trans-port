@@ -105,6 +105,36 @@ const checks = [
     ]
   },
   {
+    path: "native-helper/src/update.rs",
+    needles: [
+      "fn required_release_assets",
+      '("macos", "arm64") | ("macos", "aarch64")',
+      '("linux", "arm64") | ("linux", "aarch64")',
+      '("linux", "x86_64")',
+      '("windows", "x86_64")',
+      '"install.sh"',
+      '"install.ps1"',
+      '"install-macos-native-host.sh"',
+      '"hover-trans-port-helper-linux-arm64"',
+      '"hover-trans-port-helper-linux-x64"',
+      '"hover-trans-port-helper-windows-x64.exe"',
+      "fn update_args",
+      '"-Command"',
+      '"-ReleaseTag"',
+      '"-HostVersion"',
+      '"-Json"',
+      '"--release-tag"',
+      '"--host-version"',
+      '"--json"'
+    ]
+  },
+  {
+    path: "native-helper/tests/bridge_tests.rs",
+    needles: [
+      "native_host_update_invokes_windows_updater_with_powershell_args"
+    ]
+  },
+  {
     path: "src/background/service-worker.ts",
     needles: [
       "chrome.alarms.create",
