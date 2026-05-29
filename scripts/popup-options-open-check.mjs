@@ -220,6 +220,47 @@ function onUnhandledRejection(reason) {
 
 process.on("unhandledRejection", onUnhandledRejection);
 
+const manualUpdateStatus = {
+  checkedAt: Date.now(),
+  nextCheckAt: Date.now() + 60 * 60 * 1000,
+  failureCount: 1,
+  lastErrorCode: "NATIVE_HOST_UPDATE_REQUIRED",
+  ok: false,
+  error: "NATIVE_HOST_UPDATE_REQUIRED",
+  message:
+    "One manual native host update is required before in-app updates are available.",
+  retryable: false,
+  manualUpdateRequired: true
+};
+
+const nativeHostUpdate = await import(
+  `${pathToFileURL(join(tempSharedDir, "nativeHostUpdate.js")).href}?shared-format`
+);
+
+assertEqual(
+  nativeHostUpdate
+    .formatNativeHostUpdateStatusForUser(manualUpdateStatus)
+    .detail.includes(
+      "curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.sh | bash"
+    ),
+  true,
+  "shared formatter defaults to Unix manual update command"
+);
+assertEqual(
+  nativeHostUpdate
+    .formatNativeHostUpdateStatusForUser(manualUpdateStatus, "Win32")
+    .detail.includes(
+      "irm https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.ps1 | iex"
+    ),
+  true,
+  "shared formatter uses Windows manual update command"
+);
+assertEqual(
+  nativeHostUpdate.getManualNativeHostUpdateCommand("Win64"),
+  "irm https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.ps1 | iex",
+  "manual update command normalizes Win64 platform"
+);
+
 async function importPopupWithStatus(status, cacheKey) {
   nativeHostUpdateStatus = status;
   currentElements = createElements();

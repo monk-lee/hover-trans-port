@@ -10,7 +10,13 @@ export const MANUAL_NATIVE_HOST_UPDATE_WINDOWS_COMMAND =
   "irm https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.ps1 | iex";
 
 export function getManualNativeHostUpdateCommand(platform?: string): string {
-  if (platform === "windows" || platform === "win32") {
+  const normalizedPlatform = platform?.toLowerCase();
+
+  if (
+    normalizedPlatform === "windows" ||
+    normalizedPlatform === "win32" ||
+    normalizedPlatform === "win64"
+  ) {
     return MANUAL_NATIVE_HOST_UPDATE_WINDOWS_COMMAND;
   }
 
@@ -94,7 +100,8 @@ export function nativeHostUpdateNeedsAttention(
 }
 
 export function formatNativeHostUpdateStatusForUser(
-  status: NativeHostUpdateStoredStatus
+  status: NativeHostUpdateStoredStatus,
+  platform?: string
 ): NativeHostUpdateUserMessage {
   if (status.ok) {
     if (status.updateAvailable) {
@@ -118,7 +125,7 @@ export function formatNativeHostUpdateStatusForUser(
   ) {
     return {
       title: "Native Host update required",
-      detail: `${status.message} Run once, then reload the extension: ${getManualNativeHostUpdateCommand()}`,
+      detail: `${status.message} Run once, then reload the extension: ${getManualNativeHostUpdateCommand(platform)}`,
       attention: true
     };
   }

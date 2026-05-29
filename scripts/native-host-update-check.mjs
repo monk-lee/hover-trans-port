@@ -189,6 +189,12 @@ assertIncludes(
   "getManualNativeHostUpdateCommand",
   "manual update command must be platform-aware"
 );
+assertMatches(
+  readText("src/shared/nativeHostUpdate.ts"),
+  /formatNativeHostUpdateStatusForUser\(\s*status: NativeHostUpdateStoredStatus,\s*platform\?: string[\s\S]*getManualNativeHostUpdateCommand\(platform\)/u,
+  "src/shared/nativeHostUpdate.ts",
+  "manual update formatter routes through platform-aware command"
+);
 assertIncludes(
   readText("docs/native-host-install.md"),
   "install.ps1",
@@ -404,10 +410,11 @@ assertIncludes(
   'id="native-host-update-next-check"',
   "Options update next check metadata"
 );
-assertIncludes(
+assertMatches(
   optionsMain,
-  "formatNativeHostUpdateStatusForUser",
-  "Options formats manual update guidance"
+  /formatNativeHostUpdateStatusForUser\(\s*status,\s*navigator\.platform\s*\)/u,
+  "src/options/main.ts",
+  "Options formats manual update guidance with browser platform"
 );
 assertIncludes(
   optionsMain,
@@ -424,10 +431,11 @@ assertIncludes(
   "formatNativeHostUpdateDateTime",
   "Options formats update timestamps"
 );
-assertIncludes(
+assertMatches(
   popupMain,
-  "formatNativeHostUpdateStatusForUser",
-  "Popup formats manual update guidance"
+  /formatNativeHostUpdateStatusForUser\(\s*updateStatus,\s*navigator\.platform\s*\)/u,
+  "src/popup/main.ts",
+  "Popup formats manual update guidance with browser platform"
 );
 assertIncludes(
   optionsMain,

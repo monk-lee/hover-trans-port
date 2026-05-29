@@ -957,7 +957,9 @@ function renderNativeHostUpdateStatus(
   const nextCheck = formatNativeHostUpdateDateTime(status.nextCheckAt);
 
   if (!status.ok) {
-    setNativeHostUpdateStatus(formatNativeHostUpdateStatusForUser(status).detail);
+    setNativeHostUpdateStatus(
+      formatNativeHostUpdateStatusForUser(status, navigator.platform).detail
+    );
     setNativeHostUpdateMeta("Unknown", "Unknown", lastChecked, nextCheck);
     setNativeHostUpdateApplyEnabled(false);
     return;
@@ -971,12 +973,16 @@ function renderNativeHostUpdateStatus(
   );
 
   if (status.updateAvailable) {
-    setNativeHostUpdateStatus(formatNativeHostUpdateStatusForUser(status).detail);
+    setNativeHostUpdateStatus(
+      formatNativeHostUpdateStatusForUser(status, navigator.platform).detail
+    );
     setNativeHostUpdateApplyEnabled(true);
     return;
   }
 
-  setNativeHostUpdateStatus(formatNativeHostUpdateStatusForUser(status).detail);
+  setNativeHostUpdateStatus(
+    formatNativeHostUpdateStatusForUser(status, navigator.platform).detail
+  );
   setNativeHostUpdateApplyEnabled(false);
 }
 
