@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
   NATIVE_HOST_NAME,
@@ -15,6 +15,7 @@ import {
   getNativeHostManifestPath,
   getRepoNativeHostScriptPath
 } from "./native-host-paths.mjs";
+import { getNativeHostBrowserTargets } from "./native-host-browser-targets.mjs";
 import { renderNativeHostLauncher } from "./native-host-launcher.mjs";
 
 const installRoot = mkdtempSync(join(tmpdir(), "hover-trans-port-install-"));
@@ -32,6 +33,12 @@ const releaseAssetBuilder = readFileSync(
   "scripts/build-macos-script-installer-release.sh",
   "utf8"
 );
+
+function expectedManifestPaths(platform) {
+  return getNativeHostBrowserTargets(platform, homedir()).map((target) =>
+    resolve(target.manifestDir, `${NATIVE_HOST_NAME}.json`)
+  );
+}
 
 try {
   const env = {
@@ -87,22 +94,28 @@ try {
     true
   );
   assert.equal(
+    getNativeHostInstallRoot("linux", {}),
+    resolve(homedir(), ".local/share/hover-trans-port")
+  );
+  assert.equal(
+    getChromeNativeHostsDir("linux").endsWith(
+      ".config/google-chrome/NativeMessagingHosts"
+    ),
+    true
+  );
+  assert.equal(
     getNativeHostManifestPath("darwin").endsWith(
       "NativeMessagingHosts/com.monklabs.hover_trans_port.json"
     ),
     true
   );
   assert.deepEqual(
-    getBrowserNativeHostManifestPaths("darwin").map((path) =>
-      path
-        .replace(`${process.env.HOME}/`, "")
-        .replaceAll("\\", "/")
-    ),
-    [
-      "Library/Application Support/Google/Chrome/NativeMessagingHosts/com.monklabs.hover_trans_port.json",
-      "Library/Application Support/Naver/Whale/NativeMessagingHosts/com.monklabs.hover_trans_port.json",
-      "Library/Application Support/OpenAI/ChatGPT Atlas/NativeMessagingHosts/com.monklabs.hover_trans_port.json"
-    ]
+    getBrowserNativeHostManifestPaths("darwin"),
+    expectedManifestPaths("darwin")
+  );
+  assert.deepEqual(
+    getBrowserNativeHostManifestPaths("linux"),
+    expectedManifestPaths("linux")
   );
   assert.equal(
     getRepoNativeHostScriptPath().endsWith("native-host/host.mjs"),

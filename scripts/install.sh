@@ -35,6 +35,7 @@ Environment overrides:
   HOVER_TRANS_PORT_ATLAS_NATIVE_HOSTS_DIR
   HOVER_TRANS_PORT_VIVALDI_NATIVE_HOSTS_DIR
   HOVER_TRANS_PORT_RELEASE_BASE_URL
+  HOVER_TRANS_PORT_BUNDLED_ASSET_DIR
 USAGE
 }
 
@@ -141,7 +142,6 @@ MANIFEST_PATHS=(
   "$ATLAS_NATIVE_HOSTS_DIR/$HOST_NAME.json"
   "$VIVALDI_NATIVE_HOSTS_DIR/$HOST_NAME.json"
 )
-MANIFEST_PATH="${MANIFEST_PATHS[0]}"
 NATIVE_HOSTS_ROOT="$INSTALL_ROOT/native-hosts"
 VERSION_DIR="$NATIVE_HOSTS_ROOT/$HOST_VERSION"
 CURRENT_LINK="$INSTALL_ROOT/current"
@@ -308,7 +308,8 @@ resolve_helper_source() {
   if ! asset_name="$(detect_asset_name)"; then
     exit 1
   fi
-  bundled="$script_dir/$asset_name"
+  bundled_asset_dir="${HOVER_TRANS_PORT_BUNDLED_ASSET_DIR:-$script_dir}"
+  bundled="$bundled_asset_dir/$asset_name"
 
   if [ -x "$bundled" ]; then
     printf '%s\n' "$bundled"

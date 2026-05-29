@@ -66,6 +66,20 @@ function runInstallerJson(installerPath, args, env) {
   return JSON.parse(runWithInstaller(installerPath, args.concat("--json"), env));
 }
 
+function runInstallerViaStdinJson(installerPath, args, env) {
+  return JSON.parse(execFileSync("bash", ["-s", ...args.concat("--json")], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      ...env,
+      HOVER_TRANS_PORT_EXTENSION_ID: extensionId
+    },
+    input: readFileSync(installerPath, "utf8"),
+    encoding: "utf8",
+    stdio: ["pipe", "pipe", "pipe"]
+  }));
+}
+
 function makeFixtureHelper(root, label = "fixture") {
   const helper = join(root, `hover-trans-port-helper-${label}`);
   writeFileSync(helper, "#!/bin/sh\nprintf 'fixture helper\\n'\n");
@@ -236,11 +250,17 @@ withTempRoot("linux-unsupported-arch", (root) => {
 });
 
 withTempRoot("install", (root) => {
+  const home = join(root, "home");
   const env = makeEnv(root);
   const helper = makeFixtureHelper(root);
 
-  const output = run(["install", "--helper-source", helper], env);
-  assert(output.includes("installed native host 0.2.14"), "install output should name host version");
+  const result = runJson(["install", "--helper-source", helper], env);
+  assert(result.ok === true, "macOS json install should report ok");
+  assert(result.installedVersion === "0.2.14", "macOS install should name host version");
+  assert(
+    JSON.stringify(result.manifests) === JSON.stringify(expectedManifestPaths("darwin", home)),
+    "macOS install manifests should match native browser target contract"
+  );
 
   const installRoot = env.HOVER_TRANS_PORT_INSTALL_ROOT;
   const versionDir = join(installRoot, "native-hosts/0.2.14");
@@ -269,6 +289,10 @@ withTempRoot("install", (root) => {
   assert(metadata.updaterPath === join(versionDir, "install.sh"), "metadata should name updater path");
   assert(existsSync(metadata.updaterPath), "version directory should contain updater script");
   assert((lstatSync(metadata.updaterPath).mode & 0o111) !== 0, "updater script should be executable");
+  assert(
+    expectedManifestPaths("darwin", home).every(existsSync),
+    "macOS install should write full native browser target manifest matrix"
+  );
   assert(existsSync(launcher), "launcher should be written");
   assert((lstatSync(launcher).mode & 0o111) !== 0, "launcher should be executable");
   assert(lstatSync(current).isSymbolicLink(), "current should be a symlink");
@@ -307,6 +331,43 @@ withTempRoot("macos-wrapper", (root) => {
     result.updaterPath === join(env.HOVER_TRANS_PORT_INSTALL_ROOT, "native-hosts/0.2.14/install.sh"),
     "macOS compatibility wrapper should persist install.sh updater path"
   );
+});
+
+withTempRoot("macos-legacy-standalone-payload", (root) => {
+  const env = makeEnv(root);
+  const payloadDir = join(root, "payload");
+  const legacyInstaller = join(payloadDir, "install-macos-native-host.sh");
+  const helperBody = "#!/bin/sh\nprintf 'standalone legacy helper\\n'\n";
+  const helperAsset = join(payloadDir, currentMacosAssetName());
+
+  mkdirSync(payloadDir, { recursive: true });
+  copyFileSync(macosCompatibilityInstaller, legacyInstaller);
+  chmodSync(legacyInstaller, 0o755);
+  writeFileSync(helperAsset, helperBody, { mode: 0o755, flush: true });
+  chmodSync(helperAsset, 0o755);
+
+  const result = runInstallerJson(legacyInstaller, ["install"], env);
+
+  assert(result.ok === true, "standalone legacy macOS payload should report ok");
+  assert(result.installedVersion === "0.2.14", "standalone legacy macOS payload should install host version");
+  assert(
+    readFileSync(result.helperPath, "utf8") === helperBody,
+    "standalone legacy macOS payload should use bundled helper beside wrapper"
+  );
+});
+
+withTempRoot("macos-legacy-pipe", (root) => {
+  const env = makeEnv(root);
+  const helper = makeFixtureHelper(root, "legacy-pipe");
+
+  const result = runInstallerViaStdinJson(
+    macosCompatibilityInstaller,
+    ["install", "--helper-source", helper],
+    env
+  );
+
+  assert(result.ok === true, "pipe-style legacy macOS installer should report ok");
+  assert(result.installedVersion === "0.2.14", "pipe-style legacy macOS installer should install host version");
 });
 
 withTempRoot("json-update", (root) => {
