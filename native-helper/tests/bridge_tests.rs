@@ -434,7 +434,7 @@ fn native_host_update_invokes_windows_updater_with_powershell_args() {
     let install_root = temp.path().join("Hover Trans Port");
     let current_dir = install_root.join("native-hosts/0.2.3");
     fs::create_dir_all(&current_dir).unwrap();
-    symlink(&current_dir, install_root.join("current")).unwrap();
+    fs::write(install_root.join("current"), "0.2.3\n").unwrap();
 
     let args_path = temp.path().join("updater-args");
     let updater_path = current_dir.join("update-native-host.cmd");
@@ -449,7 +449,7 @@ fn native_host_update_invokes_windows_updater_with_powershell_args() {
     make_executable(&updater_path);
 
     fs::write(
-        install_root.join("current").join("metadata.json"),
+        current_dir.join("metadata.json"),
         format!(
             "{{\"hostVersion\":\"0.2.3\",\"protocolVersion\":1,\"source\":\"powershell-script-installer\",\"updaterPath\":\"{}\"}}",
             updater_path.display()

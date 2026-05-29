@@ -111,13 +111,26 @@ const checks = [
       '("macos", "arm64") | ("macos", "aarch64")',
       '("linux", "arm64") | ("linux", "aarch64")',
       '("linux", "x86_64")',
+      '("windows", "arm64") | ("windows", "aarch64")',
       '("windows", "x86_64")',
       '"install.sh"',
       '"install.ps1"',
+      '"install-windows-native-host.ps1"',
       '"install-macos-native-host.sh"',
       '"hover-trans-port-helper-linux-arm64"',
       '"hover-trans-port-helper-linux-x64"',
+      '"hover-trans-port-helper-windows-arm64.exe"',
       '"hover-trans-port-helper-windows-x64.exe"',
+      "fn default_curl_path",
+      '"SystemRoot"',
+      '"System32"',
+      '"curl.exe"',
+      "fn active_metadata_path",
+      '"native-hosts"',
+      "fn install_root",
+      '"LOCALAPPDATA"',
+      '".local"',
+      '"share"',
       "fn update_args",
       '"-Command"',
       '"-ReleaseTag"',
@@ -131,7 +144,8 @@ const checks = [
   {
     path: "native-helper/tests/bridge_tests.rs",
     needles: [
-      "native_host_update_invokes_windows_updater_with_powershell_args"
+      "native_host_update_invokes_windows_updater_with_powershell_args",
+      'fs::write(install_root.join("current"), "0.2.3\\n")'
     ]
   },
   {
