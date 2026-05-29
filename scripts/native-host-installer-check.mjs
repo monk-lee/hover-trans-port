@@ -26,8 +26,10 @@ const macosCompatibilityInstaller = join(
   repoRoot,
   "scripts/install-macos-native-host.sh"
 );
+const windowsInstaller = join(repoRoot, "scripts/install-windows-native-host.ps1");
 const extensionId = "mmbmjpmhmlkjknhcigafgplahdbicabe";
 const embeddedPayloadMarker = "HOVER_TRANS_PORT_INSTALL_SH_PAYLOAD";
+const powershellInstaller = readFileSync(windowsInstaller, "utf8");
 
 function extractEmbeddedInstallPayload() {
   const wrapper = readFileSync(macosCompatibilityInstaller, "utf8");
@@ -206,6 +208,34 @@ function installerTempEntries(installerTmp) {
 assert(
   extractEmbeddedInstallPayload() === readFileSync(installer, "utf8"),
   "legacy macOS wrapper embedded payload should match install.sh"
+);
+assert(
+  powershellInstaller.includes('[ValidateSet("install", "update", "status", "uninstall")]'),
+  "PowerShell installer should validate command values"
+);
+assert(
+  powershellInstaller.includes('$Command = "install"'),
+  "PowerShell installer should default to install"
+);
+assert(
+  powershellInstaller.includes("$PSCommandPath"),
+  "PowerShell installer should handle file-backed invocation"
+);
+assert(
+  powershellInstaller.includes("Invoke-WebRequest"),
+  "PowerShell installer should download release assets"
+);
+assert(
+  powershellInstaller.includes("update-native-host.cmd"),
+  "PowerShell installer should persist updater cmd shim"
+);
+assert(
+  powershellInstaller.includes("/reg:32"),
+  "PowerShell installer should register 32-bit registry view"
+);
+assert(
+  powershellInstaller.includes("/reg:64"),
+  "PowerShell installer should register 64-bit registry view"
 );
 
 withTempRoot("linux-install", (root) => {

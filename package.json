@@ -33,6 +33,8 @@
     "native:installer:check": "node scripts/native-host-installer-check.mjs",
     "macos:script-installer:test": "pnpm native:installer:check",
     "macos:script-installer:build": "bash scripts/build-macos-script-installer-release.sh",
+    "windows:script-installer:test": "pnpm native:installer:check",
+    "windows:script-installer:smoke": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/install-windows-native-host.ps1 status",
     "native:protocol-check": "node scripts/native-host-protocol-check.mjs",
     "native:compatibility-check": "node scripts/native-host-compatibility-check.mjs",
     "native:browser-targets-check": "node scripts/native-host-browser-targets-check.mjs",
