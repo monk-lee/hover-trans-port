@@ -263,7 +263,7 @@ try {
     manualUpdateElements
       .get("#status-detail")
       .textContent.includes(
-        "curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh | bash"
+        "curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.sh | bash"
       ),
     true,
     "popup shows manual update command"
