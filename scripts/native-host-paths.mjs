@@ -2,8 +2,9 @@ import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { NATIVE_HOST_NAME } from "./native-host-browser-targets.mjs";
 
-export const NATIVE_HOST_NAME = "com.monklabs.hover_trans_port";
+export { NATIVE_HOST_NAME };
 export const NATIVE_HOST_VERSION = "0.2.14";
 export const APP_SUPPORT_DIR_NAME = "Hover Trans Port";
 

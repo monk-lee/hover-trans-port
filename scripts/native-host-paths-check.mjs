@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
+  NATIVE_HOST_NAME,
   NATIVE_HOST_VERSION,
   getActiveNativeHostLinkPath,
   getBrowserNativeHostManifestPaths,
@@ -33,6 +34,7 @@ try {
     HOVER_TRANS_PORT_INSTALL_ROOT: installRoot
   };
 
+  assert.equal(NATIVE_HOST_NAME, "com.monklabs.hover_trans_port");
   assert.equal(NATIVE_HOST_VERSION, "0.2.14");
   assert.equal(manifestJson.version, packageJson.version);
   assert.match(cargoToml, new RegExp(`^version = "${packageJson.version}"`, "m"));
