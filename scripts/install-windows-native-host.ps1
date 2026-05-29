@@ -45,7 +45,6 @@ $CurrentLink = Join-Path $InstallRoot "current"
 $LauncherPath = Join-Path $InstallRoot "launcher.cmd"
 $HelperPath = Join-Path $VersionDir $HelperExecutableName
 $UpdaterPath = Join-Path $VersionDir "update-native-host.cmd"
-$PersistedInstallerPath = Join-Path $VersionDir "install.ps1"
 
 $BrowserTargets = @(
   @{
@@ -292,7 +291,7 @@ if not defined CURRENT (
   echo hover-trans-port: active native host is not installed 1>&2
   exit /b 1
 )
-set "HELPER=%CURRENT%\hover-trans-port-helper.exe"
+set "HELPER=%ROOT%native-hosts\%CURRENT%\hover-trans-port-helper.exe"
 if not exist "%HELPER%" (
   echo hover-trans-port: active native host is not installed 1>&2
   exit /b 1
@@ -308,7 +307,7 @@ function Write-UpdaterCmd {
   Set-Content -LiteralPath $Destination -Encoding ASCII -Value @"
 @echo off
 setlocal
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0install.ps1" update %*
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0install.ps1" %*
 exit /b %ERRORLEVEL%
 "@
 }
@@ -413,7 +412,7 @@ function Emit-InstallResult {
     Write-Output "manifest: $manifestPath"
   }
   Write-Output "launcher: $LauncherPath"
-  Write-Output "current: $CurrentLink -> $VersionDir"
+  Write-Output "current: $CurrentLink -> $HostVersion"
   Write-Output "updater: $UpdaterPath"
 }
 
@@ -456,7 +455,7 @@ function Install-Host {
   }
 
   New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
-  Set-Content -LiteralPath $CurrentLink -Encoding ASCII -Value $VersionDir
+  Set-Content -LiteralPath $CurrentLink -Encoding ASCII -Value $HostVersion
   Write-Launcher
   Write-Manifests $Targets
   Register-Manifests $Targets
@@ -486,7 +485,7 @@ function Status-Host {
       foreach ($manifestPath in Get-ManifestPaths $Targets) {
         Write-Output "manifest: $manifestPath"
       }
-      Write-Output "current: $CurrentLink -> $(Get-Content -LiteralPath $CurrentLink -Raw)"
+      Write-Output "current: $CurrentLink -> $installedVersion"
       return
     }
   }
@@ -505,11 +504,22 @@ function Uninstall-Host {
   Write-Output "uninstalled native host"
 }
 
+$AllTargets = @($BrowserTargets | ForEach-Object {
+  @{
+    Id = $_["Id"]
+    RegistryKey = $_["RegistryKey"]
+  }
+})
+
+if ($Command -eq "uninstall") {
+  Uninstall-Host $AllTargets
+  return
+}
+
 $SelectedTargets = @(Get-SelectedBrowserTargets $Browser $RegistryKey)
 
 switch ($Command) {
   "install" { Install-Host $SelectedTargets }
   "update" { Install-Host $SelectedTargets }
   "status" { Status-Host $SelectedTargets }
-  "uninstall" { Uninstall-Host $SelectedTargets }
 }

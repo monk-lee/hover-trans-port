@@ -16,11 +16,16 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  BROWSER_TARGET_IDS,
   NATIVE_HOST_NAME,
-  getNativeHostBrowserTargets
+  getNativeHostBrowserTargets,
+  getWindowsRegistryViews
 } from "./native-host-browser-targets.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const packageJson = JSON.parse(
+  readFileSync(join(repoRoot, "package.json"), "utf8")
+);
 const installer = join(repoRoot, "scripts/install.sh");
 const macosCompatibilityInstaller = join(
   repoRoot,
@@ -166,6 +171,10 @@ function assert(condition, message) {
   }
 }
 
+function assertNot(condition, message) {
+  assert(!condition, message);
+}
+
 function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
@@ -236,6 +245,89 @@ assert(
 assert(
   powershellInstaller.includes("/reg:64"),
   "PowerShell installer should register 64-bit registry view"
+);
+assert(
+  packageJson.version === "0.2.14",
+  "package native host fixture version should remain locked for installer checks"
+);
+assert(
+  powershellInstaller.includes(`[string]$HostVersion = "${packageJson.version}"`),
+  "PowerShell installer HostVersion default should match package version"
+);
+assert(
+  powershellInstaller.includes("Set-Content -LiteralPath $CurrentLink -Encoding ASCII -Value $HostVersion"),
+  "PowerShell installer should store only the ASCII version string in the current pointer"
+);
+assertNot(
+  powershellInstaller.includes("Set-Content -LiteralPath $CurrentLink -Encoding ASCII -Value $VersionDir"),
+  "PowerShell installer should not store full install paths in the current pointer"
+);
+assert(
+  powershellInstaller.includes('set "HELPER=%ROOT%native-hosts\\%CURRENT%\\hover-trans-port-helper.exe"'),
+  "PowerShell launcher should build helper path from root, native-hosts, and current version"
+);
+assertNot(
+  powershellInstaller.includes('set "HELPER=%CURRENT%\\hover-trans-port-helper.exe"'),
+  "PowerShell launcher should not treat current pointer content as a full path"
+);
+assert(
+  powershellInstaller.includes('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0install.ps1" %*'),
+  "PowerShell updater cmd should transparently pass arguments through"
+);
+assertNot(
+  powershellInstaller.includes('-File "%~dp0install.ps1" update %*'),
+  "PowerShell updater cmd should not prepend a duplicate update command"
+);
+assert(
+  powershellInstaller.includes('Join-Path $InstallRoot "NativeMessagingHosts"'),
+  "PowerShell installer should write manifests under the install-root NativeMessagingHosts directory"
+);
+assert(
+  powershellInstaller.includes('Join-Path $manifestDir "$HostName.json"'),
+  "PowerShell installer should write one manifest file per browser target"
+);
+
+for (const target of getNativeHostBrowserTargets("win32", "C:\\Users\\tester")) {
+  assert(
+    BROWSER_TARGET_IDS.includes(target.id),
+    `Windows browser target should be known: ${target.id}`
+  );
+  assert(
+    powershellInstaller.includes(`Id = "${target.id}"`),
+    `PowerShell installer should include ${target.id} browser target`
+  );
+  assert(
+    powershellInstaller.includes(target.registryKey.replace(NATIVE_HOST_NAME, "$HostName")),
+    `PowerShell installer should include ${target.id} registry key`
+  );
+}
+
+for (const view of getWindowsRegistryViews()) {
+  assert(
+    powershellInstaller.includes(view),
+    `PowerShell installer should include Windows registry view ${view}`
+  );
+}
+
+assert(
+  powershellInstaller.includes('$AllTargets = @($BrowserTargets | ForEach-Object'),
+  "PowerShell installer should build an all-target list for shared uninstall cleanup"
+);
+assert(
+  powershellInstaller.includes('if ($Command -eq "uninstall") {'),
+  "PowerShell uninstall should branch before selected browser parsing"
+);
+assert(
+  powershellInstaller.includes("Uninstall-Host $AllTargets"),
+  "PowerShell uninstall should unregister every known browser target"
+);
+assertNot(
+  powershellInstaller.includes('"uninstall" { Uninstall-Host $SelectedTargets }'),
+  "PowerShell uninstall should not use selected-only targets"
+);
+assertNot(
+  powershellInstaller.includes("$PersistedInstallerPath"),
+  "PowerShell installer should not carry unused persisted installer path state"
 );
 
 withTempRoot("linux-install", (root) => {
