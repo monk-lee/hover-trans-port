@@ -33,11 +33,12 @@ const SUPPORT = {
 };
 
 export function normalizeBrowserSelection(rawValue) {
-  if (!rawValue || rawValue === "all") {
+  const normalizedValue = String(rawValue ?? "").trim().toLowerCase();
+  if (!normalizedValue || normalizedValue === "all") {
     return [...BROWSER_TARGET_IDS];
   }
 
-  const selected = String(rawValue)
+  const selected = normalizedValue
     .split(",")
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);

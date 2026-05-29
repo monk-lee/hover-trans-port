@@ -18,6 +18,8 @@ assert.deepEqual(BROWSER_TARGET_IDS, [
 
 assert.deepEqual(normalizeBrowserSelection(undefined), BROWSER_TARGET_IDS);
 assert.deepEqual(normalizeBrowserSelection("all"), BROWSER_TARGET_IDS);
+assert.deepEqual(normalizeBrowserSelection("ALL"), BROWSER_TARGET_IDS);
+assert.deepEqual(normalizeBrowserSelection("   "), BROWSER_TARGET_IDS);
 assert.deepEqual(normalizeBrowserSelection("chrome,edge"), ["chrome", "edge"]);
 assert.throws(() => normalizeBrowserSelection("firefox"), /Unsupported browser target/);
 
