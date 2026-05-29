@@ -6,6 +6,7 @@ import {
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   readlinkSync,
   rmSync,
@@ -26,6 +27,20 @@ const macosCompatibilityInstaller = join(
   "scripts/install-macos-native-host.sh"
 );
 const extensionId = "mmbmjpmhmlkjknhcigafgplahdbicabe";
+const embeddedPayloadMarker = "HOVER_TRANS_PORT_INSTALL_SH_PAYLOAD";
+
+function extractEmbeddedInstallPayload() {
+  const wrapper = readFileSync(macosCompatibilityInstaller, "utf8");
+  const startMarker = `cat > "$fallback" <<'${embeddedPayloadMarker}'\n`;
+  const endMarker = `\n${embeddedPayloadMarker}\n`;
+  const start = wrapper.indexOf(startMarker);
+  const end = wrapper.indexOf(endMarker, start + startMarker.length);
+
+  assert(start !== -1, "legacy macOS wrapper should contain embedded payload start marker");
+  assert(end !== -1, "legacy macOS wrapper should contain embedded payload end marker");
+
+  return `${wrapper.slice(start + startMarker.length, end)}\n`;
+}
 
 function runWithInstaller(installerPath, args, env) {
   return execFileSync("bash", [installerPath, ...args], {
@@ -172,6 +187,27 @@ function withTempRoot(name, fn) {
   }
 }
 
+function makeInstallerTempDir(root) {
+  const installerTmp = join(root, "tmp");
+  mkdirSync(installerTmp, { recursive: true });
+  return installerTmp;
+}
+
+function installerTempEntries(installerTmp) {
+  if (!existsSync(installerTmp)) {
+    return [];
+  }
+
+  return readdirSync(installerTmp).filter((entry) =>
+    entry.startsWith("hover-trans-port-installer.")
+  );
+}
+
+assert(
+  extractEmbeddedInstallPayload() === readFileSync(installer, "utf8"),
+  "legacy macOS wrapper embedded payload should match install.sh"
+);
+
 withTempRoot("linux-install", (root) => {
   const home = join(root, "home");
   const env = {
@@ -202,6 +238,7 @@ withTempRoot("linux-install", (root) => {
 
 withTempRoot("linux-release-download", (root) => {
   const home = join(root, "home");
+  const installerTmp = makeInstallerTempDir(root);
   const helperBody = "#!/bin/sh\nprintf 'downloaded linux helper\\n'\n";
   const releaseBaseUrl = writeReleaseFixture(
     root,
@@ -214,7 +251,8 @@ withTempRoot("linux-release-download", (root) => {
     HOVER_TRANS_PORT_TEST_OS: "linux",
     HOVER_TRANS_PORT_TEST_ARCH: "x86_64",
     HOVER_TRANS_PORT_INSTALL_ROOT: join(home, ".local/share/hover-trans-port"),
-    HOVER_TRANS_PORT_RELEASE_BASE_URL: releaseBaseUrl
+    HOVER_TRANS_PORT_RELEASE_BASE_URL: releaseBaseUrl,
+    TMPDIR: installerTmp
   };
 
   const result = runJson(["install", "--release-tag", "v0.2.14"], env);
@@ -224,6 +262,10 @@ withTempRoot("linux-release-download", (root) => {
   assert(
     readFileSync(result.helperPath, "utf8") === helperBody,
     "linux release install should download the linux helper asset"
+  );
+  assert(
+    installerTempEntries(installerTmp).length === 0,
+    "linux release install should clean installer download temp dirs"
   );
 });
 
@@ -335,6 +377,7 @@ withTempRoot("macos-wrapper", (root) => {
 
 withTempRoot("macos-legacy-standalone-payload", (root) => {
   const env = makeEnv(root);
+  const installerTmp = makeInstallerTempDir(root);
   const payloadDir = join(root, "payload");
   const legacyInstaller = join(payloadDir, "install-macos-native-host.sh");
   const helperBody = "#!/bin/sh\nprintf 'standalone legacy helper\\n'\n";
@@ -346,7 +389,10 @@ withTempRoot("macos-legacy-standalone-payload", (root) => {
   writeFileSync(helperAsset, helperBody, { mode: 0o755, flush: true });
   chmodSync(helperAsset, 0o755);
 
-  const result = runInstallerJson(legacyInstaller, ["install"], env);
+  const result = runInstallerJson(legacyInstaller, ["install"], {
+    ...env,
+    TMPDIR: installerTmp
+  });
 
   assert(result.ok === true, "standalone legacy macOS payload should report ok");
   assert(result.installedVersion === "0.2.14", "standalone legacy macOS payload should install host version");
@@ -354,20 +400,32 @@ withTempRoot("macos-legacy-standalone-payload", (root) => {
     readFileSync(result.helperPath, "utf8") === helperBody,
     "standalone legacy macOS payload should use bundled helper beside wrapper"
   );
+  assert(
+    installerTempEntries(installerTmp).length === 0,
+    "standalone legacy macOS payload should clean embedded fallback temp dir"
+  );
 });
 
 withTempRoot("macos-legacy-pipe", (root) => {
   const env = makeEnv(root);
+  const installerTmp = makeInstallerTempDir(root);
   const helper = makeFixtureHelper(root, "legacy-pipe");
 
   const result = runInstallerViaStdinJson(
     macosCompatibilityInstaller,
     ["install", "--helper-source", helper],
-    env
+    {
+      ...env,
+      TMPDIR: installerTmp
+    }
   );
 
   assert(result.ok === true, "pipe-style legacy macOS installer should report ok");
   assert(result.installedVersion === "0.2.14", "pipe-style legacy macOS installer should install host version");
+  assert(
+    installerTempEntries(installerTmp).length === 0,
+    "pipe-style legacy macOS installer should clean embedded fallback temp dir"
+  );
 });
 
 withTempRoot("json-update", (root) => {
@@ -468,6 +526,7 @@ withTempRoot("persisted-updater-download", (root) => {
 });
 
 withTempRoot("status-uninstall", (root) => {
+  const home = join(root, "home");
   const env = makeEnv(root);
   const helper = makeFixtureHelper(root);
 
@@ -481,16 +540,8 @@ withTempRoot("status-uninstall", (root) => {
   run(["uninstall"], env);
   assert(!existsSync(env.HOVER_TRANS_PORT_INSTALL_ROOT), "uninstall should remove install root");
   assert(
-    !existsSync(join(env.HOVER_TRANS_PORT_CHROME_NATIVE_HOSTS_DIR, "com.monklabs.hover_trans_port.json")),
-    "uninstall should remove Chrome manifest"
-  );
-  assert(
-    !existsSync(join(env.HOVER_TRANS_PORT_WHALE_NATIVE_HOSTS_DIR, "com.monklabs.hover_trans_port.json")),
-    "uninstall should remove Whale manifest"
-  );
-  assert(
-    !existsSync(join(env.HOVER_TRANS_PORT_ATLAS_NATIVE_HOSTS_DIR, "com.monklabs.hover_trans_port.json")),
-    "uninstall should remove Atlas manifest"
+    expectedManifestPaths("darwin", home).every((manifestPath) => !existsSync(manifestPath)),
+    "uninstall should remove every macOS native browser target manifest"
   );
 });
 

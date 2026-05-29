@@ -11,6 +11,11 @@ if [ -n "$SCRIPT_SOURCE" ] && [ -f "$SCRIPT_SOURCE" ]; then
 fi
 
 tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/hover-trans-port-installer.XXXXXX")"
+cleanup_fallback() {
+  rm -rf "$tmp_dir"
+}
+trap cleanup_fallback EXIT
+
 fallback="$tmp_dir/install.sh"
 cat > "$fallback" <<'HOVER_TRANS_PORT_INSTALL_SH_PAYLOAD'
 #!/usr/bin/env bash
@@ -30,6 +35,8 @@ HELPER_SOURCE=""
 SKIP_CHECKSUM="0"
 JSON_OUTPUT="0"
 PREVIOUS_VERSION=""
+RESOLVED_HELPER_SOURCE=""
+INSTALLER_TEMP_DIRS=()
 
 usage() {
   cat <<'USAGE'
@@ -205,6 +212,17 @@ remove_if_exists() {
   fi
 }
 
+cleanup_installer_temp_dirs() {
+  for temp_dir in "${INSTALLER_TEMP_DIRS[@]:-}"; do
+    if [ -n "$temp_dir" ]; then
+      remove_if_exists "$temp_dir"
+    fi
+  done
+  INSTALLER_TEMP_DIRS=()
+}
+
+trap cleanup_installer_temp_dirs EXIT
+
 json_string() {
   value="$1"
   escaped="$(printf '%s' "$value" | sed 's/\\/\\\\/g; s/"/\\"/g')"
@@ -315,7 +333,7 @@ resolve_helper_source() {
       echo "install.sh: helper source is not executable: $HELPER_SOURCE" >&2
       exit 1
     fi
-    printf '%s\n' "$HELPER_SOURCE"
+    RESOLVED_HELPER_SOURCE="$HELPER_SOURCE"
     return 0
   fi
 
@@ -327,11 +345,12 @@ resolve_helper_source() {
   bundled="$bundled_asset_dir/$asset_name"
 
   if [ -x "$bundled" ]; then
-    printf '%s\n' "$bundled"
+    RESOLVED_HELPER_SOURCE="$bundled"
     return 0
   fi
 
   tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/hover-trans-port-installer.XXXXXX")"
+  INSTALLER_TEMP_DIRS+=("$tmp_dir")
   helper_path="$tmp_dir/$asset_name"
   checksums_path="$tmp_dir/checksums.txt"
   helper_url="$(download_url_for "$asset_name")"
@@ -351,13 +370,14 @@ resolve_helper_source() {
     ) >&2
   fi
 
-  printf '%s\n' "$helper_path"
+  RESOLVED_HELPER_SOURCE="$helper_path"
 }
 
 install_helper() {
-  if ! helper_source="$(resolve_helper_source)"; then
+  if ! resolve_helper_source; then
     exit 1
   fi
+  helper_source="$RESOLVED_HELPER_SOURCE"
   staging_dir="$VERSION_DIR.staging"
   backup_dir="$VERSION_DIR.backup"
 
@@ -366,6 +386,7 @@ install_helper() {
   mkdir -p "$staging_dir"
 
   copy_helper "$helper_source" "$staging_dir/$HELPER_EXECUTABLE_NAME"
+  cleanup_installer_temp_dirs
   clear_quarantine_if_present "$staging_dir/$HELPER_EXECUTABLE_NAME"
   updater_path="$staging_dir/install.sh"
   persist_updater_script "$updater_path"
@@ -457,4 +478,10 @@ if [ -n "$SCRIPT_DIR" ]; then
   export HOVER_TRANS_PORT_BUNDLED_ASSET_DIR="${HOVER_TRANS_PORT_BUNDLED_ASSET_DIR:-$SCRIPT_DIR}"
 fi
 
-exec "$fallback" "$@"
+set +e
+"$fallback" "$@"
+status="$?"
+set -e
+trap - EXIT
+cleanup_fallback
+exit "$status"
