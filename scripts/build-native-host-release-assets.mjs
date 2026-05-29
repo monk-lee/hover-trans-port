@@ -166,6 +166,7 @@ async function main() {
   const installerCopies = [
     ["scripts/install.sh", "install.sh", 0o755],
     ["scripts/install-windows-native-host.ps1", "install.ps1", 0o644],
+    ["scripts/install-windows-native-host.ps1", "install-windows-native-host.ps1", 0o644],
     ["scripts/install-macos-native-host.sh", "install-macos-native-host.sh", 0o755]
   ];
 
@@ -186,6 +187,7 @@ async function main() {
   const checksumFiles = [
     "install.sh",
     "install.ps1",
+    "install-windows-native-host.ps1",
     "install-macos-native-host.sh",
     ...helperAssets
   ];
