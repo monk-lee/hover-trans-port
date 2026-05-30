@@ -3,22 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 const releaseWorkflowPath = ".github/workflows/release.yml";
 const ciWorkflowPath = ".github/workflows/ci.yml";
 const releaseAssetBuilderPath = "scripts/build-native-host-release-assets.mjs";
-
-const nativeReleaseAssets = [
-  "install.sh",
-  "install.ps1",
-  "install-windows-native-host.ps1",
-  "install-macos-native-host.sh",
-  "hover-trans-port-helper-macos-arm64",
-  "hover-trans-port-helper-macos-x64",
-  "hover-trans-port-helper-linux-arm64",
-  "hover-trans-port-helper-linux-x64",
-  "hover-trans-port-helper-windows-arm64.exe",
-  "hover-trans-port-helper-windows-x64.exe",
-  "hover-trans-port-native-host-macos-0.2.14.tar.gz",
-  "hover-trans-port-native-host-linux-0.2.14.tar.gz",
-  "hover-trans-port-native-host-windows-0.2.14.zip"
-];
+const packageJsonPath = "package.json";
 
 function fail(message) {
   console.error(`release-workflow-check: ${message}`);
@@ -56,6 +41,31 @@ function readRequiredFile(filePath) {
 function requireCurrentOfficialActions(content, workflowPath) {
   requireIncludes(content, "actions/checkout@v6", `${workflowPath} checkout v6`);
   requireIncludes(content, "actions/setup-node@v6", `${workflowPath} setup-node v6`);
+}
+
+function requireReleaseWorkflowPermissions(content) {
+  requireIncludes(
+    content,
+    "permissions:\n  contents: read",
+    "read-only release workflow default permission"
+  );
+  requireNotIncludes(
+    content,
+    "permissions:\n  contents: write",
+    "top-level release workflow write permission"
+  );
+}
+
+function requireNoJobWritePermission(jobContent, jobName) {
+  requireNotIncludes(jobContent, "contents: write", `${jobName} write permission`);
+}
+
+function requirePublishWritePermission(jobContent) {
+  requireIncludes(
+    jobContent,
+    "    permissions:\n      contents: write",
+    "publish job release write permission"
+  );
 }
 
 function escapeRegExp(value) {
@@ -163,12 +173,29 @@ function extractGhReleaseAssetNames(runBlock) {
 const ciWorkflow = readRequiredFile(ciWorkflowPath);
 const releaseWorkflow = readRequiredFile(releaseWorkflowPath);
 const releaseAssetBuilder = readRequiredFile(releaseAssetBuilderPath);
+const packageJson = JSON.parse(readRequiredFile(packageJsonPath));
+const nativeHostVersion = packageJson.version;
+const nativeReleaseAssets = [
+  "install.sh",
+  "install.ps1",
+  "install-windows-native-host.ps1",
+  "install-macos-native-host.sh",
+  "hover-trans-port-helper-macos-arm64",
+  "hover-trans-port-helper-macos-x64",
+  "hover-trans-port-helper-linux-arm64",
+  "hover-trans-port-helper-linux-x64",
+  "hover-trans-port-helper-windows-arm64.exe",
+  "hover-trans-port-helper-windows-x64.exe",
+  `hover-trans-port-native-host-macos-${nativeHostVersion}.tar.gz`,
+  `hover-trans-port-native-host-linux-${nativeHostVersion}.tar.gz`,
+  `hover-trans-port-native-host-windows-${nativeHostVersion}.zip`
+];
 
 const requiredSnippets = [
   ["push:", "tag push trigger"],
   ["tags:", "tag trigger list"],
   ['- "v*"', "v* tag pattern"],
-  ["contents: write", "release write permission"],
+  ["permissions:\n  contents: read", "read-only release workflow default permission"],
   ["runs-on: macos-15", "macOS ARM64 runner"],
   ["build-extension:", "extension build job"],
   ["build-native-macos:", "macOS native host build job"],
@@ -194,9 +221,9 @@ const requiredSnippets = [
   ["hover-trans-port-helper-linux-arm64", "linux arm64 helper asset"],
   ["hover-trans-port-helper-windows-x64.exe", "windows x64 helper asset"],
   ["hover-trans-port-helper-windows-arm64.exe", "windows arm64 helper asset"],
-  ["hover-trans-port-native-host-macos-0.2.14.tar.gz", "native host tarball asset"],
-  ["hover-trans-port-native-host-linux-0.2.14.tar.gz", "linux native host tarball asset"],
-  ["hover-trans-port-native-host-windows-0.2.14.zip", "windows native host zip asset"],
+  [`hover-trans-port-native-host-macos-${nativeHostVersion}.tar.gz`, "native host tarball asset"],
+  [`hover-trans-port-native-host-linux-${nativeHostVersion}.tar.gz`, "linux native host tarball asset"],
+  [`hover-trans-port-native-host-windows-${nativeHostVersion}.zip`, "windows native host zip asset"],
   ["ubuntu-latest", "linux release runner"],
   ["windows-latest", "windows release runner"],
   ["Detects tooltip copy wrapped in inline spans", "inline tooltip release note"],
@@ -219,6 +246,7 @@ const requiredSnippets = [
 
 requireCurrentOfficialActions(ciWorkflow, ciWorkflowPath);
 requireCurrentOfficialActions(releaseWorkflow, releaseWorkflowPath);
+requireReleaseWorkflowPermissions(releaseWorkflow);
 
 for (const [snippet, description] of requiredSnippets) {
   requireIncludes(releaseWorkflow, snippet, description);
@@ -230,6 +258,16 @@ requireNotIncludes(releaseWorkflow, "Developer Preview", "developer preview rele
 requireNotIncludes(releaseWorkflow, "developer preview", "developer preview release wording");
 
 const publishJob = extractJob(releaseWorkflow, "publish");
+const buildExtensionJob = extractJob(releaseWorkflow, "build-extension");
+const buildNativeMacosJob = extractJob(releaseWorkflow, "build-native-macos");
+const buildNativeLinuxJob = extractJob(releaseWorkflow, "build-native-linux");
+const buildNativeWindowsJob = extractJob(releaseWorkflow, "build-native-windows");
+requireNoJobWritePermission(buildExtensionJob, "build-extension");
+requireNoJobWritePermission(buildNativeMacosJob, "build-native-macos");
+requireNoJobWritePermission(buildNativeLinuxJob, "build-native-linux");
+requireNoJobWritePermission(buildNativeWindowsJob, "build-native-windows");
+requirePublishWritePermission(publishJob);
+
 const publishNeeds = extractNeeds(publishJob);
 requireEqualArray(
   publishNeeds,

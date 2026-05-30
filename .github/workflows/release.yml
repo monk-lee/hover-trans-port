@@ -6,7 +6,7 @@ on:
       - "v*"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -314,6 +314,8 @@ jobs:
       - build-native-windows
     runs-on: macos-15
     timeout-minutes: 45
+    permissions:
+      contents: write
 
     env:
       GH_TOKEN: ${{ github.token }}
