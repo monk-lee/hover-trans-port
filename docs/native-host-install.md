@@ -35,8 +35,8 @@ The release must include these individual assets so the curl installer can fetch
 The tarball form is also supported:
 
 ```bash
-tar -xzf hover-trans-port-native-host-macos-0.2.14.tar.gz
-cd hover-trans-port-native-host-macos-0.2.14
+tar -xzf hover-trans-port-native-host-macos-0.2.15.tar.gz
+cd hover-trans-port-native-host-macos-0.2.15
 bash install-macos-native-host.sh install
 ```
 

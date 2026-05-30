@@ -10,9 +10,31 @@ const SEMANTIC_BLOCK_SELECTOR = [
   "h4"
 ].join(",");
 
-const FALLBACK_TAG_NAMES = new Set(["DIV", "SECTION", "ARTICLE", "SPAN"]);
+const FORM_VALUE_SELECTOR = "input, textarea, select, option";
+const EXCLUDED_SELECTOR = [
+  "script",
+  "style",
+  "noscript",
+  FORM_VALUE_SELECTOR,
+  "[data-hover-trans-port-inline]"
+].join(",");
 const INLINE_SELECTOR = "[data-hover-trans-port-inline]";
 const MAX_FALLBACK_TEXT_LENGTH = 4000;
+const TEXT_FLOW_INLINE_TAG_NAMES = new Set([
+  "A",
+  "ABBR",
+  "B",
+  "CODE",
+  "EM",
+  "I",
+  "KBD",
+  "MARK",
+  "SMALL",
+  "SPAN",
+  "STRONG",
+  "SUB",
+  "SUP"
+]);
 
 export function isElementVisible(element: Element): boolean {
   const rect = element.getBoundingClientRect();
@@ -46,11 +68,25 @@ function hasNestedSemanticBlocks(element: Element): boolean {
   return element.querySelector(SEMANTIC_BLOCK_SELECTOR) !== null;
 }
 
-function isSafeFallbackContainer(element: Element): boolean {
+function isExcludedElement(element: Element): boolean {
+  return element.matches(EXCLUDED_SELECTOR);
+}
+
+function getNormalizedElementText(element: Element): string {
+  return normalizeText(element.textContent ?? "");
+}
+
+function hasReadableTextLength(element: Element): boolean {
+  const text = getNormalizedElementText(element);
+
+  return text.length >= 2 && text.length <= MAX_FALLBACK_TEXT_LENGTH;
+}
+
+function isSafeDirectTextTarget(element: Element): boolean {
   const text = normalizeText(element.textContent ?? "");
 
   return (
-    FALLBACK_TAG_NAMES.has(element.tagName) &&
+    !isExcludedElement(element) &&
     hasDirectReadableText(element) &&
     text.length >= 2 &&
     text.length <= MAX_FALLBACK_TEXT_LENGTH &&
@@ -58,13 +94,33 @@ function isSafeFallbackContainer(element: Element): boolean {
   );
 }
 
+function shouldDeferInlineTextToAncestor(element: Element): boolean {
+  if (!TEXT_FLOW_INLINE_TAG_NAMES.has(element.tagName)) {
+    return false;
+  }
+
+  const parent = element.parentElement;
+
+  return Boolean(
+    parent &&
+      !isExcludedElement(parent) &&
+      (parent.matches(SEMANTIC_BLOCK_SELECTOR) || hasDirectReadableText(parent))
+  );
+}
+
+function isSemanticTextTarget(element: Element): boolean {
+  return (
+    element.matches(SEMANTIC_BLOCK_SELECTOR) &&
+    !isExcludedElement(element) &&
+    hasReadableTextLength(element)
+  );
+}
+
 export function findNearestTranslatableElement(
   start: Element
 ): Element | null {
-  const semantic = start.closest(SEMANTIC_BLOCK_SELECTOR);
-
-  if (semantic && isElementVisible(semantic)) {
-    return semantic;
+  if (start.closest(INLINE_SELECTOR) || start.closest(FORM_VALUE_SELECTOR)) {
+    return null;
   }
 
   let current: Element | null = start;
@@ -78,8 +134,17 @@ export function findNearestTranslatableElement(
       return null;
     }
 
-    if (isElementVisible(current) && isSafeFallbackContainer(current)) {
-      return current;
+    if (isElementVisible(current)) {
+      if (
+        !shouldDeferInlineTextToAncestor(current) &&
+        isSafeDirectTextTarget(current)
+      ) {
+        return current;
+      }
+
+      if (isSemanticTextTarget(current)) {
+        return current;
+      }
     }
 
     current = current.parentElement;
