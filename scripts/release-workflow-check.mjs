@@ -71,11 +71,24 @@ const requiredSnippets = [
   ["--latest", "latest release flag"]
 ];
 
+const requiredCiSnippets = [
+  ["pnpm macos:script-installer:build", "CI native host release asset build"],
+  [
+    "hover-trans-port-native-host-macos-0.2.15.tar.gz",
+    "CI native host tarball asset"
+  ],
+  ["shasum -a 256 -c checksums.txt", "CI checksum verification"]
+];
+
 requireCurrentOfficialActions(ciWorkflow, ciWorkflowPath);
 requireCurrentOfficialActions(releaseWorkflow, releaseWorkflowPath);
 
 for (const [snippet, description] of requiredSnippets) {
   requireIncludes(releaseWorkflow, snippet, description);
+}
+
+for (const [snippet, description] of requiredCiSnippets) {
+  requireIncludes(ciWorkflow, snippet, description);
 }
 
 requireNotIncludes(releaseWorkflow, "--prerelease", "prerelease flag");
