@@ -8,7 +8,7 @@ import {
 } from "./native-host-browser-targets.mjs";
 
 export { NATIVE_HOST_NAME };
-export const NATIVE_HOST_VERSION = "0.2.14";
+export const NATIVE_HOST_VERSION = "0.2.15";
 export const APP_SUPPORT_DIR_NAME = "Hover Trans Port";
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url));

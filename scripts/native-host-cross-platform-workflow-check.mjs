@@ -55,9 +55,9 @@ for (const [expected, description] of [
   ["arch: amd64_arm64", "Windows ARM64 toolchain arch"],
   ["actions/upload-artifact@v4", "dry-run artifact upload"],
   ["build-native-host-release-assets.mjs", "release asset builder"],
-  ["hover-trans-port-native-host-macos-0.2.14.tar.gz", "macOS inspect-first package"],
-  ["hover-trans-port-native-host-linux-0.2.14.tar.gz", "Linux inspect-first package"],
-  ["hover-trans-port-native-host-windows-0.2.14.zip", "Windows inspect-first package"]
+  ["hover-trans-port-native-host-macos-0.2.15.tar.gz", "macOS inspect-first package"],
+  ["hover-trans-port-native-host-linux-0.2.15.tar.gz", "Linux inspect-first package"],
+  ["hover-trans-port-native-host-windows-0.2.15.zip", "Windows inspect-first package"]
 ]) {
   requireIncludes(workflow, expected, description);
 }

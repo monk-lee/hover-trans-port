@@ -242,7 +242,61 @@ try {
     "tooltip target should be the visible inline text, without duplicated hidden tooltip text"
   );
 
-  console.log("translatable-element-check: tooltip detection behavior is valid.");
+  const formRow = document.createElement("div");
+  const lastNameLabel = document.createElement("label");
+  lastNameLabel.setAttribute("for", "bill_to_surname");
+  lastNameLabel.textContent = "Last Name *";
+
+  const lastNameInput = document.createElement("input");
+  lastNameInput.setAttribute("id", "bill_to_surname");
+  lastNameInput.setAttribute("name", "bill_to_surname");
+  formRow.appendChild(lastNameLabel);
+  formRow.appendChild(lastNameInput);
+  document.body.appendChild(formRow);
+
+  const labelTarget = findNearestTranslatableElement(lastNameLabel);
+
+  assert(labelTarget === lastNameLabel, "form label text should be detected");
+  assert(
+    normalizeText(labelTarget.textContent) === "Last Name *",
+    "form label target should contain only the visible label text"
+  );
+
+  assert(
+    findNearestTranslatableElement(lastNameInput) === null,
+    "form input hover should not translate the associated form row or label"
+  );
+
+  const customLabel = document.createElement("field-label");
+  customLabel.textContent = "Billing Address";
+  document.body.appendChild(customLabel);
+
+  assert(
+    findNearestTranslatableElement(customLabel) === customLabel,
+    "custom direct text elements should be detected without tag-specific allowlisting"
+  );
+
+  const actionButton = document.createElement("button");
+  actionButton.textContent = "Continue";
+  document.body.appendChild(actionButton);
+
+  assert(
+    findNearestTranslatableElement(actionButton) === actionButton,
+    "direct text controls should be detected without tag-specific allowlisting"
+  );
+
+  const paragraph = document.createElement("p");
+  const sentenceSpan = document.createElement("span");
+  sentenceSpan.textContent = "Translate the whole paragraph sentence.";
+  paragraph.appendChild(sentenceSpan);
+  document.body.appendChild(paragraph);
+
+  assert(
+    findNearestTranslatableElement(sentenceSpan) === paragraph,
+    "inline text inside a semantic block should defer to the readable ancestor"
+  );
+
+  console.log("translatable-element-check: detection behavior is valid.");
 } finally {
   rmSync(tempDir, { recursive: true, force: true });
 }

@@ -36,7 +36,7 @@ This checklist is for the first public source release.
 - [ ] pnpm macos:script-installer:build
 - [ ] pnpm windows:script-installer:test
 - [ ] Release uploads `install.sh`, `install.ps1`, `install-windows-native-host.ps1`, `install-macos-native-host.sh`, `checksums.txt`, and architecture-specific helper files as individual assets so `curl .../latest/download/install.sh | bash` and `irm .../latest/download/install.ps1 | iex` work.
-- [ ] Release also includes `hover-trans-port-native-host-macos-0.2.14.tar.gz`, `hover-trans-port-native-host-linux-0.2.14.tar.gz`, and `hover-trans-port-native-host-windows-0.2.14.zip` for inspect-first/offline installation.
+- [ ] Release also includes `hover-trans-port-native-host-macos-0.2.15.tar.gz`, `hover-trans-port-native-host-linux-0.2.15.tar.gz`, and `hover-trans-port-native-host-windows-0.2.15.zip` for inspect-first/offline installation.
 - [ ] pnpm native:uninstall
 - [ ] Reload the extension and confirm `Check Native Host` returns `Native Host is not installed or not reachable.`
 - [ ] pnpm build
@@ -59,8 +59,8 @@ This checklist is for the first public source release.
 
 ## Release
 
-- [ ] Tag v0.2.14
-- [ ] Release title: v0.2.14
+- [ ] Tag v0.2.15
+- [ ] Release title: v0.2.15
 - [ ] Release notes mention macOS + Chrome + Codex CLI, Claude CLI, Gemini CLI, OpenCode CLI, and Antigravity CLI support
 - [ ] Release notes link docs/native-host-install.md
 - [ ] Release notes link PRIVACY.md

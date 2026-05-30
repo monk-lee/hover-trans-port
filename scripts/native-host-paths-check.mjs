@@ -46,7 +46,7 @@ try {
   };
 
   assert.equal(NATIVE_HOST_NAME, "com.monklabs.hover_trans_port");
-  assert.equal(NATIVE_HOST_VERSION, "0.2.14");
+  assert.equal(NATIVE_HOST_VERSION, packageJson.version);
   assert.equal(manifestJson.version, packageJson.version);
   assert.match(cargoToml, new RegExp(`^version = "${packageJson.version}"`, "m"));
   assert.match(

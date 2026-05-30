@@ -52,8 +52,8 @@ User-facing docs prefer `install.sh` for macOS/Linux and `install.ps1` for Windo
 The macOS tarball form is also supported:
 
 ```bash
-tar -xzf hover-trans-port-native-host-macos-0.2.14.tar.gz
-cd hover-trans-port-native-host-macos-0.2.14
+tar -xzf hover-trans-port-native-host-macos-0.2.15.tar.gz
+cd hover-trans-port-native-host-macos-0.2.15
 bash install.sh install
 ```
 

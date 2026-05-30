@@ -226,9 +226,10 @@ const requiredSnippets = [
   [`hover-trans-port-native-host-windows-${nativeHostVersion}.zip`, "windows native host zip asset"],
   ["ubuntu-latest", "linux release runner"],
   ["windows-latest", "windows release runner"],
-  ["Detects tooltip copy wrapped in inline spans", "inline tooltip release note"],
-  ["Keeps tooltip translation scoped to the visible inline text", "visible tooltip text release note"],
-  ["Adds release verification for tooltip translation target detection", "tooltip target verification release note"],
+  ["Generalizes hover target detection beyond a small tag allowlist", "generalized hover target release note"],
+  ["Detects direct visible UI text such as form labels, buttons, and custom text elements", "direct UI text release note"],
+  ["Avoids treating form input values as hover translation targets", "form input exclusion release note"],
+  ["Keeps inline sentence text scoped to the readable parent block when appropriate", "inline sentence parent release note"],
   ["Native host update required:", "native host update release note"],
   ["Existing v0.2.4 installs that still report helper version v0.2.3 need one manual install command", "v0.2.4 updater bug release note"],
   ["Existing v0.2.5 and later native hosts can install future releases from Options", "update-capable host release note"],
@@ -244,12 +245,25 @@ const requiredSnippets = [
   ["--latest", "latest release flag"]
 ];
 
+const requiredCiSnippets = [
+  ["pnpm macos:script-installer:build", "CI native host release asset build"],
+  [
+    `hover-trans-port-native-host-macos-${nativeHostVersion}.tar.gz`,
+    "CI native host tarball asset"
+  ],
+  ["shasum -a 256 -c checksums.txt", "CI checksum verification"]
+];
+
 requireCurrentOfficialActions(ciWorkflow, ciWorkflowPath);
 requireCurrentOfficialActions(releaseWorkflow, releaseWorkflowPath);
 requireReleaseWorkflowPermissions(releaseWorkflow);
 
 for (const [snippet, description] of requiredSnippets) {
   requireIncludes(releaseWorkflow, snippet, description);
+}
+
+for (const [snippet, description] of requiredCiSnippets) {
+  requireIncludes(ciWorkflow, snippet, description);
 }
 
 requireNotIncludes(releaseWorkflow, "--prerelease", "prerelease flag");
