@@ -32,6 +32,7 @@ This checklist is for the first public source release.
 - [ ] pnpm install
 - [ ] pnpm verify
 - [ ] pnpm native:installer:check
+- [ ] Native Host Cross-Platform workflow passes on the release candidate branch, including macOS, Linux, and Windows installer smoke plus release asset dry-run jobs.
 - [ ] pnpm macos:script-installer:build
 - [ ] pnpm windows:script-installer:test
 - [ ] Release uploads `install.sh`, `install.ps1`, `install-windows-native-host.ps1`, `install-macos-native-host.sh`, `checksums.txt`, and architecture-specific helper files as individual assets so `curl .../latest/download/install.sh | bash` and `irm .../latest/download/install.ps1 | iex` work.
