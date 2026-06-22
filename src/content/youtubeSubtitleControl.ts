@@ -45,12 +45,15 @@ function ensureControlStyle(): void {
       box-sizing: border-box;
       color: #fff;
       display: block;
+      fill: #fff;
       height: 24px;
       left: 50%;
+      pointer-events: none;
       position: absolute;
-      stroke: #fff;
+      stroke: none;
       top: 50%;
       transform: translate(-50%, -50%);
+      visibility: visible;
       width: 24px;
     }
     .hover-trans-port-youtube-subtitle-control:hover {
@@ -261,19 +264,29 @@ function createTranslationIcon(): SVGSVGElement {
   const svg = document.createElementNS(namespace, "svg");
   svg.setAttribute("class", "hover-trans-port-youtube-subtitle-control-icon");
   svg.setAttribute("viewBox", "0 0 24 24");
-  svg.setAttribute("fill", "none");
-  svg.setAttribute("stroke", "#fff");
-  svg.setAttribute("stroke-width", "1.8");
-  svg.setAttribute("stroke-linecap", "round");
-  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("width", "24");
+  svg.setAttribute("height", "24");
+  svg.setAttribute("fill", "#fff");
+  svg.setAttribute("stroke", "none");
+  svg.setAttribute(
+    "style",
+    "box-sizing: border-box; color: #fff; display: block; fill: #fff !important; height: 24px; left: 50%; opacity: 1; pointer-events: none; position: absolute; stroke: none !important; top: 50%; transform: translate(-50%, -50%); visibility: visible; width: 24px;"
+  );
   svg.setAttribute("aria-hidden", "true");
 
   const paths = [
-    ["circle", { cx: "12", cy: "12", r: "9" }],
-    ["path", { d: "M3 12h18" }],
-    ["path", { d: "M12 3a14 14 0 0 1 0 18" }],
-    ["path", { d: "M12 3a14 14 0 0 0 0 18" }],
-    ["path", { d: "M7 17h10" }]
+    [
+      "path",
+      {
+        d: "M12 2.25a9.75 9.75 0 1 0 0 19.5 9.75 9.75 0 0 0 0-19.5Zm0 1.9a7.85 7.85 0 1 1 0 15.7 7.85 7.85 0 0 1 0-15.7Z",
+        "clip-rule": "evenodd",
+        "fill-rule": "evenodd"
+      }
+    ],
+    ["path", { d: "M4.35 11.1h15.3v1.8H4.35z" }],
+    ["path", { d: "M11.1 3.55h1.8v16.9h-1.8z" }],
+    ["path", { d: "M7.15 6.55h9.7v1.7h-9.7z" }],
+    ["path", { d: "M7.15 15.75h9.7v1.7h-9.7z" }]
   ] as const;
 
   for (const [tagName, attributes] of paths) {
@@ -283,6 +296,9 @@ function createTranslationIcon(): SVGSVGElement {
       node.setAttribute(name, value);
     }
 
+    node.setAttribute("fill", "#fff");
+    node.setAttribute("stroke", "none");
+    node.setAttribute("style", "fill: #fff !important; stroke: none !important;");
     svg.appendChild(node);
   }
 

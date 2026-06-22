@@ -315,8 +315,23 @@ try {
   assert(mountedControl.querySelector("svg"), "control should render a multilingual icon");
   const firstIcon = mountedControl.querySelector("svg");
   assert(
-    firstIcon.getAttribute("stroke") === "#fff",
-    "control icon should force a white stroke so it remains visible on YouTube controls"
+    firstIcon.getAttribute("width") === "24" &&
+      firstIcon.getAttribute("height") === "24",
+    "control icon should carry explicit SVG dimensions"
+  );
+  assert(
+    firstIcon.getAttribute("fill") === "#fff" &&
+      firstIcon.getAttribute("stroke") === "none",
+    "control icon should use a filled white shape instead of a stroke-only shape"
+  );
+  assert(
+    firstIcon.getAttribute("style").includes("display: block") &&
+      firstIcon.getAttribute("style").includes("visibility: visible"),
+    "control icon should force visible inline SVG layout"
+  );
+  assert(
+    firstIcon.querySelector("path").getAttribute("fill") === "#fff",
+    "control icon path should force a white fill so YouTube CSS cannot inherit it away"
   );
   control.setState({ status: "prompt" });
   assert(
