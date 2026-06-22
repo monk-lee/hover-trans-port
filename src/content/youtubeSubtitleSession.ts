@@ -98,8 +98,9 @@ export class YouTubeSubtitleSession {
   private current: CurrentSubtitleSource | null = null;
   private video: HTMLVideoElement | null = null;
   private refreshSequence = 0;
+  private stopped = false;
   private readonly handleVideoTimeUpdate = () => {
-    if (this.video) {
+    if (!this.stopped && this.video) {
       this.overlay.update(this.video.currentTime);
     }
   };
@@ -107,6 +108,10 @@ export class YouTubeSubtitleSession {
   constructor(private readonly deps: SessionDeps = {}) {}
 
   async refresh(): Promise<void> {
+    if (this.stopped) {
+      return;
+    }
+
     const sequence = (this.refreshSequence += 1);
     const videoId = getCurrentYouTubeVideoId();
     const controls = document.querySelector(".ytp-right-controls-left");
@@ -122,35 +127,35 @@ export class YouTubeSubtitleSession {
     this.overlay.mount(playerRoot);
     this.bindVideo(video);
 
-    const options = (await chrome.storage.local.get(
-      "hoverTransPort"
-    )) as StoredOptions;
-    const storedOptions = options.hoverTransPort;
-    const provider = normalizeProvider(storedOptions?.provider);
-    const targetLang = normalizeTargetLang(
-      storedOptions?.targetLang,
-      getBrowserTargetLang([navigator.language])
-    );
-    const model = getModelForProvider(storedOptions, provider);
-    const cacheEnabled = normalizeCacheEnabled(storedOptions?.cacheEnabled);
-    const timeoutMs = normalizeTimeoutMs(storedOptions?.timeoutMs);
-    const debugLogging = normalizeDebugLogging(storedOptions?.debugLogging);
-
-    const tracks = extractCaptionTracksFromPlayerResponse(
-      this.deps.getPlayerResponse?.() ?? readYouTubePlayerResponse()
-    );
-    const track = selectCaptionTrack({ tracks, targetLang });
-
-    if (!track) {
-      this.current = null;
-      this.control.setState({
-        status: "unavailable",
-        message: "사용 가능한 YouTube 자막이 없습니다."
-      });
-      return;
-    }
-
     try {
+      const options = (await chrome.storage.local.get(
+        "hoverTransPort"
+      )) as StoredOptions;
+      const storedOptions = options.hoverTransPort;
+      const provider = normalizeProvider(storedOptions?.provider);
+      const targetLang = normalizeTargetLang(
+        storedOptions?.targetLang,
+        getBrowserTargetLang([navigator.language])
+      );
+      const model = getModelForProvider(storedOptions, provider);
+      const cacheEnabled = normalizeCacheEnabled(storedOptions?.cacheEnabled);
+      const timeoutMs = normalizeTimeoutMs(storedOptions?.timeoutMs);
+      const debugLogging = normalizeDebugLogging(storedOptions?.debugLogging);
+
+      const tracks = extractCaptionTracksFromPlayerResponse(
+        this.deps.getPlayerResponse?.() ?? readYouTubePlayerResponse()
+      );
+      const track = selectCaptionTrack({ tracks, targetLang });
+
+      if (!track) {
+        this.current = null;
+        this.control.setState({
+          status: "unavailable",
+          message: "사용 가능한 YouTube 자막이 없습니다."
+        });
+        return;
+      }
+
       const cues = await (this.deps.fetchTranscript ?? fetchYouTubeTranscript)(
         track
       );
@@ -201,7 +206,12 @@ export class YouTubeSubtitleSession {
           ? { status: "disabled" }
           : { status: "prompt" }
       );
-    } catch {
+    } catch (error) {
+      if (isExtensionContextInvalidated(error)) {
+        this.stop();
+        return;
+      }
+
       if (sequence === this.refreshSequence) {
         this.current = null;
         this.control.setState({
@@ -213,7 +223,7 @@ export class YouTubeSubtitleSession {
   }
 
   async acceptTranslation(): Promise<void> {
-    if (!this.current) {
+    if (this.stopped || !this.current) {
       return;
     }
 
@@ -223,24 +233,39 @@ export class YouTubeSubtitleSession {
     this.control.setState({ status: "loading", message: "번역 중..." });
 
     const requestId = createRequestId();
-    const response = await chrome.runtime.sendMessage<
-      SubtitleTrackTranslationRequest,
-      SubtitleTranslationResultResponse
-    >({
-      type: "TRANSLATE_SUBTITLE_TRACK",
-      requestId,
-      videoId: this.current.videoId,
-      sourceTrackIdentity: this.current.sourceTrackIdentity,
-      sourceTimelineHash: this.current.sourceTimelineHash,
-      targetLang: this.current.targetLang,
-      provider: this.current.provider,
-      model: this.current.model,
-      promptVersion: SUBTITLE_TRANSLATION_PROMPT_VERSION,
-      cues: this.current.cues,
-      timeoutMs: this.current.timeoutMs,
-      cacheEnabled: this.current.cacheEnabled,
-      debugLogging: this.current.debugLogging
-    });
+    let response: SubtitleTranslationResultResponse;
+
+    try {
+      response = await chrome.runtime.sendMessage<
+        SubtitleTrackTranslationRequest,
+        SubtitleTranslationResultResponse
+      >({
+        type: "TRANSLATE_SUBTITLE_TRACK",
+        requestId,
+        videoId: this.current.videoId,
+        sourceTrackIdentity: this.current.sourceTrackIdentity,
+        sourceTimelineHash: this.current.sourceTimelineHash,
+        targetLang: this.current.targetLang,
+        provider: this.current.provider,
+        model: this.current.model,
+        promptVersion: SUBTITLE_TRANSLATION_PROMPT_VERSION,
+        cues: this.current.cues,
+        timeoutMs: this.current.timeoutMs,
+        cacheEnabled: this.current.cacheEnabled,
+        debugLogging: this.current.debugLogging
+      });
+    } catch (error) {
+      if (isExtensionContextInvalidated(error)) {
+        this.stop();
+        return;
+      }
+
+      this.control.setState({
+        status: "error",
+        message: "자막 번역에 실패했습니다."
+      });
+      return;
+    }
 
     if (response.type === "SUBTITLE_TRANSLATION_RESULT" && response.ok) {
       this.activate(response.cues);
@@ -279,6 +304,10 @@ export class YouTubeSubtitleSession {
   }
 
   private activate(cues: TranslatedSubtitleCue[]): void {
+    if (this.stopped) {
+      return;
+    }
+
     this.overlay.setCues(cues);
     this.control.setState({ status: "enabled" });
     this.handleVideoTimeUpdate();
@@ -310,6 +339,19 @@ export class YouTubeSubtitleSession {
     this.video = video;
     this.video.addEventListener("timeupdate", this.handleVideoTimeUpdate);
     this.video.addEventListener("seeked", this.handleVideoTimeUpdate);
+  }
+
+  private stop(): void {
+    this.stopped = true;
+    this.current = null;
+    this.overlay.clear();
+    this.control.destroy();
+
+    if (this.video) {
+      this.video.removeEventListener("timeupdate", this.handleVideoTimeUpdate);
+      this.video.removeEventListener("seeked", this.handleVideoTimeUpdate);
+      this.video = null;
+    }
   }
 }
 
@@ -441,4 +483,13 @@ function isYouTubeHost(): boolean {
 function readYouTubePlayerResponse(): unknown {
   return (window as typeof window & { ytInitialPlayerResponse?: unknown })
     .ytInitialPlayerResponse ?? null;
+}
+
+function isExtensionContextInvalidated(error: unknown): boolean {
+  const message =
+    typeof error === "object" && error && "message" in error
+      ? String((error as { message?: unknown }).message ?? "")
+      : String(error);
+
+  return message.toLowerCase().includes("extension context invalidated");
 }

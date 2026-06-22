@@ -3,6 +3,8 @@ import type { TranslatedSubtitleCue } from "../shared/youtubeSubtitles";
 const OVERLAY_ATTRIBUTE = "data-hover-trans-port-youtube-subtitle-overlay";
 const CAPTION_CONTAINER_ATTRIBUTE =
   "data-hover-trans-port-youtube-caption-container";
+const FALLBACK_CAPTION_CONTAINER_ATTRIBUTE =
+  "data-hover-trans-port-youtube-fallback-caption-container";
 const ACTIVE_ATTRIBUTE = "data-hover-trans-port-youtube-subtitles-active";
 const SEGMENT_ATTRIBUTE = "data-hover-trans-port-youtube-subtitle-segment";
 const STYLE_ID = "hover-trans-port-youtube-subtitle-overlay-style";
@@ -15,7 +17,7 @@ function ensureOverlayStyle(): void {
   const style = document.createElement("style");
   style.id = STYLE_ID;
   style.textContent = `
-    [${CAPTION_CONTAINER_ATTRIBUTE}="true"] {
+    [${FALLBACK_CAPTION_CONTAINER_ATTRIBUTE}="true"] {
       inset: 0;
       pointer-events: none;
       position: absolute;
@@ -160,6 +162,7 @@ function findOrCreateCaptionContainer(playerRoot: Element): HTMLElement {
   const captionContainer = document.createElement("div");
   captionContainer.className = "ytp-caption-window-container";
   captionContainer.setAttribute(CAPTION_CONTAINER_ATTRIBUTE, "true");
+  captionContainer.setAttribute(FALLBACK_CAPTION_CONTAINER_ATTRIBUTE, "true");
   playerRoot.appendChild(captionContainer);
 
   return captionContainer;

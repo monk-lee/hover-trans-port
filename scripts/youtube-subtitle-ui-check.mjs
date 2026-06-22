@@ -324,6 +324,12 @@ try {
 
   const overlay = new YouTubeSubtitleOverlay();
   overlay.mount(player);
+  assert(
+    !document.head.textContent.includes(
+      '[data-hover-trans-port-youtube-caption-container="true"] {\n      inset: 0;'
+    ),
+    "existing YouTube caption containers should not receive fallback positioning CSS"
+  );
   overlay.setCues([
     { id: "a", startMs: 0, endMs: 1000, translatedText: "안녕" }
   ]);

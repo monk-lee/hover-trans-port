@@ -21,6 +21,14 @@ function assert(condition, message) {
   }
 }
 
+async function assertDoesNotReject(promise, message) {
+  try {
+    await promise;
+  } catch (error) {
+    fail(`${message}: ${error?.message ?? error}`);
+  }
+}
+
 class FakeTextNode {
   nodeType = 3;
   parentElement = null;
@@ -344,6 +352,9 @@ global.chrome = {
   }
 };
 
+const defaultSendMessage = global.chrome.runtime.sendMessage;
+const defaultStorageGet = global.chrome.storage.local.get;
+
 const playerResponseFixture = {
   captions: {
     playerCaptionsTracklistRenderer: {
@@ -444,6 +455,39 @@ try {
     captionContainer.textContent.includes("안녕"),
     "successful translation should render in the YouTube caption container"
   );
+
+  global.chrome.storage.local.get = () =>
+    Promise.reject(new Error("Extension context invalidated."));
+  await assertDoesNotReject(
+    new YouTubeSubtitleSession({
+      getPlayerResponse: () => playerResponseFixture,
+      fetchTranscript: async () => [
+        { id: "cue-0", startMs: 0, endMs: 1000, text: "Hello" }
+      ]
+    }).refresh(),
+    "refresh should absorb extension context invalidation"
+  );
+  global.chrome.storage.local.get = defaultStorageGet;
+
+  const invalidatedSession = new YouTubeSubtitleSession({
+    getPlayerResponse: () => playerResponseFixture,
+    fetchTranscript: async () => [
+      { id: "cue-0", startMs: 0, endMs: 1000, text: "Hello" }
+    ]
+  });
+  await invalidatedSession.refresh();
+  global.chrome.runtime.sendMessage = (message) => {
+    if (message.type === "TRANSLATE_SUBTITLE_TRACK") {
+      return Promise.reject(new Error("Extension context invalidated."));
+    }
+
+    return defaultSendMessage(message);
+  };
+  await assertDoesNotReject(
+    invalidatedSession.acceptTranslation(),
+    "accept should absorb extension context invalidation"
+  );
+  global.chrome.runtime.sendMessage = defaultSendMessage;
 } finally {
   rmSync(tempDir, { recursive: true, force: true });
 }
