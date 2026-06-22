@@ -116,7 +116,10 @@ fn provider_status_with_provider_returns_only_selected_provider() {
     assert_eq!(providers.len(), 1);
     assert_eq!(providers[0]["id"], "codex");
     assert_eq!(providers[0]["available"], true);
-    assert!(!agy_marker.exists(), "unselected Antigravity provider should not run");
+    assert!(
+        !agy_marker.exists(),
+        "unselected Antigravity provider should not run"
+    );
 }
 
 #[test]
@@ -209,6 +212,91 @@ fn cached_claude_and_codex_translations_do_not_collide() {
     assert_eq!(codex_second["provider"], "codex");
     assert_eq!(codex_second["translatedText"], "안녕하세요");
     assert_eq!(codex_second["cached"], true);
+}
+
+#[test]
+fn subtitle_cache_miss_returns_cached_false() {
+    let temp = tempdir().unwrap();
+    let cache_path = temp.path().join("cache.sqlite");
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CACHE_PATH".to_string(),
+        cache_path.to_string_lossy().into_owned(),
+    );
+    env.insert("HOME".to_string(), temp.path().display().to_string());
+
+    let response = handle_request(
+        json!({
+            "type": "GET_SUBTITLE_TRANSLATION_CACHE",
+            "requestId": "req-sub-cache",
+            "provider": "codex",
+            "model": "gpt-5.4-mini",
+            "targetLang": "Korean",
+            "videoId": "abc",
+            "sourceTrackIdentity": "track",
+            "sourceTimelineHash": "hash",
+            "promptVersion": 1
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "SUBTITLE_CACHE_RESULT");
+    assert_eq!(response["requestId"], "req-sub-cache");
+    assert_eq!(response["ok"], true);
+    assert_eq!(response["cached"], false);
+}
+
+#[test]
+fn subtitle_translation_writes_and_reuses_cache() {
+    let temp = tempdir().unwrap();
+    let cache_path = temp.path().join("cache.sqlite");
+    let codex = temp.path().join("codex-subtitle");
+    fs::write(
+        &codex,
+        r#"#!/bin/sh
+if [ "$1" = "exec" ]; then
+  prompt="$(/bin/cat)"
+  case "$prompt" in
+    *'"cue-0"'*)
+      printf '%s' '{"cues":[{"id":"cue-0","translatedText":"안녕"}]}'
+      exit 0
+      ;;
+  esac
+fi
+printf 'unexpected subtitle prompt' >&2
+exit 2
+"#,
+    )
+    .unwrap();
+    make_executable(&codex);
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CODEX_PATH".to_string(),
+        codex.to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "HOVER_TRANS_PORT_CACHE_PATH".to_string(),
+        cache_path.to_string_lossy().into_owned(),
+    );
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+    env.insert("HOME".to_string(), temp.path().display().to_string());
+
+    let first = subtitle_translate("req-sub-first", env.clone());
+    assert_eq!(first["type"], "SUBTITLE_TRANSLATE_RESULT");
+    assert_eq!(first["requestId"], "req-sub-first");
+    assert_eq!(first["ok"], true);
+    assert_eq!(first["provider"], "codex");
+    assert_eq!(first["cached"], false);
+    assert_eq!(first["cues"][0]["id"], "cue-0");
+    assert_eq!(first["cues"][0]["translatedText"], "안녕");
+
+    let second = subtitle_translate("req-sub-second", env);
+    assert_eq!(second["type"], "SUBTITLE_TRANSLATE_RESULT");
+    assert_eq!(second["requestId"], "req-sub-second");
+    assert_eq!(second["ok"], true);
+    assert_eq!(second["cached"], true);
+    assert_eq!(second["cues"][0]["translatedText"], "안녕");
 }
 
 #[test]
@@ -486,6 +574,33 @@ fn translate_with_provider(
             "text": "Hello",
             "cacheEnabled": true,
             "timeoutMs": 5_000
+        }),
+        BridgeDeps::with_env(env),
+    )
+}
+
+fn subtitle_translate(request_id: &str, env: BTreeMap<String, String>) -> serde_json::Value {
+    handle_request(
+        json!({
+            "type": "TRANSLATE_SUBTITLES",
+            "requestId": request_id,
+            "provider": "codex",
+            "model": "gpt-5.4-mini",
+            "targetLang": "Korean",
+            "videoId": "abc",
+            "sourceTrackIdentity": "track",
+            "sourceTimelineHash": "hash",
+            "promptVersion": 1,
+            "cacheEnabled": true,
+            "timeoutMs": 5_000,
+            "cues": [
+                {
+                    "id": "cue-0",
+                    "startMs": 0,
+                    "endMs": 1000,
+                    "text": "Hello"
+                }
+            ]
         }),
         BridgeDeps::with_env(env),
     )

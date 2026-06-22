@@ -10,11 +10,18 @@ use crate::debug_log::{
 };
 use crate::messages::{
     BaseRequest, DebugLogContentRequest, DebugLogWriteRequest, NativeHostUpdateRequest,
-    ProviderModelsRequest, ProviderStatusRequest, TranslateRequest, NATIVE_BRIDGE_VERSION,
-    NATIVE_HOST_PROTOCOL_VERSION, NATIVE_HOST_VERSION,
+    ProviderModelsRequest, ProviderStatusRequest, SubtitleCacheRequest, TranslateRequest,
+    TranslateSubtitlesRequest, NATIVE_BRIDGE_VERSION, NATIVE_HOST_PROTOCOL_VERSION,
+    NATIVE_HOST_VERSION,
 };
 use crate::process::ProviderError;
-use crate::providers::{resolve_provider_id, ProviderRegistry, ProviderTranslateRequest};
+use crate::providers::{
+    resolve_provider_id, ProviderPromptRequest, ProviderRegistry, ProviderTranslateRequest,
+};
+use crate::subtitle_cache::{SqliteSubtitleTranslationCache, SubtitleCacheKey};
+use crate::subtitles::{
+    build_subtitle_translation_prompt, plan_subtitle_chunks, validate_subtitle_translation_output,
+};
 use crate::update::{check_update, run_update, UpdateFailure};
 
 #[derive(Clone, Debug)]
@@ -62,7 +69,9 @@ pub fn handle_request(value: Value, deps: BridgeDeps) -> Value {
         Some("PROVIDER_STATUS") => provider_status(value, request_id, deps),
         Some("PROVIDER_MODELS") => provider_models(value, request_id, deps),
         Some("TRANSLATE") => translate(value, request_id, deps),
-        Some("CLEAR_TRANSLATION_CACHE") => cache_clear(request_id),
+        Some("GET_SUBTITLE_TRANSLATION_CACHE") => subtitle_cache_lookup(value, request_id, deps),
+        Some("TRANSLATE_SUBTITLES") => translate_subtitles(value, request_id, deps),
+        Some("CLEAR_TRANSLATION_CACHE") => cache_clear(request_id, deps),
         Some("GET_DEBUG_LOG_INFO") => debug_log_info(request_id, deps),
         Some("CLEAR_DEBUG_LOG") => debug_log_clear(request_id, deps),
         Some("GET_DEBUG_LOG_CONTENT") => debug_log_content(value, request_id, deps),
@@ -387,6 +396,224 @@ fn translate_valid(request: TranslateRequest, deps: BridgeDeps) -> Value {
     }
 }
 
+fn subtitle_cache_lookup(value: Value, request_id: Option<String>, deps: BridgeDeps) -> Value {
+    let request = serde_json::from_value::<SubtitleCacheRequest>(value);
+
+    match request {
+        Ok(request)
+            if !request.target_lang.trim().is_empty()
+                && !request.video_id.trim().is_empty()
+                && !request.source_track_identity.trim().is_empty()
+                && !request.source_timeline_hash.trim().is_empty() =>
+        {
+            let provider = resolve_provider_id(request.provider.as_deref());
+            let cache = SqliteSubtitleTranslationCache::new(
+                resolve_translation_cache_path_from_env(&deps.env),
+                current_time_millis,
+            );
+            let key = subtitle_cache_key(
+                provider,
+                request.model.as_deref().unwrap_or("default"),
+                &request.target_lang,
+                &request.video_id,
+                &request.source_track_identity,
+                &request.source_timeline_hash,
+                request.prompt_version,
+            );
+
+            match cache.lookup(&key) {
+                Ok(Some(hit)) => json!({
+                    "type": "SUBTITLE_CACHE_RESULT",
+                    "requestId": request.request_id,
+                    "ok": true,
+                    "cached": true,
+                    "cues": hit.cues
+                }),
+                Ok(None) => json!({
+                    "type": "SUBTITLE_CACHE_RESULT",
+                    "requestId": request.request_id,
+                    "ok": true,
+                    "cached": false
+                }),
+                Err(error) => subtitle_cache_error_response(
+                    request.request_id,
+                    "CACHE_ERROR",
+                    error.to_string(),
+                    true,
+                ),
+            }
+        }
+        _ => subtitle_cache_error_response(
+            request_id.unwrap_or_default(),
+            "INVALID_MESSAGE",
+            "GET_SUBTITLE_TRANSLATION_CACHE message is missing required fields.",
+            false,
+        ),
+    }
+}
+
+fn translate_subtitles(value: Value, request_id: Option<String>, deps: BridgeDeps) -> Value {
+    let request = serde_json::from_value::<TranslateSubtitlesRequest>(value);
+
+    match request {
+        Ok(request)
+            if !request.target_lang.trim().is_empty()
+                && !request.video_id.trim().is_empty()
+                && !request.source_track_identity.trim().is_empty()
+                && !request.source_timeline_hash.trim().is_empty()
+                && !request.cues.is_empty() =>
+        {
+            translate_subtitles_valid(request, deps)
+        }
+        _ => json!({
+            "type": "SUBTITLE_TRANSLATE_RESULT",
+            "requestId": request_id.unwrap_or_default(),
+            "ok": false,
+            "error": "INVALID_MESSAGE",
+            "message": "TRANSLATE_SUBTITLES message is missing required fields.",
+            "retryable": false,
+            "elapsedMs": 0
+        }),
+    }
+}
+
+fn translate_subtitles_valid(request: TranslateSubtitlesRequest, deps: BridgeDeps) -> Value {
+    let registry = ProviderRegistry::new(deps.env.clone());
+    let timeout_ms = request.timeout_ms.unwrap_or(30_000).max(1);
+    let provider_selection = request.provider.clone();
+    let effective_provider = resolve_provider_id(provider_selection.as_deref());
+    let debug_logging = request.debug_logging.unwrap_or(false);
+    let cache_enabled = request.cache_enabled.unwrap_or(true);
+    let model = request.model.clone().unwrap_or_default();
+    let key = subtitle_cache_key(
+        effective_provider,
+        request.model.as_deref().unwrap_or("default"),
+        &request.target_lang,
+        &request.video_id,
+        &request.source_track_identity,
+        &request.source_timeline_hash,
+        request.prompt_version,
+    );
+    let cache = SqliteSubtitleTranslationCache::new(
+        resolve_translation_cache_path_from_env(&deps.env),
+        current_time_millis,
+    );
+
+    log_debug_event(
+        &deps.env,
+        debug_logging,
+        "subtitle_translation.start",
+        json!({
+            "requestId": request.request_id,
+            "provider": effective_provider.as_str(),
+            "model": model,
+            "targetLang": request.target_lang,
+            "timeoutMs": timeout_ms,
+            "cacheEnabled": cache_enabled,
+            "cueCount": request.cues.len()
+        }),
+    );
+
+    if cache_enabled {
+        if let Ok(Some(hit)) = cache.lookup(&key) {
+            return json!({
+                "type": "SUBTITLE_TRANSLATE_RESULT",
+                "requestId": request.request_id,
+                "ok": true,
+                "provider": effective_provider.as_str(),
+                "cues": hit.cues,
+                "cached": true,
+                "elapsedMs": 0
+            });
+        }
+    }
+
+    let mut translated_cues = Vec::new();
+    let mut elapsed_ms = 0_u64;
+    let mut response_provider = effective_provider;
+
+    for chunk in plan_subtitle_chunks(&request.cues) {
+        let prompt = build_subtitle_translation_prompt(&chunk.cues, &request.target_lang);
+        let provider_result = registry.run_prompt(
+            provider_selection.as_deref(),
+            ProviderPromptRequest {
+                prompt,
+                model: request.model.clone(),
+                timeout_ms,
+            },
+        );
+
+        let (provider, result) = match provider_result {
+            Ok(result) => result,
+            Err(error) => {
+                log_provider_error(&deps.env, debug_logging, &request.request_id, &error);
+                return subtitle_provider_error_response(request.request_id, error);
+            }
+        };
+
+        response_provider = provider;
+        elapsed_ms = elapsed_ms.saturating_add(result.elapsed_ms);
+
+        match validate_subtitle_translation_output(&chunk.cues, &result.text) {
+            Ok(mut cues) => translated_cues.append(&mut cues),
+            Err(error) => {
+                log_provider_error(&deps.env, debug_logging, &request.request_id, &error);
+                return subtitle_provider_error_response(request.request_id, error);
+            }
+        }
+    }
+
+    if cache_enabled {
+        match cache.write(&key, &request.cues, &translated_cues) {
+            Ok(()) => log_debug_event(
+                &deps.env,
+                debug_logging,
+                "subtitle_cache.write",
+                json!({"requestId": request.request_id}),
+            ),
+            Err(error) => log_debug_event(
+                &deps.env,
+                debug_logging,
+                "subtitle_cache.write_failed",
+                json!({
+                    "requestId": request.request_id,
+                    "message": error.to_string()
+                }),
+            ),
+        }
+    }
+
+    json!({
+        "type": "SUBTITLE_TRANSLATE_RESULT",
+        "requestId": request.request_id,
+        "ok": true,
+        "provider": response_provider.as_str(),
+        "cues": translated_cues,
+        "cached": false,
+        "elapsedMs": elapsed_ms
+    })
+}
+
+fn subtitle_cache_key(
+    provider: crate::messages::ProviderId,
+    model: &str,
+    target_lang: &str,
+    video_id: &str,
+    source_track_identity: &str,
+    source_timeline_hash: &str,
+    prompt_version: u64,
+) -> SubtitleCacheKey {
+    SubtitleCacheKey {
+        provider,
+        model: model.to_string(),
+        target_lang: target_lang.to_string(),
+        video_id: video_id.to_string(),
+        source_track_identity: source_track_identity.to_string(),
+        source_timeline_hash: source_timeline_hash.to_string(),
+        prompt_version,
+    }
+}
+
 fn log_provider_error(
     env: &BTreeMap<String, String>,
     enabled: bool,
@@ -447,6 +674,41 @@ fn provider_error_response(request_id: String, error: ProviderError) -> Value {
     })
 }
 
+fn subtitle_provider_error_response(request_id: String, error: ProviderError) -> Value {
+    let elapsed_ms = match &error {
+        ProviderError::ExitNonzero { elapsed_ms, .. } | ProviderError::Timeout { elapsed_ms } => {
+            *elapsed_ms
+        }
+        _ => 0,
+    };
+
+    json!({
+        "type": "SUBTITLE_TRANSLATE_RESULT",
+        "requestId": request_id,
+        "ok": false,
+        "error": error.code(),
+        "message": error.to_string(),
+        "retryable": error.retryable(),
+        "elapsedMs": elapsed_ms
+    })
+}
+
+fn subtitle_cache_error_response(
+    request_id: String,
+    error: &str,
+    message: impl Into<String>,
+    retryable: bool,
+) -> Value {
+    json!({
+        "type": "SUBTITLE_CACHE_RESULT",
+        "requestId": request_id,
+        "ok": false,
+        "error": error,
+        "message": message.into(),
+        "retryable": retryable
+    })
+}
+
 fn current_time_millis() -> i64 {
     use std::time::{SystemTime, UNIX_EPOCH};
     SystemTime::now()
@@ -455,15 +717,30 @@ fn current_time_millis() -> i64 {
         .unwrap_or(0)
 }
 
-fn cache_clear(request_id: Option<String>) -> Value {
-    json!({
-        "type": "CACHE_CLEAR_RESULT",
-        "requestId": request_id.unwrap_or_default(),
-        "ok": false,
-        "error": "CACHE_ERROR",
-        "message": "Cache is not initialized.",
-        "retryable": true
-    })
+fn cache_clear(request_id: Option<String>, deps: BridgeDeps) -> Value {
+    let request_id = request_id.unwrap_or_default();
+    let cache_path = resolve_translation_cache_path_from_env(&deps.env);
+    let text_cache = SqliteTranslationCache::new(cache_path.clone(), current_time_millis);
+    let subtitle_cache = SqliteSubtitleTranslationCache::new(cache_path, current_time_millis);
+    let text_result = text_cache.clear();
+    let subtitle_result = subtitle_cache.clear();
+
+    match (text_result, subtitle_result) {
+        (Ok(text), Ok(subtitle)) => json!({
+            "type": "CACHE_CLEAR_RESULT",
+            "requestId": request_id,
+            "ok": true,
+            "deletedRows": text.deleted_rows + subtitle.deleted_rows
+        }),
+        (Err(error), _) | (_, Err(error)) => json!({
+            "type": "CACHE_CLEAR_RESULT",
+            "requestId": request_id,
+            "ok": false,
+            "error": "CACHE_ERROR",
+            "message": error.to_string(),
+            "retryable": true
+        }),
+    }
 }
 
 fn debug_log_info(request_id: Option<String>, deps: BridgeDeps) -> Value {

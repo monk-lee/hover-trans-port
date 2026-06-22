@@ -76,6 +76,43 @@ pub struct TranslateRequest {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SubtitleCacheRequest {
+    pub request_id: String,
+    pub target_lang: String,
+    pub video_id: String,
+    pub source_track_identity: String,
+    pub source_timeline_hash: String,
+    pub prompt_version: u64,
+    #[serde(default)]
+    pub provider: Option<String>,
+    #[serde(default)]
+    pub model: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TranslateSubtitlesRequest {
+    pub request_id: String,
+    pub target_lang: String,
+    pub video_id: String,
+    pub source_track_identity: String,
+    pub source_timeline_hash: String,
+    pub prompt_version: u64,
+    pub cues: Vec<crate::subtitles::SubtitleCue>,
+    #[serde(default)]
+    pub provider: Option<String>,
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default)]
+    pub timeout_ms: Option<u64>,
+    #[serde(default)]
+    pub cache_enabled: Option<bool>,
+    #[serde(default)]
+    pub debug_logging: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProviderModelsRequest {
     pub request_id: String,
     #[serde(default)]
