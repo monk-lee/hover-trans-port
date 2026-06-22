@@ -3,6 +3,10 @@ import type {
   ProviderModelCatalog,
   ProviderSelection
 } from "./providers";
+import type {
+  TranslatedSubtitleCue,
+  YouTubeSubtitleCue
+} from "./youtubeSubtitles";
 
 export const NATIVE_HOST_NAME = "com.monklabs.hover_trans_port";
 export const NATIVE_BRIDGE_VERSION = "0.2.15-rust-helper";
@@ -33,6 +37,29 @@ export type NativeTranslateRequest = {
   context?: {
     mode: "selection" | "hover-block";
   };
+};
+
+export type NativeSubtitleCacheRequest = {
+  type: "GET_SUBTITLE_TRANSLATION_CACHE";
+  requestId: string;
+  provider?: ProviderSelection;
+  model?: string;
+  targetLang: string;
+  videoId: string;
+  sourceTrackIdentity: string;
+  sourceTimelineHash: string;
+  promptVersion: number;
+};
+
+export type NativeTranslateSubtitlesRequest = Omit<
+  NativeSubtitleCacheRequest,
+  "type"
+> & {
+  type: "TRANSLATE_SUBTITLES";
+  cues: YouTubeSubtitleCue[];
+  timeoutMs?: number;
+  cacheEnabled?: boolean;
+  debugLogging?: boolean;
 };
 
 export type NativeProviderStatusRequest = {
@@ -99,6 +126,8 @@ export type NativeRequest =
   | NativePingRequest
   | NativeHostInfoRequest
   | NativeTranslateRequest
+  | NativeSubtitleCacheRequest
+  | NativeTranslateSubtitlesRequest
   | NativeProviderStatusRequest
   | NativeProviderModelsRequest
   | NativeClearCacheRequest
@@ -178,6 +207,50 @@ export type NativeTranslateResultResponse =
     }
   | {
       type: "TRANSLATE_RESULT";
+      requestId: string;
+      ok: false;
+      provider?: ProviderId;
+      error: NativeErrorCode;
+      message: string;
+      retryable: boolean;
+      elapsedMs?: number;
+    };
+
+export type NativeSubtitleCacheResponse =
+  | {
+      type: "SUBTITLE_CACHE_RESULT";
+      requestId: string;
+      ok: true;
+      cached: true;
+      cues: TranslatedSubtitleCue[];
+    }
+  | {
+      type: "SUBTITLE_CACHE_RESULT";
+      requestId: string;
+      ok: true;
+      cached: false;
+    }
+  | {
+      type: "SUBTITLE_CACHE_RESULT";
+      requestId: string;
+      ok: false;
+      error: NativeErrorCode;
+      message: string;
+      retryable: boolean;
+    };
+
+export type NativeSubtitleTranslateResponse =
+  | {
+      type: "SUBTITLE_TRANSLATE_RESULT";
+      requestId: string;
+      ok: true;
+      provider: ProviderId;
+      cues: TranslatedSubtitleCue[];
+      cached: boolean;
+      elapsedMs: number;
+    }
+  | {
+      type: "SUBTITLE_TRANSLATE_RESULT";
       requestId: string;
       ok: false;
       provider?: ProviderId;
@@ -349,6 +422,8 @@ export type NativeResponse =
   | NativeProviderStatusResponse
   | NativeProviderModelsResponse
   | NativeTranslateResultResponse
+  | NativeSubtitleCacheResponse
+  | NativeSubtitleTranslateResponse
   | NativeCacheClearResponse
   | NativeDebugLogInfoResponse
   | NativeDebugLogClearResponse

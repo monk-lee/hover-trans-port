@@ -8,7 +8,13 @@ import {
   normalizeTimeoutMs,
   type StoredOptions
 } from "../shared/options";
-import type { ProviderId, ProviderSelection } from "../shared/providers";
+import type {
+  SubtitleTrackTranslationRequest,
+  SubtitleTranslationCacheRequest,
+  SubtitleTranslationCacheResponse,
+  SubtitleTranslationResultResponse
+} from "../shared/messages";
+import type { ProviderSelection } from "../shared/providers";
 import {
   createSubtitleSourceTimelineHash,
   createSubtitleTrackIdentity,
@@ -32,71 +38,6 @@ type SessionDeps = {
   getPlayerResponse?: () => unknown;
   fetchTranscript?: FetchYouTubeTranscript;
 };
-
-type SubtitleCacheLookupRequest = {
-  type: "GET_SUBTITLE_TRANSLATION_CACHE";
-  requestId: string;
-  videoId: string;
-  sourceTrackIdentity: string;
-  sourceTimelineHash: string;
-  targetLang: string;
-  provider: ProviderSelection;
-  model: string;
-  promptVersion: number;
-};
-
-type SubtitleTranslationRequest = Omit<
-  SubtitleCacheLookupRequest,
-  "type"
-> & {
-  type: "TRANSLATE_SUBTITLE_TRACK";
-  cues: YouTubeSubtitleCue[];
-  timeoutMs?: number;
-  cacheEnabled?: boolean;
-  debugLogging?: boolean;
-};
-
-type SubtitleTranslationCacheResponse =
-  | {
-      type: "SUBTITLE_TRANSLATION_CACHE_RESULT";
-      requestId: string;
-      ok: true;
-      cached: true;
-      cues: TranslatedSubtitleCue[];
-    }
-  | {
-      type: "SUBTITLE_TRANSLATION_CACHE_RESULT";
-      requestId: string;
-      ok: true;
-      cached: false;
-    }
-  | {
-      type: "SUBTITLE_TRANSLATION_CACHE_RESULT";
-      requestId: string;
-      ok: false;
-      message: string;
-      retryable: boolean;
-    };
-
-type SubtitleTranslationResultResponse =
-  | {
-      type: "SUBTITLE_TRANSLATION_RESULT";
-      requestId: string;
-      ok: true;
-      provider: ProviderId;
-      cues: TranslatedSubtitleCue[];
-      cached: boolean;
-      elapsedMs: number;
-    }
-  | {
-      type: "SUBTITLE_TRANSLATION_RESULT";
-      requestId: string;
-      ok: false;
-      provider?: ProviderId;
-      message: string;
-      retryable: boolean;
-      elapsedMs?: number;
-    };
 
 type CurrentSubtitleSource = {
   videoId: string;
@@ -251,7 +192,7 @@ export class YouTubeSubtitleSession {
 
     const requestId = createRequestId();
     const response = await chrome.runtime.sendMessage<
-      SubtitleTranslationRequest,
+      SubtitleTrackTranslationRequest,
       SubtitleTranslationResultResponse
     >({
       type: "TRANSLATE_SUBTITLE_TRACK",
@@ -290,7 +231,7 @@ export class YouTubeSubtitleSession {
     const requestId = createRequestId();
 
     return chrome.runtime.sendMessage<
-      SubtitleCacheLookupRequest,
+      SubtitleTranslationCacheRequest,
       SubtitleTranslationCacheResponse
     >({
       type: "GET_SUBTITLE_TRANSLATION_CACHE",
