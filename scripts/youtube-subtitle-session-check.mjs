@@ -132,6 +132,13 @@ class FakeElement {
     return this.attributes.get(name) ?? null;
   }
 
+  removeAttribute(name) {
+    this.attributes.delete(name);
+    if (name === "class") {
+      this.className = "";
+    }
+  }
+
   querySelector(selector) {
     return findElement(this, (element) => element !== this && matchesSelector(element, selector));
   }
@@ -214,6 +221,14 @@ function findElements(root, visitor) {
 }
 
 function matchesSelector(element, selector) {
+  if (selector.includes(",")) {
+    return selector.split(",").some((part) => matchesSelector(element, part.trim()));
+  }
+
+  if (selector.startsWith("#")) {
+    return element.getAttribute("id") === selector.slice(1);
+  }
+
   if (selector.startsWith(".")) {
     const className = selector.slice(1);
     return element.className.split(/\s+/g).includes(className);
@@ -277,7 +292,11 @@ document.body.appendChild(controls);
 const player = document.createElement("div");
 player.className = "html5-video-player";
 const video = document.createElement("video");
+const captionContainer = document.createElement("div");
+captionContainer.className = "ytp-caption-window-container";
+captionContainer.setAttribute("id", "ytp-caption-window-container");
 player.appendChild(video);
+player.appendChild(captionContainer);
 document.body.appendChild(player);
 
 const sentMessages = [];
@@ -422,8 +441,8 @@ try {
     "accept should request subtitle translation"
   );
   assert(
-    document.body.textContent.includes("안녕"),
-    "successful translation should activate the overlay"
+    captionContainer.textContent.includes("안녕"),
+    "successful translation should render in the YouTube caption container"
   );
 } finally {
   rmSync(tempDir, { recursive: true, force: true });

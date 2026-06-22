@@ -128,6 +128,13 @@ class FakeElement {
     return this.attributes.get(name) ?? null;
   }
 
+  removeAttribute(name) {
+    this.attributes.delete(name);
+    if (name === "class") {
+      this.className = "";
+    }
+  }
+
   querySelector(selector) {
     return findElement(this, (element) => element !== this && matchesSelector(element, selector));
   }
@@ -193,6 +200,14 @@ function findElements(root, visitor) {
 }
 
 function matchesSelector(element, selector) {
+  if (selector.includes(",")) {
+    return selector.split(",").some((part) => matchesSelector(element, part.trim()));
+  }
+
+  if (selector.startsWith("#")) {
+    return element.getAttribute("id") === selector.slice(1);
+  }
+
   if (selector.startsWith(".")) {
     const className = selector.slice(1);
     return element.className.split(/\s+/g).includes(className);
@@ -283,22 +298,58 @@ try {
   );
 
   control.setState({ status: "loading", message: "번역 중..." });
-  assert(controls.textContent.includes("번역 중"), "loading label should render");
+  assert(
+    controls.children[1].textContent === "",
+    "loading state should use the spinner without widening the YouTube control"
+  );
+  assert(
+    controls.children[1].getAttribute("aria-label") === "번역 중...",
+    "loading state should keep accessible status text"
+  );
 
   control.mount(controls);
   assert(findAllControls(controls).length === 1, "control mount should be idempotent");
 
+  const player = document.createElement("div");
+  player.className = "html5-video-player";
+  const captionContainer = document.createElement("div");
+  captionContainer.className = "ytp-caption-window-container";
+  captionContainer.setAttribute("id", "ytp-caption-window-container");
+  const nativeCaption = document.createElement("div");
+  nativeCaption.className = "caption-window ytp-caption-window-bottom";
+  nativeCaption.textContent = "Hello";
+  captionContainer.appendChild(nativeCaption);
+  player.appendChild(captionContainer);
+  document.body.appendChild(player);
+
   const overlay = new YouTubeSubtitleOverlay();
-  overlay.mount(document.body);
+  overlay.mount(player);
   overlay.setCues([
     { id: "a", startMs: 0, endMs: 1000, translatedText: "안녕" }
   ]);
   overlay.update(0.5);
-  assert(document.body.textContent.includes("안녕"), "overlay should show active cue");
+  const translatedCaption = captionContainer.querySelector(
+    '[data-hover-trans-port-youtube-subtitle-overlay="true"]'
+  );
+  assert(translatedCaption, "translated captions should mount inside YouTube caption container");
+  assert(
+    translatedCaption.className.split(/\s+/g).includes("caption-window"),
+    "translated captions should use YouTube caption window classes"
+  );
+  assert(
+    captionContainer.getAttribute("data-hover-trans-port-youtube-subtitles-active") === "true",
+    "translation should mark the YouTube caption container active"
+  );
+  assert(captionContainer.textContent.includes("안녕"), "overlay should show active cue");
   overlay.update(2);
   assert(
-    !document.body.textContent.includes("안녕"),
+    !captionContainer.textContent.includes("안녕"),
     "overlay should hide inactive cue"
+  );
+  overlay.clear();
+  assert(
+    captionContainer.getAttribute("data-hover-trans-port-youtube-subtitles-active") === null,
+    "clearing translation should restore the YouTube caption container"
   );
 } finally {
   rmSync(tempDir, { recursive: true, force: true });

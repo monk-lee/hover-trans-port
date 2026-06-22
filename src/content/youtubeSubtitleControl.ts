@@ -26,16 +26,29 @@ function ensureControlStyle(): void {
   style.textContent = `
     .hover-trans-port-youtube-subtitle-control {
       align-items: center;
+      box-sizing: border-box;
       color: #fff;
       display: inline-flex;
-      font: 500 11px/1.1 Arial, sans-serif;
-      height: 36px;
+      font: 700 13px/1 Arial, sans-serif;
+      height: 100%;
       justify-content: center;
-      min-width: 42px;
+      min-width: 0;
       opacity: 0.9;
-      padding: 0 6px;
+      padding: 0;
       position: relative;
+      vertical-align: top;
       white-space: nowrap;
+      width: 48px;
+    }
+    .hover-trans-port-youtube-subtitle-control-icon {
+      align-items: center;
+      border: 1.5px solid currentColor;
+      border-radius: 2px;
+      box-sizing: border-box;
+      display: inline-flex;
+      height: 18px;
+      justify-content: center;
+      width: 22px;
     }
     .hover-trans-port-youtube-subtitle-control:hover {
       opacity: 1;
@@ -51,8 +64,13 @@ function ensureControlStyle(): void {
       border-radius: 999px;
       content: "";
       height: 12px;
-      margin-right: 4px;
       width: 12px;
+    }
+    .hover-trans-port-youtube-subtitle-control[data-hover-trans-port-status="enabled"] {
+      color: #3ea6ff;
+    }
+    .hover-trans-port-youtube-subtitle-control[data-hover-trans-port-status="error"] {
+      color: #ffb4b4;
     }
     .hover-trans-port-youtube-subtitle-popover {
       align-items: center;
@@ -128,16 +146,23 @@ export class YouTubeSubtitleControl {
     this.node.setAttribute("data-hover-trans-port-status", state.status);
     this.node.disabled =
       state.status === "loading" || state.status === "unavailable";
-    this.node.title =
+    const label =
       state.status === "unavailable" || state.status === "error"
         ? state.message
+        : state.status === "loading"
+          ? state.message
         : "YouTube 자막 번역";
-    this.node.textContent =
-      state.status === "loading"
-        ? state.message
-        : state.status === "prompt"
-          ? "번역?"
-          : "번역";
+    this.node.title = label;
+    this.node.setAttribute("aria-label", label);
+    this.node.replaceChildren();
+
+    if (state.status !== "loading") {
+      const icon = document.createElement("span");
+      icon.className = "hover-trans-port-youtube-subtitle-control-icon";
+      icon.setAttribute("aria-hidden", "true");
+      icon.textContent = "번";
+      this.node.appendChild(icon);
+    }
 
     if (state.status !== "prompt") {
       this.hidePopover();
