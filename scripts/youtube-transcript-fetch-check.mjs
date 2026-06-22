@@ -1,0 +1,161 @@
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import ts from "typescript";
+
+function fail(message) {
+  console.error(`youtube-transcript-fetch-check: ${message}`);
+  process.exit(1);
+}
+
+function assert(condition, message) {
+  if (!condition) {
+    fail(message);
+  }
+}
+
+function transpile(sourcePath) {
+  return ts.transpileModule(readFileSync(sourcePath, "utf8"), {
+    compilerOptions: {
+      module: ts.ModuleKind.ES2022,
+      target: ts.ScriptTarget.ES2022
+    }
+  }).outputText;
+}
+
+function decodeXmlEntities(text) {
+  return text
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+class FakeTextArea {
+  value = "";
+
+  set innerHTML(text) {
+    this.value = decodeXmlEntities(text);
+  }
+}
+
+class FakeXmlTextNode {
+  constructor(attributes, textContent) {
+    this.attributes = attributes;
+    this.textContent = textContent;
+  }
+
+  getAttribute(name) {
+    return this.attributes.get(name) ?? null;
+  }
+}
+
+class FakeXmlDocument {
+  constructor(nodes) {
+    this.nodes = nodes;
+  }
+
+  querySelectorAll(selector) {
+    return selector === "text" ? this.nodes : [];
+  }
+}
+
+class FakeDomParser {
+  parseFromString(text) {
+    const nodes = [...text.matchAll(/<text\s+([^>]*)>([\s\S]*?)<\/text>/g)].map(
+      ([, rawAttributes, rawText]) => {
+        const attributes = new Map(
+          [...rawAttributes.matchAll(/([a-z]+)="([^"]*)"/g)].map(
+            ([, name, value]) => [name, value]
+          )
+        );
+
+        return new FakeXmlTextNode(attributes, decodeXmlEntities(rawText));
+      }
+    );
+
+    return new FakeXmlDocument(nodes);
+  }
+}
+
+global.document = {
+  createElement(tagName) {
+    if (tagName !== "textarea") {
+      throw new Error(`Unexpected element: ${tagName}`);
+    }
+
+    return new FakeTextArea();
+  }
+};
+global.DOMParser = FakeDomParser;
+
+const tempDir = mkdtempSync(
+  join(tmpdir(), "hover-trans-port-youtube-transcript-fetch-")
+);
+const tempContentDir = join(tempDir, "src/content");
+const tempSharedDir = join(tempDir, "src/shared");
+mkdirSync(tempContentDir, { recursive: true });
+mkdirSync(tempSharedDir, { recursive: true });
+writeFileSync(
+  join(tempSharedDir, "youtubeSubtitles.js"),
+  transpile("src/shared/youtubeSubtitles.ts")
+);
+writeFileSync(
+  join(tempContentDir, "youtubeTranscriptFetch.js"),
+  transpile("src/content/youtubeTranscriptFetch.ts").replace(
+    "../shared/youtubeSubtitles",
+    "../shared/youtubeSubtitles.js"
+  )
+);
+
+try {
+  const {
+    parseYouTubeJson3Transcript,
+    parseYouTubeXmlTranscript
+  } = await import(
+    pathToFileURL(join(tempContentDir, "youtubeTranscriptFetch.js")).href
+  );
+
+  const json3 = JSON.stringify({
+    events: [
+      {
+        tStartMs: 0,
+        dDurationMs: 1200,
+        segs: [{ utf8: "Hello" }, { utf8: " world" }]
+      },
+      { tStartMs: 1400, dDurationMs: 600, segs: [{ utf8: "\n" }] },
+      { tStartMs: 2200, dDurationMs: 900, segs: [{ utf8: "Bye" }] }
+    ]
+  });
+  const jsonCues = parseYouTubeJson3Transcript(json3);
+  assert(jsonCues.length === 2, "blank JSON3 cue should be removed");
+  assert(jsonCues[0].id === "cue-0", "JSON3 cue ids should be deterministic");
+  assert(
+    jsonCues[0].text === "Hello world",
+    "JSON3 cue text should join segments"
+  );
+
+  const xml =
+    '<transcript><text start="1.5" dur="2">Tom &amp; Jerry</text></transcript>';
+  const xmlCues = parseYouTubeXmlTranscript(xml);
+  assert(xmlCues.length === 1, "XML cue should parse");
+  assert(
+    xmlCues[0].startMs === 1500,
+    "XML start seconds should become milliseconds"
+  );
+  assert(
+    xmlCues[0].endMs === 3500,
+    "XML duration seconds should become end milliseconds"
+  );
+  assert(xmlCues[0].text === "Tom & Jerry", "XML entities should decode");
+} finally {
+  rmSync(tempDir, { recursive: true, force: true });
+}
