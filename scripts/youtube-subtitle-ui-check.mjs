@@ -291,6 +291,10 @@ try {
   control.mount(controls);
   control.setState({ status: "prompt" });
   assert(
+    document.head.textContent.includes("transform: translate(-50%, -50%)"),
+    "control icon should be absolutely centered inside the YouTube button"
+  );
+  assert(
     controls.children[1].getAttribute(
       "data-hover-trans-port-youtube-subtitle-control"
     ) === "true",

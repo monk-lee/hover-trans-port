@@ -492,8 +492,122 @@ function isYouTubeHost(): boolean {
 }
 
 function readYouTubePlayerResponse(): unknown {
-  return (window as typeof window & { ytInitialPlayerResponse?: unknown })
-    .ytInitialPlayerResponse ?? null;
+  const playerResponse = readYouTubePlayerResponseFromPlayer();
+
+  if (playerResponse) {
+    return playerResponse;
+  }
+
+  const windowPlayerResponse = (
+    window as typeof window & { ytInitialPlayerResponse?: unknown }
+  ).ytInitialPlayerResponse;
+
+  if (windowPlayerResponse) {
+    return windowPlayerResponse;
+  }
+
+  return readYouTubePlayerResponseFromScripts();
+}
+
+function readYouTubePlayerResponseFromPlayer(): unknown {
+  const candidates = [
+    document.getElementById("movie_player"),
+    document.querySelector(".html5-video-player")
+  ];
+
+  for (const candidate of candidates) {
+    const getPlayerResponse = (
+      candidate as (Element & { getPlayerResponse?: () => unknown }) | null
+    )?.getPlayerResponse;
+
+    if (typeof getPlayerResponse !== "function") {
+      continue;
+    }
+
+    try {
+      const playerResponse = getPlayerResponse.call(candidate);
+
+      if (playerResponse && typeof playerResponse === "object") {
+        return playerResponse;
+      }
+    } catch {
+      // Fall back to other player response sources below.
+    }
+  }
+
+  return null;
+}
+
+function readYouTubePlayerResponseFromScripts(): unknown {
+  for (const script of Array.from(document.querySelectorAll("script"))) {
+    const text = script.textContent ?? "";
+    const markerIndex = text.indexOf("ytInitialPlayerResponse");
+
+    if (markerIndex < 0) {
+      continue;
+    }
+
+    const assignmentIndex = text.indexOf("=", markerIndex);
+    const objectStart =
+      assignmentIndex >= 0 ? text.indexOf("{", assignmentIndex) : -1;
+
+    if (objectStart < 0) {
+      continue;
+    }
+
+    const jsonText = extractJsonObjectAt(text, objectStart);
+
+    if (!jsonText) {
+      continue;
+    }
+
+    try {
+      const parsed = JSON.parse(jsonText);
+
+      if (parsed && typeof parsed === "object") {
+        return parsed;
+      }
+    } catch {
+      // Keep scanning other scripts: YouTube may include non-JSON assignments.
+    }
+  }
+
+  return null;
+}
+
+function extractJsonObjectAt(text: string, start: number): string | null {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = start; index < text.length; index += 1) {
+    const char = text[index];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = true;
+    } else if (char === "{") {
+      depth += 1;
+    } else if (char === "}") {
+      depth -= 1;
+
+      if (depth === 0) {
+        return text.slice(start, index + 1);
+      }
+    }
+  }
+
+  return null;
 }
 
 function isExtensionContextInvalidated(error: unknown): boolean {

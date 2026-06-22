@@ -32,6 +32,7 @@ function ensureControlStyle(): void {
       font: 700 13px/1 Arial, sans-serif;
       height: 100%;
       justify-content: center;
+      line-height: 0;
       min-width: 0;
       opacity: 0.9;
       padding: 0;
@@ -48,6 +49,12 @@ function ensureControlStyle(): void {
       display: inline-flex;
       height: 18px;
       justify-content: center;
+      left: 50%;
+      line-height: 18px;
+      position: absolute;
+      text-align: center;
+      top: 50%;
+      transform: translate(-50%, -50%);
       width: 22px;
     }
     .hover-trans-port-youtube-subtitle-control:hover {

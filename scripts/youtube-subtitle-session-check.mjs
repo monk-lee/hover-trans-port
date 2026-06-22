@@ -476,6 +476,35 @@ try {
     "successful translation should render in the YouTube caption container"
   );
 
+  const previousSentMessageCount = sentMessages.length;
+  player.getPlayerResponse = () => playerResponseFixture;
+  await new YouTubeSubtitleSession({
+    fetchTranscript: async () => [
+      { id: "cue-0", startMs: 0, endMs: 1000, text: "Hello" }
+    ]
+  }).refresh();
+  assert(
+    sentMessages.length > previousSentMessageCount &&
+      sentMessages.at(-1).type === "GET_SUBTITLE_TRANSLATION_CACHE",
+    "session should read caption tracks from the YouTube player getPlayerResponse API"
+  );
+  player.getPlayerResponse = undefined;
+
+  const previousScriptSentMessageCount = sentMessages.length;
+  const playerResponseScript = document.createElement("script");
+  playerResponseScript.textContent = `var ytInitialPlayerResponse = ${JSON.stringify(playerResponseFixture)};`;
+  document.body.appendChild(playerResponseScript);
+  await new YouTubeSubtitleSession({
+    fetchTranscript: async () => [
+      { id: "cue-0", startMs: 0, endMs: 1000, text: "Hello" }
+    ]
+  }).refresh();
+  assert(
+    sentMessages.length > previousScriptSentMessageCount &&
+      sentMessages.at(-1).type === "GET_SUBTITLE_TRANSLATION_CACHE",
+    "session should fall back to parsing ytInitialPlayerResponse from page scripts"
+  );
+
   global.chrome.storage.local.get = () =>
     Promise.reject(new Error("Extension context invalidated."));
   await assertDoesNotReject(
