@@ -307,6 +307,10 @@ try {
     "control should render a multilingual icon"
   );
   const firstIcon = controls.children[1].querySelector("svg");
+  assert(
+    firstIcon.getAttribute("stroke") === "#fff",
+    "control icon should force a white stroke so it remains visible on YouTube controls"
+  );
   control.setState({ status: "prompt" });
   assert(
     controls.children[1].querySelector("svg") === firstIcon,

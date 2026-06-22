@@ -43,10 +43,12 @@ function ensureControlStyle(): void {
     }
     .hover-trans-port-youtube-subtitle-control-icon {
       box-sizing: border-box;
+      color: #fff;
       display: block;
       height: 24px;
       left: 50%;
       position: absolute;
+      stroke: #fff;
       top: 50%;
       transform: translate(-50%, -50%);
       width: 24px;
@@ -258,7 +260,7 @@ function createTranslationIcon(): SVGSVGElement {
   svg.setAttribute("class", "hover-trans-port-youtube-subtitle-control-icon");
   svg.setAttribute("viewBox", "0 0 24 24");
   svg.setAttribute("fill", "none");
-  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke", "#fff");
   svg.setAttribute("stroke-width", "1.8");
   svg.setAttribute("stroke-linecap", "round");
   svg.setAttribute("stroke-linejoin", "round");
