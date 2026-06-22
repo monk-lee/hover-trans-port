@@ -16,11 +16,17 @@ import {
   type NativePongResponse,
   type NativeRequest,
   type NativeResponse,
+  type NativeSubtitleCacheResponse,
+  type NativeSubtitleTranslateResponse,
   type NativeTranslateResultResponse
 } from "../shared/nativeProtocol";
 import type {
   NativeHostUpdateApplyResponse,
   NativeHostUpdateStoredStatus,
+  SubtitleTrackTranslationRequest,
+  SubtitleTranslationCacheRequest,
+  SubtitleTranslationCacheResponse,
+  SubtitleTranslationResultResponse,
   TranslationTarget
 } from "../shared/messages";
 import { evaluateNativeHostCompatibility } from "../shared/nativeHostCompatibility";
@@ -48,6 +54,7 @@ import {
   normalizeTimeoutMs,
   type StoredOptions
 } from "../shared/options";
+import { SUBTITLE_CHUNK_MAX_CUES } from "../shared/youtubeSubtitles";
 import {
   createTranslationInflightKey,
   TranslationInflightRegistry
@@ -145,6 +152,16 @@ export type NativeTranslationStatus =
       retryable: boolean;
       elapsedMs?: number;
     };
+
+type OmitResponseEnvelope<T> = T extends unknown
+  ? Omit<T, "type" | "requestId">
+  : never;
+
+export type SubtitleCacheStatus =
+  OmitResponseEnvelope<SubtitleTranslationCacheResponse>;
+
+export type SubtitleTranslationStatus =
+  OmitResponseEnvelope<SubtitleTranslationResultResponse>;
 
 type DebugLogError =
   | "NATIVE_HOST_UNAVAILABLE"
@@ -255,6 +272,18 @@ function isTranslateResult(
   return response.type === "TRANSLATE_RESULT";
 }
 
+function isSubtitleCacheResult(
+  response: NativeResponse
+): response is NativeSubtitleCacheResponse {
+  return response.type === "SUBTITLE_CACHE_RESULT";
+}
+
+function isSubtitleTranslateResult(
+  response: NativeResponse
+): response is NativeSubtitleTranslateResponse {
+  return response.type === "SUBTITLE_TRANSLATE_RESULT";
+}
+
 function isCacheClearResult(
   response: NativeResponse
 ): response is NativeCacheClearResponse {
@@ -360,6 +389,24 @@ function toExtensionTranslationError(error: string): ExtensionTranslationError {
     case "NATIVE_HOST_UNSUPPORTED":
     case "PROVIDER_NOT_FOUND":
     case "PROVIDER_UNAVAILABLE":
+    case "PROVIDER_TIMEOUT":
+    case "PROVIDER_EXIT_NONZERO":
+    case "PROVIDER_OUTPUT_PARSE_FAILED":
+    case "CACHE_ERROR":
+      return error;
+    default:
+      return "UNKNOWN_ERROR";
+  }
+}
+
+function toExtensionSubtitleTranslationError(
+  error: string
+): Extract<SubtitleTranslationStatus, { ok: false }>["error"] {
+  switch (error) {
+    case "NATIVE_HOST_UNAVAILABLE":
+    case "NATIVE_HOST_UPDATE_REQUIRED":
+    case "NATIVE_HOST_UNSUPPORTED":
+    case "PROVIDER_NOT_FOUND":
     case "PROVIDER_TIMEOUT":
     case "PROVIDER_EXIT_NONZERO":
     case "PROVIDER_OUTPUT_PARSE_FAILED":
@@ -488,6 +535,21 @@ function nativeHostStatusFromHostInfo(
 function createTranslationBlockedByNativeHost(
   status: Extract<NativeHostStatus, { ok: false }>
 ): Extract<NativeTranslationStatus, { ok: false }> {
+  return {
+    ok: false,
+    error:
+      status.error === "NATIVE_HOST_UPDATE_REQUIRED" ||
+      status.error === "NATIVE_HOST_UNSUPPORTED"
+        ? status.error
+        : "NATIVE_HOST_UNAVAILABLE",
+    message: toUserFacingTranslationMessage(status.error, status.message),
+    retryable: status.retryable
+  };
+}
+
+function createSubtitleTranslationBlockedByNativeHost(
+  status: Extract<NativeHostStatus, { ok: false }>
+): Extract<SubtitleTranslationStatus, { ok: false }> {
   return {
     ok: false,
     error:
@@ -1287,6 +1349,243 @@ export async function translateWithNativeHost(
       });
     }
   );
+}
+
+type SubtitleCacheInput = Omit<
+  SubtitleTranslationCacheRequest,
+  "type" | "requestId"
+>;
+
+type SubtitleTranslationInput = Omit<
+  SubtitleTrackTranslationRequest,
+  "type" | "requestId"
+> & {
+  chunkCountEstimate?: number;
+};
+
+export async function getSubtitleTranslationCache(
+  requestId: string,
+  input: SubtitleCacheInput
+): Promise<SubtitleCacheStatus> {
+  const nativeHostStatus = await checkNativeHost(`${requestId}:host-info`);
+
+  if (!nativeHostStatus.ok) {
+    return {
+      ok: false,
+      error: "NATIVE_HOST_UNAVAILABLE",
+      message: nativeHostStatus.message,
+      retryable: nativeHostStatus.retryable
+    };
+  }
+
+  const request: NativeRequest = {
+    type: "GET_SUBTITLE_TRANSLATION_CACHE",
+    requestId,
+    provider: input.provider,
+    model: input.model,
+    targetLang: input.targetLang,
+    videoId: input.videoId,
+    sourceTrackIdentity: input.sourceTrackIdentity,
+    sourceTimelineHash: input.sourceTimelineHash,
+    promptVersion: input.promptVersion
+  };
+
+  try {
+    const response = await sendNativeHostMessage(request);
+
+    if (
+      response &&
+      isSubtitleCacheResult(response) &&
+      response.requestId === requestId &&
+      response.ok &&
+      response.cached
+    ) {
+      return {
+        ok: true,
+        cached: true,
+        cues: response.cues
+      };
+    }
+
+    if (
+      response &&
+      isSubtitleCacheResult(response) &&
+      response.requestId === requestId &&
+      response.ok &&
+      !response.cached
+    ) {
+      return {
+        ok: true,
+        cached: false
+      };
+    }
+
+    if (
+      response &&
+      isSubtitleCacheResult(response) &&
+      response.requestId === requestId &&
+      !response.ok
+    ) {
+      return {
+        ok: false,
+        error: response.error === "CACHE_ERROR" ? "CACHE_ERROR" : "UNKNOWN_ERROR",
+        message: response.message,
+        retryable: response.retryable
+      };
+    }
+
+    return {
+      ok: false,
+      error: response ? "UNKNOWN_ERROR" : "NATIVE_HOST_UNAVAILABLE",
+      message: response
+        ? "Native host returned an invalid subtitle cache response."
+        : "Native host did not respond.",
+      retryable: true
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: "NATIVE_HOST_UNAVAILABLE",
+      message:
+        error instanceof Error ? error.message : "Native host is not available.",
+      retryable: true
+    };
+  }
+}
+
+export async function translateSubtitleTrack(
+  requestId: string,
+  input: SubtitleTranslationInput
+): Promise<SubtitleTranslationStatus> {
+  if (input.cues.length === 0) {
+    return {
+      ok: false,
+      error: "UNKNOWN_ERROR",
+      message: "번역할 YouTube 자막 내용이 없습니다.",
+      retryable: false
+    };
+  }
+
+  const options = (await chrome.storage.local.get(
+    "hoverTransPort"
+  )) as StoredOptions;
+  const selectedProvider = normalizeProvider(
+    input.provider ?? options.hoverTransPort?.provider
+  );
+  const selectedModel =
+    input.model?.trim() || getModelForProvider(options.hoverTransPort, selectedProvider);
+  const selectedTargetLang = normalizeTargetLang(
+    input.targetLang,
+    getBrowserTargetLang(getBrowserLocaleCandidates())
+  );
+  const timeoutMsValue = normalizeTimeoutMs(
+    input.timeoutMs ?? options.hoverTransPort?.timeoutMs
+  );
+  const cacheEnabledValue =
+    typeof input.cacheEnabled === "boolean"
+      ? input.cacheEnabled
+      : normalizeCacheEnabled(options.hoverTransPort?.cacheEnabled);
+  const debugLoggingValue =
+    typeof input.debugLogging === "boolean"
+      ? input.debugLogging
+      : normalizeDebugLogging(options.hoverTransPort?.debugLogging);
+  const chunkCountEstimate =
+    input.chunkCountEstimate ??
+    Math.max(1, Math.ceil(input.cues.length / SUBTITLE_CHUNK_MAX_CUES));
+
+  const nativeHostStatus = await checkNativeHost(`${requestId}:host-info`);
+
+  if (!nativeHostStatus.ok) {
+    return createSubtitleTranslationBlockedByNativeHost(nativeHostStatus);
+  }
+
+  const request: NativeRequest = {
+    type: "TRANSLATE_SUBTITLES",
+    requestId,
+    provider: selectedProvider,
+    model: selectedModel,
+    targetLang: selectedTargetLang,
+    videoId: input.videoId,
+    sourceTrackIdentity: input.sourceTrackIdentity,
+    sourceTimelineHash: input.sourceTimelineHash,
+    promptVersion: input.promptVersion,
+    cues: input.cues,
+    timeoutMs: timeoutMsValue,
+    cacheEnabled: cacheEnabledValue,
+    debugLogging: debugLoggingValue
+  };
+
+  try {
+    const response = await sendNativeHostMessage(
+      request,
+      (timeoutMsValue + NATIVE_TRANSLATION_OVERHEAD_MS) * chunkCountEstimate
+    );
+
+    if (
+      response &&
+      isSubtitleTranslateResult(response) &&
+      response.requestId === requestId &&
+      response.ok
+    ) {
+      return {
+        ok: true,
+        provider: response.provider,
+        cues: response.cues,
+        cached: response.cached,
+        elapsedMs: response.elapsedMs
+      };
+    }
+
+    if (
+      response &&
+      isSubtitleTranslateResult(response) &&
+      response.requestId === requestId &&
+      !response.ok
+    ) {
+      return {
+        ok: false,
+        provider: response.provider,
+        error: toExtensionSubtitleTranslationError(response.error),
+        message: toUserFacingTranslationMessage(
+          response.error,
+          response.message,
+          response.provider ?? selectedProvider
+        ),
+        retryable: response.retryable,
+        elapsedMs: response.elapsedMs
+      };
+    }
+
+    if (response?.type === "ERROR") {
+      return {
+        ok: false,
+        error: toExtensionSubtitleTranslationError(response.error),
+        message: toUserFacingTranslationMessage(
+          response.error,
+          response.message,
+          selectedProvider
+        ),
+        retryable: response.retryable
+      };
+    }
+
+    return {
+      ok: false,
+      error: response ? "UNKNOWN_ERROR" : "NATIVE_HOST_UNAVAILABLE",
+      message: response
+        ? "Native host returned an invalid subtitle translation response."
+        : "Native host did not respond.",
+      retryable: true
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: "NATIVE_HOST_UNAVAILABLE",
+      message:
+        error instanceof Error ? error.message : "Native host is not available.",
+      retryable: true
+    };
+  }
 }
 
 export async function clearTranslationCache(

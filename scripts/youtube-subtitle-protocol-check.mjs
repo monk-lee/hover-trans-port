@@ -13,6 +13,8 @@ function assertIncludes(content, expected, label) {
 
 const messagesTs = readFileSync("src/shared/messages.ts", "utf8");
 const nativeProtocolTs = readFileSync("src/shared/nativeProtocol.ts", "utf8");
+const serviceWorkerTs = readFileSync("src/background/service-worker.ts", "utf8");
+const nativeClientTs = readFileSync("src/background/nativeClient.ts", "utf8");
 
 for (const expected of [
   "GET_SUBTITLE_TRANSLATION_CACHE",
@@ -30,5 +32,26 @@ for (const expected of [
 ]) {
   assertIncludes(nativeProtocolTs, expected, "native subtitle protocol");
 }
+
+assertIncludes(
+  serviceWorkerTs,
+  "GET_SUBTITLE_TRANSLATION_CACHE",
+  "service worker should route subtitle cache requests"
+);
+assertIncludes(
+  serviceWorkerTs,
+  "TRANSLATE_SUBTITLE_TRACK",
+  "service worker should route subtitle translation requests"
+);
+assertIncludes(
+  nativeClientTs,
+  "getSubtitleTranslationCache",
+  "native client should expose subtitle cache lookup"
+);
+assertIncludes(
+  nativeClientTs,
+  "translateSubtitleTrack",
+  "native client should expose subtitle translation"
+);
 
 console.log("youtube-subtitle-protocol-check: ok");

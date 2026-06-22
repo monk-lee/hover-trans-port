@@ -26,9 +26,11 @@ import {
   checkProviderStatus,
   clearDebugLog,
   clearTranslationCache,
+  getSubtitleTranslationCache,
   getDebugLogContent,
   getDebugLogInfo,
   getProviderModels,
+  translateSubtitleTrack,
   translateWithNativeHost,
   updateNativeHost,
   writeDebugLogEvent
@@ -612,6 +614,55 @@ chrome.runtime.onMessage.addListener(
         .catch((error: unknown) => {
           sendResponse({
             type: "DEBUG_LOG_WRITE_RESULT",
+            requestId: message.requestId,
+            ok: false,
+            error: "UNKNOWN_ERROR",
+            message: error instanceof Error ? error.message : "Unknown error",
+            retryable: true
+          });
+        });
+
+      return true;
+    }
+
+    if (message.type === "GET_SUBTITLE_TRANSLATION_CACHE") {
+      void getSubtitleTranslationCache(message.requestId, message)
+        .then((result) => {
+          sendResponse({
+            type: "SUBTITLE_TRANSLATION_CACHE_RESULT",
+            requestId: message.requestId,
+            ...result
+          });
+        })
+        .catch((error: unknown) => {
+          sendResponse({
+            type: "SUBTITLE_TRANSLATION_CACHE_RESULT",
+            requestId: message.requestId,
+            ok: false,
+            error: "UNKNOWN_ERROR",
+            message: error instanceof Error ? error.message : "Unknown error",
+            retryable: true
+          });
+        });
+
+      return true;
+    }
+
+    if (message.type === "TRANSLATE_SUBTITLE_TRACK") {
+      scheduleNativeHostUpdateStatusRefresh(
+        `${message.requestId}:native-host-update`
+      );
+      void translateSubtitleTrack(message.requestId, message)
+        .then((result) => {
+          sendResponse({
+            type: "SUBTITLE_TRANSLATION_RESULT",
+            requestId: message.requestId,
+            ...result
+          });
+        })
+        .catch((error: unknown) => {
+          sendResponse({
+            type: "SUBTITLE_TRANSLATION_RESULT",
             requestId: message.requestId,
             ok: false,
             error: "UNKNOWN_ERROR",
