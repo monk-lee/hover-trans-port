@@ -164,6 +164,10 @@ class FakeDocument {
     return new FakeElement(tagName);
   }
 
+  createElementNS(_namespace, tagName) {
+    return new FakeElement(tagName);
+  }
+
   getElementById(id) {
     return findElement(this.documentElement, (element) => element.getAttribute("id") === id);
   }
@@ -295,6 +299,14 @@ try {
     "control icon should be absolutely centered inside the YouTube button"
   );
   assert(
+    !controls.children[1].textContent.includes("번"),
+    "control should use an icon instead of a text label"
+  );
+  assert(
+    controls.children[1].querySelector("svg"),
+    "control should render a multilingual icon"
+  );
+  assert(
     controls.children[1].getAttribute(
       "data-hover-trans-port-youtube-subtitle-control"
     ) === "true",
@@ -309,6 +321,17 @@ try {
   assert(
     controls.children[1].getAttribute("aria-label") === "번역 중...",
     "loading state should keep accessible status text"
+  );
+
+  control.setState({
+    status: "unavailable",
+    message: "사용 가능한 YouTube 자막이 없습니다."
+  });
+  assert(!controls.children[1].disabled, "unavailable state should remain clickable");
+  controls.children[1].onclick();
+  assert(
+    controls.textContent.includes("사용 가능한 YouTube 자막이 없습니다."),
+    "clicking unavailable control should explain why translation cannot start"
   );
 
   control.mount(controls);

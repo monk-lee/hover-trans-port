@@ -42,20 +42,14 @@ function ensureControlStyle(): void {
       width: 48px;
     }
     .hover-trans-port-youtube-subtitle-control-icon {
-      align-items: center;
-      border: 1.5px solid currentColor;
-      border-radius: 2px;
       box-sizing: border-box;
-      display: inline-flex;
-      height: 18px;
-      justify-content: center;
+      display: block;
+      height: 24px;
       left: 50%;
-      line-height: 18px;
       position: absolute;
-      text-align: center;
       top: 50%;
       transform: translate(-50%, -50%);
-      width: 22px;
+      width: 24px;
     }
     .hover-trans-port-youtube-subtitle-control:hover {
       opacity: 1;
@@ -151,8 +145,7 @@ export class YouTubeSubtitleControl {
 
     this.node.dataset.hoverTransPortStatus = state.status;
     this.node.setAttribute("data-hover-trans-port-status", state.status);
-    this.node.disabled =
-      state.status === "loading" || state.status === "unavailable";
+    this.node.disabled = state.status === "loading";
     const label =
       state.status === "unavailable" || state.status === "error"
         ? state.message
@@ -164,11 +157,7 @@ export class YouTubeSubtitleControl {
     this.node.replaceChildren();
 
     if (state.status !== "loading") {
-      const icon = document.createElement("span");
-      icon.className = "hover-trans-port-youtube-subtitle-control-icon";
-      icon.setAttribute("aria-hidden", "true");
-      icon.textContent = "번";
-      this.node.appendChild(icon);
+      this.node.appendChild(createTranslationIcon());
     }
 
     if (state.status !== "prompt") {
@@ -183,12 +172,17 @@ export class YouTubeSubtitleControl {
   }
 
   private handleClick(): void {
-    if (this.state.status === "loading" || this.state.status === "unavailable") {
+    if (this.state.status === "loading") {
       return;
     }
 
     if (this.state.status === "enabled") {
       this.handlers.onToggle();
+      return;
+    }
+
+    if (this.state.status === "unavailable" || this.state.status === "error") {
+      this.showMessage(this.state.message);
       return;
     }
 
@@ -224,8 +218,59 @@ export class YouTubeSubtitleControl {
     this.popover = popover;
   }
 
+  private showMessage(message: string): void {
+    this.hidePopover();
+
+    const popover = document.createElement("div");
+    popover.setAttribute(POPOVER_ATTRIBUTE, "true");
+    popover.className = "hover-trans-port-youtube-subtitle-popover notranslate";
+    popover.textContent = `${message} `;
+
+    const ok = document.createElement("button");
+    ok.type = "button";
+    ok.textContent = "확인";
+    ok.onclick = () => this.hidePopover();
+
+    popover.append(ok);
+    this.node?.after(popover);
+    this.popover = popover;
+  }
+
   private hidePopover(): void {
     this.popover?.remove();
     this.popover = null;
   }
+}
+
+function createTranslationIcon(): SVGSVGElement {
+  const namespace = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(namespace, "svg");
+  svg.setAttribute("class", "hover-trans-port-youtube-subtitle-control-icon");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "1.8");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("aria-hidden", "true");
+
+  const paths = [
+    ["circle", { cx: "12", cy: "12", r: "9" }],
+    ["path", { d: "M3 12h18" }],
+    ["path", { d: "M12 3a14 14 0 0 1 0 18" }],
+    ["path", { d: "M12 3a14 14 0 0 0 0 18" }],
+    ["path", { d: "M7 17h10" }]
+  ] as const;
+
+  for (const [tagName, attributes] of paths) {
+    const node = document.createElementNS(namespace, tagName);
+
+    for (const [name, value] of Object.entries(attributes)) {
+      node.setAttribute(name, value);
+    }
+
+    svg.appendChild(node);
+  }
+
+  return svg;
 }

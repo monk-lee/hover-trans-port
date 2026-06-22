@@ -193,6 +193,10 @@ class FakeDocument {
     return tagName === "video" ? new FakeVideoElement() : new FakeElement(tagName);
   }
 
+  createElementNS(_namespace, tagName) {
+    return new FakeElement(tagName);
+  }
+
   getElementById(id) {
     return findElement(this.documentElement, (element) => element.getAttribute("id") === id);
   }
