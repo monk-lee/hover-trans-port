@@ -14,7 +14,7 @@ use hover_trans_port_helper::providers::gemini::{
 use hover_trans_port_helper::providers::opencode::{
     build_opencode_args, parse_opencode_output, OpencodeProvider,
 };
-use hover_trans_port_helper::providers::{Provider, ProviderRegistry};
+use hover_trans_port_helper::providers::{Provider, ProviderPromptRequest, ProviderRegistry};
 use serde_json::json;
 use std::collections::BTreeMap;
 use std::fs;
@@ -87,6 +87,35 @@ fn codex_fake_cli_translation_returns_success_result() {
     assert_eq!(response["provider"], "codex");
     assert_eq!(response["translatedText"], "안녕하세요");
     assert_eq!(response["cached"], false);
+}
+
+#[test]
+fn provider_prompt_request_sends_raw_prompt() {
+    let codex = fixture_path("echo-stdin");
+    make_executable(&codex);
+    let temp = tempdir().unwrap();
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CODEX_PATH".to_string(),
+        codex.to_string_lossy().into_owned(),
+    );
+    env.insert("HOME".to_string(), temp.path().display().to_string());
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+
+    let registry = ProviderRegistry::new(env);
+    let (_provider, result) = registry
+        .run_prompt(
+            Some("codex"),
+            ProviderPromptRequest {
+                prompt: "RAW_SUBTITLE_PROMPT".to_string(),
+                model: None,
+                timeout_ms: 30_000,
+            },
+        )
+        .unwrap();
+
+    assert!(result.text.contains("RAW_SUBTITLE_PROMPT"));
+    assert!(!result.text.contains("Translate the following text"));
 }
 
 #[test]
@@ -515,7 +544,10 @@ fn antigravity_status_reports_binary_without_executing_it() {
     assert_eq!(status.binary_path, Some(agy.display().to_string()));
     assert_eq!(status.version, None);
     assert_eq!(status.error, None);
-    assert!(!marker.exists(), "Antigravity status check should not execute agy");
+    assert!(
+        !marker.exists(),
+        "Antigravity status check should not execute agy"
+    );
 }
 
 #[test]

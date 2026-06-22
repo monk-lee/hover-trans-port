@@ -6,10 +6,9 @@ use tempfile::tempdir;
 
 use crate::messages::{ProviderId, ProviderStatusEntry};
 use crate::process::{run_process, ProcessRequest, ProviderError};
-use crate::prompt::build_translate_prompt;
 use crate::providers::{
-    Provider, ProviderModelCatalog, ProviderModelOption, ProviderTranslateRequest,
-    ProviderTranslateResult,
+    Provider, ProviderModelCatalog, ProviderModelOption, ProviderPromptRequest,
+    ProviderPromptResult,
 };
 
 const PROMPT_ARG: &str =
@@ -91,10 +90,10 @@ impl Provider for GeminiProvider {
         gemini_fallback_model_catalog()
     }
 
-    fn translate(
+    fn run_prompt(
         &self,
-        request: ProviderTranslateRequest,
-    ) -> Result<ProviderTranslateResult, ProviderError> {
+        request: ProviderPromptRequest,
+    ) -> Result<ProviderPromptResult, ProviderError> {
         let Some(binary) = self.find_binary() else {
             return Err(ProviderError::NotFound {
                 executable: PathBuf::from("gemini"),
@@ -104,20 +103,18 @@ impl Provider for GeminiProvider {
             message: error.to_string(),
         })?;
         prepare_gemini_workspace(temp_dir.path())?;
-        let prompt =
-            build_translate_prompt(&request.text, &request.source_lang, &request.target_lang);
         let output = run_process(ProcessRequest {
             executable: binary.clone(),
             args: build_gemini_args(request.model.as_deref()),
             cwd: Some(temp_dir.path().to_path_buf()),
             env: provider_env(&self.env, &binary),
-            stdin: prompt,
+            stdin: request.prompt,
             timeout_ms: request.timeout_ms,
         })
         .map_err(map_gemini_process_error)?;
 
-        Ok(ProviderTranslateResult {
-            translated_text: parse_gemini_output(&output.stdout)?,
+        Ok(ProviderPromptResult {
+            text: parse_gemini_output(&output.stdout)?,
             elapsed_ms: output.elapsed_ms,
         })
     }

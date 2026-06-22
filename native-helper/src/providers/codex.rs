@@ -6,10 +6,9 @@ use tempfile::tempdir;
 
 use crate::messages::{ProviderId, ProviderStatusEntry};
 use crate::process::{run_process, ProcessRequest, ProviderError};
-use crate::prompt::build_translate_prompt;
 use crate::providers::{
-    Provider, ProviderModelCatalog, ProviderModelOption, ProviderTranslateRequest,
-    ProviderTranslateResult,
+    Provider, ProviderModelCatalog, ProviderModelOption, ProviderPromptRequest,
+    ProviderPromptResult,
 };
 
 const DEFAULT_CODEX_MODEL: &str = "gpt-5.4-mini";
@@ -100,10 +99,10 @@ impl Provider for CodexProvider {
             .unwrap_or_else(codex_fallback_model_catalog)
     }
 
-    fn translate(
+    fn run_prompt(
         &self,
-        request: ProviderTranslateRequest,
-    ) -> Result<ProviderTranslateResult, ProviderError> {
+        request: ProviderPromptRequest,
+    ) -> Result<ProviderPromptResult, ProviderError> {
         let Some(binary) = self.find_binary() else {
             return Err(ProviderError::NotFound {
                 executable: PathBuf::from("codex"),
@@ -115,22 +114,20 @@ impl Provider for CodexProvider {
         })?;
         let output_file = temp_dir.path().join("last-message.txt");
         let model = resolve_codex_model(&self.env, request.model.as_deref(), self.default_model());
-        let prompt =
-            build_translate_prompt(&request.text, &request.source_lang, &request.target_lang);
         let output = run_process(ProcessRequest {
             executable: binary.clone(),
             args: build_codex_exec_args(&model, temp_dir.path(), &output_file),
             cwd: Some(temp_dir.path().to_path_buf()),
             env: provider_env(&self.env, &binary),
-            stdin: prompt,
+            stdin: request.prompt,
             timeout_ms: request.timeout_ms,
         })?;
 
         let last_message = fs::read_to_string(&output_file).unwrap_or_default();
-        let translated_text = parse_codex_output(&last_message, &output.stdout)?;
+        let text = parse_codex_output(&last_message, &output.stdout)?;
 
-        Ok(ProviderTranslateResult {
-            translated_text,
+        Ok(ProviderPromptResult {
+            text,
             elapsed_ms: output.elapsed_ms,
         })
     }

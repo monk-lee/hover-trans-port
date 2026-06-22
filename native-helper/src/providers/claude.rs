@@ -5,10 +5,9 @@ use tempfile::tempdir;
 
 use crate::messages::{ProviderId, ProviderStatusEntry};
 use crate::process::{run_process, ProcessRequest, ProviderError};
-use crate::prompt::build_translate_prompt;
 use crate::providers::{
-    Provider, ProviderModelCatalog, ProviderModelOption, ProviderTranslateRequest,
-    ProviderTranslateResult,
+    Provider, ProviderModelCatalog, ProviderModelOption, ProviderPromptRequest,
+    ProviderPromptResult,
 };
 
 const PROMPT_ARG: &str =
@@ -117,10 +116,10 @@ impl Provider for ClaudeProvider {
         }
     }
 
-    fn translate(
+    fn run_prompt(
         &self,
-        request: ProviderTranslateRequest,
-    ) -> Result<ProviderTranslateResult, ProviderError> {
+        request: ProviderPromptRequest,
+    ) -> Result<ProviderPromptResult, ProviderError> {
         let Some(binary) = self.find_binary() else {
             return Err(ProviderError::NotFound {
                 executable: PathBuf::from("claude"),
@@ -129,8 +128,6 @@ impl Provider for ClaudeProvider {
         let temp_dir = tempdir().map_err(|error| ProviderError::SpawnFailed {
             message: error.to_string(),
         })?;
-        let prompt =
-            build_translate_prompt(&request.text, &request.source_lang, &request.target_lang);
         let model = request
             .model
             .as_deref()
@@ -142,13 +139,13 @@ impl Provider for ClaudeProvider {
             args: build_claude_args(Some(model)),
             cwd: Some(temp_dir.path().to_path_buf()),
             env: provider_env(&self.env, &binary),
-            stdin: prompt,
+            stdin: request.prompt,
             timeout_ms: request.timeout_ms,
         })
         .map_err(map_claude_process_error)?;
 
-        Ok(ProviderTranslateResult {
-            translated_text: parse_claude_output(&output.stdout)?,
+        Ok(ProviderPromptResult {
+            text: parse_claude_output(&output.stdout)?,
             elapsed_ms: output.elapsed_ms,
         })
     }

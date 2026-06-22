@@ -5,10 +5,9 @@ use tempfile::tempdir;
 
 use crate::messages::{ProviderId, ProviderStatusEntry};
 use crate::process::{run_process, ProcessRequest, ProviderError};
-use crate::prompt::build_translate_prompt;
 use crate::providers::{
-    Provider, ProviderModelCatalog, ProviderModelOption, ProviderTranslateRequest,
-    ProviderTranslateResult,
+    Provider, ProviderModelCatalog, ProviderModelOption, ProviderPromptRequest,
+    ProviderPromptResult,
 };
 
 const DEFAULT_STATUS_TIMEOUT_MS: u64 = 5_000;
@@ -84,10 +83,10 @@ impl Provider for OpencodeProvider {
         opencode_fallback_model_catalog()
     }
 
-    fn translate(
+    fn run_prompt(
         &self,
-        request: ProviderTranslateRequest,
-    ) -> Result<ProviderTranslateResult, ProviderError> {
+        request: ProviderPromptRequest,
+    ) -> Result<ProviderPromptResult, ProviderError> {
         let Some(binary) = self.find_binary() else {
             return Err(ProviderError::NotFound {
                 executable: PathBuf::from("opencode"),
@@ -97,21 +96,19 @@ impl Provider for OpencodeProvider {
         let temp_dir = tempdir().map_err(|error| ProviderError::SpawnFailed {
             message: error.to_string(),
         })?;
-        let prompt =
-            build_translate_prompt(&request.text, &request.source_lang, &request.target_lang);
 
         let output = run_process(ProcessRequest {
             executable: binary.clone(),
             args: build_opencode_args(request.model.as_deref(), temp_dir.path()),
             cwd: Some(temp_dir.path().to_path_buf()),
             env: provider_env(&self.env, &binary),
-            stdin: prompt,
+            stdin: request.prompt,
             timeout_ms: request.timeout_ms,
         })
         .map_err(map_opencode_process_error)?;
 
-        Ok(ProviderTranslateResult {
-            translated_text: parse_opencode_output(&output.stdout)?,
+        Ok(ProviderPromptResult {
+            text: parse_opencode_output(&output.stdout)?,
             elapsed_ms: output.elapsed_ms,
         })
     }
