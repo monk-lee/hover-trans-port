@@ -53,8 +53,9 @@ Ctrl+C 또는 Ctrl+F 같은 일반 브라우저/편집 단축키는 trigger로 �
 | --- | --- |
 | macOS와 Google Chrome | Chrome Web Store 설치 |
 | `dist/` 폴더를 직접 불러오는 unpacked extension | Windows/Linux Native Host 설치 가이드 |
-| Codex, Claude, Gemini, OpenCode, Antigravity CLI provider | 전체 페이지 자동 번역 |
-| 마우스로 가리킨 읽기 가능한 블록과 선택 영역 번역 | PDF, iframe, OCR, 자막 번역 |
+| Codex, Claude, Gemini, OpenCode, Antigravity CLI provider | Firefox/Safari extension 빌드 |
+| 마우스로 가리킨 읽기 가능한 블록과 선택 영역 번역 | 전체 페이지 자동 번역 |
+| YouTube 제공 자막 사전 번역과 로컬 자막 캐시 | PDF, iframe, OCR, 오디오 전사 |
 | 원문 안에 번역 표시, 로컬 SQLite 캐시, Options 진단 | hosted translation service |
 
 ## 개인정보와 보안 요약

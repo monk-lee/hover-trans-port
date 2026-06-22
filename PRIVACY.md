@@ -50,6 +50,8 @@ Cached entries include the normalized source text and translated text. They are 
 
 The cache key includes provider, model, target language, and normalized source text.
 
+YouTube subtitle translation can cache longer source and translated excerpts than hover or selection translation because it stores a video's timed caption track. Subtitle cache entries remain local plaintext SQLite and are cleared by the same cache clear control.
+
 Antigravity may create local workspace artifacts under this default path:
 
 ```text

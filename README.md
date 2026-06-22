@@ -51,8 +51,9 @@ Common browser and editing shortcuts such as Ctrl+C or Ctrl+F are blocked from t
 | --- | --- |
 | macOS and Google Chrome | Chrome Web Store install |
 | Unpacked extension loaded from `dist/` | Windows/Linux native host guide |
-| Codex, Claude, Gemini, OpenCode, and Antigravity CLI providers | Full-page automatic translation |
-| Hovered readable block and selection translation | PDF, iframe, OCR, or subtitle translation |
+| Codex, Claude, Gemini, OpenCode, and Antigravity CLI providers | Firefox/Safari extension builds |
+| Hovered readable block and selection translation | Full-page automatic translation |
+| YouTube provided-caption pre-translation and local subtitle cache | PDF, iframe, OCR, or audio transcription |
 | Inline rendering, local SQLite cache, and Options diagnostics | Hosted translation service |
 
 ## Privacy At A Glance

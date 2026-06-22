@@ -131,6 +131,8 @@ When cache is enabled, the native helper stores successful translations in a loc
 
 Cached entries include provider, selected model, target language, normalized source text, and translated text. The Options page Cache section can clear cached translations through the Native Host.
 
+YouTube subtitle translation uses the same local SQLite database and cache clear control. Subtitle cache entries store the video id, source caption track identity, source timeline hash, prompt version, source timed cues, and translated timed cues.
+
 For isolated cache tests, set `HOVER_TRANS_PORT_CACHE_PATH=/tmp/hover-trans-port-cache.sqlite`.
 
 Debug logs, when enabled, are written to `~/.hover-trans-port/hover-trans-port.log`. The Options page Debug Log controls can view and clear this file.
