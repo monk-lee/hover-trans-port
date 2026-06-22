@@ -372,17 +372,28 @@ export function startYouTubeSubtitleSession(): void {
 
     refreshTimer = window.setTimeout(() => {
       refreshTimer = null;
-      void startedSession?.refresh();
+      runSessionRefresh();
     }, 120);
   };
 
-  void startedSession.refresh();
+  runSessionRefresh();
   window.addEventListener("yt-navigate-finish", scheduleRefresh);
 
   if (document.body) {
     const observer = new MutationObserver(scheduleRefresh);
     observer.observe(document.body, { childList: true, subtree: true });
   }
+}
+
+function runSessionRefresh(): void {
+  void startedSession?.refresh().catch((error) => {
+    if (isExtensionContextInvalidated(error)) {
+      startedSession = null;
+      return;
+    }
+
+    console.error("Hover Trans Port YouTube subtitle refresh failed.", error);
+  });
 }
 
 function createRequestId(): string {

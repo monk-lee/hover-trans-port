@@ -117,6 +117,21 @@ const translationStates = new Map<string, TranslationState>();
 let activeTriggerHotkey: TriggerHotkey = DEFAULT_TRIGGER_HOTKEY;
 let uninstallTranslationTrigger: (() => void) | null = null;
 
+function isExtensionContextInvalidated(error: unknown): boolean {
+  const message =
+    typeof error === "object" && error && "message" in error
+      ? String((error as { message?: unknown }).message ?? "")
+      : String(error);
+
+  return message.toLowerCase().includes("extension context invalidated");
+}
+
+window.addEventListener("unhandledrejection", (event) => {
+  if (isExtensionContextInvalidated(event.reason)) {
+    event.preventDefault();
+  }
+});
+
 function createRequestId(): string {
   if ("randomUUID" in crypto) {
     return crypto.randomUUID();

@@ -378,6 +378,26 @@ const tempSharedDir = join(tempDir, "src/shared");
 mkdirSync(tempContentDir, { recursive: true });
 mkdirSync(tempSharedDir, { recursive: true });
 
+const contentScriptSource = readFileSync("src/content/content-script.ts", "utf8");
+assert(
+  contentScriptSource.includes('"unhandledrejection"'),
+  "content script should suppress extension context invalidation rejections"
+);
+assert(
+  contentScriptSource.includes("event.preventDefault()"),
+  "content script should prevent default logging for handled context invalidation rejections"
+);
+assert(
+  contentScriptSource.includes("isExtensionContextInvalidated"),
+  "content script should share context invalidation detection"
+);
+assert(
+  readFileSync("src/content/youtubeSubtitleSession.ts", "utf8").includes(
+    "function runSessionRefresh"
+  ),
+  "YouTube subtitle refresh calls should use a safe rejection wrapper"
+);
+
 writeFileSync(join(tempSharedDir, "providers.js"), transpile("src/shared/providers.ts"));
 writeFileSync(
   join(tempSharedDir, "hotkeys.js"),
