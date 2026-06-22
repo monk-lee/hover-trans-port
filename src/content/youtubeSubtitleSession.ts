@@ -175,7 +175,7 @@ export class YouTubeSubtitleSession {
 
       const sourceTimelineHash = createSubtitleSourceTimelineHash(cues);
       const sourceTrackIdentity = createSubtitleTrackIdentity(track);
-      this.current = {
+      const nextCurrent = {
         videoId,
         cues,
         sourceTimelineHash,
@@ -187,6 +187,8 @@ export class YouTubeSubtitleSession {
         cacheEnabled,
         debugLogging
       };
+      const sourceChanged = !isSameSubtitleSource(this.current, nextCurrent);
+      this.current = nextCurrent;
 
       if (cacheEnabled) {
         const cacheResponse = await this.lookupCache(this.current);
@@ -199,6 +201,10 @@ export class YouTubeSubtitleSession {
           this.activate(cacheResponse.cues);
           return;
         }
+      }
+
+      if (sourceChanged) {
+        this.overlay.clear();
       }
 
       this.control.setState(
@@ -408,6 +414,21 @@ function normalizeProvider(provider: string | undefined): ProviderSelection {
   return provider && PROVIDER_SELECTIONS.has(provider as ProviderSelection)
     ? (provider as ProviderSelection)
     : DEFAULT_PROVIDER;
+}
+
+function isSameSubtitleSource(
+  left: CurrentSubtitleSource | null,
+  right: CurrentSubtitleSource
+): boolean {
+  return Boolean(
+    left &&
+      left.videoId === right.videoId &&
+      left.sourceTimelineHash === right.sourceTimelineHash &&
+      left.sourceTrackIdentity === right.sourceTrackIdentity &&
+      left.targetLang === right.targetLang &&
+      left.provider === right.provider &&
+      left.model === right.model
+  );
 }
 
 function resolveProviderForModel(provider: ProviderSelection): ProviderId {

@@ -479,6 +479,11 @@ try {
     captionContainer.textContent.includes("안녕"),
     "successful translation should render in the YouTube caption container"
   );
+  await session.refresh();
+  assert(
+    captionContainer.textContent.includes("안녕"),
+    "same-source refresh should not clear an active translated subtitle"
+  );
 
   const previousSentMessageCount = sentMessages.length;
   player.getPlayerResponse = () => playerResponseFixture;

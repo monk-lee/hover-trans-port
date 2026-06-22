@@ -114,6 +114,7 @@ export class YouTubeSubtitleControl {
   private node: HTMLButtonElement | null = null;
   private popover: HTMLElement | null = null;
   private state: YouTubeSubtitleControlState = { status: "disabled" };
+  private renderedStateKey: string | null = null;
 
   constructor(private readonly handlers: YouTubeSubtitleControlHandlers) {}
 
@@ -129,6 +130,7 @@ export class YouTubeSubtitleControl {
     this.node.onclick = () => this.handleClick();
 
     if (!existing) {
+      this.renderedStateKey = null;
       const settings = container.querySelector(".ytp-settings-button");
       container.insertBefore(this.node, settings);
     }
@@ -152,6 +154,13 @@ export class YouTubeSubtitleControl {
         : state.status === "loading"
           ? state.message
         : "YouTube 자막 번역";
+    const nextStateKey = `${state.status}:${label}`;
+
+    if (this.renderedStateKey === nextStateKey) {
+      return;
+    }
+
+    this.renderedStateKey = nextStateKey;
     this.node.title = label;
     this.node.setAttribute("aria-label", label);
     this.node.replaceChildren();
@@ -169,6 +178,7 @@ export class YouTubeSubtitleControl {
     this.hidePopover();
     this.node?.remove();
     this.node = null;
+    this.renderedStateKey = null;
   }
 
   private handleClick(): void {

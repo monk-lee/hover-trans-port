@@ -306,6 +306,12 @@ try {
     controls.children[1].querySelector("svg"),
     "control should render a multilingual icon"
   );
+  const firstIcon = controls.children[1].querySelector("svg");
+  control.setState({ status: "prompt" });
+  assert(
+    controls.children[1].querySelector("svg") === firstIcon,
+    "control should not recreate its icon when the visible state is unchanged"
+  );
   assert(
     controls.children[1].getAttribute(
       "data-hover-trans-port-youtube-subtitle-control"
@@ -374,6 +380,11 @@ try {
     "translation should mark the YouTube caption container active"
   );
   assert(captionContainer.textContent.includes("안녕"), "overlay should show active cue");
+  overlay.mount(player);
+  assert(
+    captionContainer.textContent.includes("안녕"),
+    "overlay remount should not clear an active translated cue"
+  );
   overlay.update(2);
   assert(
     !captionContainer.textContent.includes("안녕"),

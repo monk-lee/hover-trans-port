@@ -93,9 +93,9 @@ export class YouTubeSubtitleOverlay {
 
     if (!existing) {
       captionContainer.appendChild(this.node);
+      this.node.hidden = true;
+      this.node.setAttribute("aria-hidden", "true");
     }
-
-    this.clear();
   }
 
   setCues(cues: TranslatedSubtitleCue[]): void {
