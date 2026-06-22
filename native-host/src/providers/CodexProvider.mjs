@@ -8,7 +8,7 @@ import { spawnWithTimeout } from "./spawnWithTimeout.mjs";
 
 const DEFAULT_TRANSLATE_TIMEOUT_MS = 30_000;
 const DEFAULT_STATUS_TIMEOUT_MS = 5_000;
-export const DEFAULT_CODEX_MODEL = "gpt-5.4-mini";
+export const DEFAULT_CODEX_MODEL = "gpt-5.3-codex-spark";
 const UNSUPPORTED_CODEX_MODELS = new Set(["gpt-5.4-nano"]);
 
 function createProviderEnv(codexPath) {
@@ -49,9 +49,13 @@ function createCodexFallbackModelCatalog() {
     models: [
       { value: "gpt-5.5", label: "GPT-5.5" },
       { value: "gpt-5.4", label: "GPT-5.4" },
-      { value: "gpt-5.4-mini", label: "GPT-5.4 Mini", recommended: true },
+      { value: "gpt-5.4-mini", label: "GPT-5.4 Mini" },
       { value: "gpt-5.3-codex", label: "GPT-5.3 Codex" },
-      { value: "gpt-5.3-codex-spark", label: "GPT-5.3 Codex Spark" },
+      {
+        value: "gpt-5.3-codex-spark",
+        label: "GPT-5.3 Codex Spark",
+        recommended: true
+      },
       { value: "gpt-5.2", label: "GPT-5.2" }
     ],
     supportsCustomModel: true,

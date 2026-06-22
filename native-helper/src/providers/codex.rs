@@ -11,7 +11,7 @@ use crate::providers::{
     ProviderPromptResult,
 };
 
-const DEFAULT_CODEX_MODEL: &str = "gpt-5.4-mini";
+const DEFAULT_CODEX_MODEL: &str = "gpt-5.3-codex-spark";
 const DEFAULT_STATUS_TIMEOUT_MS: u64 = 5_000;
 const UNSUPPORTED_CODEX_MODELS: &[&str] = &["gpt-5.4-nano"];
 
@@ -151,7 +151,7 @@ fn codex_fallback_model_catalog() -> ProviderModelCatalog {
             ProviderModelOption {
                 value: "gpt-5.4-mini".to_string(),
                 label: "GPT-5.4 Mini".to_string(),
-                recommended: Some(true),
+                recommended: None,
             },
             ProviderModelOption {
                 value: "gpt-5.3-codex".to_string(),
@@ -161,7 +161,7 @@ fn codex_fallback_model_catalog() -> ProviderModelCatalog {
             ProviderModelOption {
                 value: "gpt-5.3-codex-spark".to_string(),
                 label: "GPT-5.3 Codex Spark".to_string(),
-                recommended: None,
+                recommended: Some(true),
             },
             ProviderModelOption {
                 value: "gpt-5.2".to_string(),

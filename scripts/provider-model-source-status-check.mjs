@@ -199,11 +199,11 @@ async function runOptionsWithCatalogSource(source) {
             ok: true,
             catalog: {
               provider: "codex",
-              defaultModel: "gpt-5.4-mini",
+              defaultModel: "gpt-5.3-codex-spark",
               models: [
                 {
-                  value: "gpt-5.4-mini",
-                  label: "GPT-5.4 Mini",
+                  value: "gpt-5.3-codex-spark",
+                  label: "GPT-5.3 Codex Spark",
                   recommended: true
                 }
               ],

@@ -38,7 +38,11 @@ assertIncludes(
   "PROVIDER_FALLBACK_MODEL_CATALOGS",
   "src/shared/providers.ts"
 );
-assertIncludes(providers, 'codex: "gpt-5.4-mini"', "src/shared/providers.ts");
+assertIncludes(
+  providers,
+  'codex: "gpt-5.3-codex-spark"',
+  "src/shared/providers.ts"
+);
 assertIncludes(providers, 'claude: "haiku"', "src/shared/providers.ts");
 assertIncludes(providers, 'opencode: ""', "src/shared/providers.ts");
 assertIncludes(providers, 'antigravity: "Antigravity CLI"', "src/shared/providers.ts");
@@ -46,6 +50,21 @@ assertIncludes(providers, 'provider: "antigravity"', "src/shared/providers.ts");
 assertIncludes(providers, 'label: "Default (Antigravity CLI)"', "src/shared/providers.ts");
 assertIncludes(providers, "supportsCustomModel: false", "src/shared/providers.ts");
 assertIncludes(providers, 'value: "gpt-5.5"', "src/shared/providers.ts");
+assertIncludes(
+  providers,
+  'value: "gpt-5.3-codex-spark"',
+  "src/shared/providers.ts"
+);
+assertIncludes(
+  providers,
+  'label: "GPT-5.3 Codex Spark"',
+  "src/shared/providers.ts"
+);
+assertIncludes(
+  providers,
+  "recommended: true",
+  "src/shared/providers.ts"
+);
 assertIncludes(providers, 'value: "gpt-5.4-mini"', "src/shared/providers.ts");
 assertNotIncludes(providers, 'value: "gpt-5.4-nano"', "src/shared/providers.ts");
 assertIncludes(providers, 'value: "haiku"', "src/shared/providers.ts");

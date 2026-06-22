@@ -134,12 +134,12 @@ fn codex_model_catalog_filters_visible_debug_models() {
     let catalog = provider.model_catalog();
 
     assert_eq!(catalog.provider, ProviderId::Codex);
-    assert_eq!(catalog.default_model, "gpt-5.4-mini");
+    assert_eq!(catalog.default_model, "gpt-5.3-codex-spark");
     assert_eq!(catalog.source, "cli");
     assert!(catalog
         .models
         .iter()
-        .any(|model| model.value == "gpt-5.4-mini"));
+        .any(|model| model.value == "gpt-5.3-codex-spark" && model.recommended == Some(true)));
     assert!(!catalog
         .models
         .iter()

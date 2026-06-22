@@ -57,7 +57,7 @@ const PROVIDER_SELECTIONS = new Set<ProviderSelection>([
   "auto"
 ]);
 const PROVIDER_DEFAULT_MODELS: Record<ProviderId, string> = {
-  codex: "gpt-5.4-mini",
+  codex: "gpt-5.3-codex-spark",
   claude: "haiku",
   gemini: "",
   opencode: "",

@@ -147,12 +147,12 @@ fn provider_models_returns_catalog_for_selected_provider() {
     assert_eq!(response["requestId"], "req-models");
     assert_eq!(response["ok"], true);
     assert_eq!(response["catalog"]["provider"], "codex");
-    assert_eq!(response["catalog"]["defaultModel"], "gpt-5.4-mini");
+    assert_eq!(response["catalog"]["defaultModel"], "gpt-5.3-codex-spark");
     assert!(response["catalog"]["models"]
         .as_array()
         .unwrap()
         .iter()
-        .any(|model| model["value"] == "gpt-5.4-mini"));
+        .any(|model| model["value"] == "gpt-5.3-codex-spark" && model["recommended"] == true));
 }
 
 #[test]
