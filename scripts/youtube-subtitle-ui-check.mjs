@@ -300,8 +300,8 @@ try {
   control.setState({ status: "prompt" });
   const mountedControl = controls.children[0];
   assert(
-    document.head.textContent.includes("transform: translate(-50%, -50%)"),
-    "control icon should be absolutely centered inside the YouTube button"
+    document.head.textContent.includes("justify-content: center"),
+    "control icon wrapper should center the YouTube-style icon"
   );
   assert(
     mountedControl.getAttribute("data-hover-trans-port-youtube-subtitle-control") ===
@@ -312,26 +312,29 @@ try {
     !mountedControl.textContent.includes("번"),
     "control should use an icon instead of a text label"
   );
+  assert(
+    mountedControl.firstElementChild.tagName === "DIV" &&
+      mountedControl.firstElementChild.className
+        .split(/\s+/g)
+        .includes("ytp-subtitles-button-icon"),
+    "control icon should use the same wrapper structure as YouTube player buttons"
+  );
+  assert(
+    mountedControl.firstElementChild.getAttribute("fill-opacity") === "1",
+    "control icon wrapper should match YouTube caption button icon attributes"
+  );
   assert(mountedControl.querySelector("svg"), "control should render a multilingual icon");
-  const firstIcon = mountedControl.querySelector("svg");
+  const firstIcon = mountedControl.firstElementChild.querySelector("svg");
   assert(
     firstIcon.getAttribute("width") === "24" &&
-      firstIcon.getAttribute("height") === "24",
-    "control icon should carry explicit SVG dimensions"
+      firstIcon.getAttribute("height") === "24" &&
+      firstIcon.getAttribute("viewBox") === "0 0 24 24",
+    "control icon SVG should match YouTube player icon dimensions"
   );
   assert(
-    firstIcon.getAttribute("fill") === "#fff" &&
-      firstIcon.getAttribute("stroke") === "none",
-    "control icon should use a filled white shape instead of a stroke-only shape"
-  );
-  assert(
-    firstIcon.getAttribute("style").includes("display: block") &&
-      firstIcon.getAttribute("style").includes("visibility: visible"),
-    "control icon should force visible inline SVG layout"
-  );
-  assert(
-    firstIcon.querySelector("path").getAttribute("fill") === "#fff",
-    "control icon path should force a white fill so YouTube CSS cannot inherit it away"
+    firstIcon.getAttribute("fill") === "none" &&
+      firstIcon.querySelector("path").getAttribute("fill") === "white",
+    "control icon should use the same white filled path pattern as YouTube player buttons"
   );
   control.setState({ status: "prompt" });
   assert(

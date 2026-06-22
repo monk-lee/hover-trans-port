@@ -89,35 +89,70 @@ export function extractCaptionTracksFromPlayerResponse(
 export function selectCaptionTrack(
   input: SelectCaptionTrackInput
 ): YouTubeCaptionTrack | null {
+  return selectCaptionTrackCandidates(input)[0] ?? null;
+}
+
+export function selectCaptionTrackCandidates(
+  input: SelectCaptionTrackInput
+): YouTubeCaptionTrack[] {
   const tracks = input.tracks.filter((track) => track.baseUrl.trim().length > 0);
   const targetCode = targetLangToLanguageCode(input.targetLang);
-  const active = tracks.find((track) => {
-    return (
-      input.activeLanguageCode &&
-      track.languageCode.toLowerCase() ===
-        input.activeLanguageCode.toLowerCase() &&
-      (!input.activeKind || track.kind === input.activeKind)
-    );
-  });
+  const candidates: YouTubeCaptionTrack[] = [];
+  const seen = new Set<string>();
+  const add = (track: YouTubeCaptionTrack | undefined): void => {
+    if (!track) {
+      return;
+    }
 
-  if (active) {
-    return active;
+    const key = `${track.id}\n${track.languageCode}\n${track.kind}\n${track.baseUrl}`;
+    if (seen.has(key)) {
+      return;
+    }
+
+    seen.add(key);
+    candidates.push(track);
+  };
+
+  add(
+    tracks.find((track) => {
+      return (
+        input.activeLanguageCode &&
+        track.languageCode.toLowerCase() ===
+          input.activeLanguageCode.toLowerCase() &&
+        (!input.activeKind || track.kind === input.activeKind)
+      );
+    })
+  );
+
+  for (const track of tracks) {
+    if (
+      track.kind === "manual" &&
+      track.languageCode.toLowerCase() !== targetCode
+    ) {
+      add(track);
+    }
   }
 
-  return (
-    tracks.find((track) => {
-      return (
-        track.kind === "manual" &&
-        track.languageCode.toLowerCase() !== targetCode
-      );
-    }) ??
-    tracks.find((track) => {
-      return (
-        track.kind === "asr" && track.languageCode.toLowerCase() !== targetCode
-      );
-    }) ??
-    tracks.find((track) => track.kind === "manual") ??
-    tracks.find((track) => track.kind === "asr") ??
-    null
-  );
+  for (const track of tracks) {
+    if (
+      track.kind === "asr" &&
+      track.languageCode.toLowerCase() !== targetCode
+    ) {
+      add(track);
+    }
+  }
+
+  for (const track of tracks) {
+    if (track.kind === "manual") {
+      add(track);
+    }
+  }
+
+  for (const track of tracks) {
+    if (track.kind === "asr") {
+      add(track);
+    }
+  }
+
+  return candidates;
 }

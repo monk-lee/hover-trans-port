@@ -10,11 +10,12 @@ import {
   createSubtitleTrackIdentity,
   SUBTITLE_TRANSLATION_PROMPT_VERSION,
   type TranslatedSubtitleCue,
+  type YouTubeCaptionTrack,
   type YouTubeSubtitleCue
 } from "../shared/youtubeSubtitles";
 import {
   extractCaptionTracksFromPlayerResponse,
-  selectCaptionTrack
+  selectCaptionTrackCandidates
 } from "./youtubeCaptionTracks";
 import {
   fetchYouTubeTranscript
@@ -145,9 +146,9 @@ export class YouTubeSubtitleSession {
       const tracks = extractCaptionTracksFromPlayerResponse(
         this.deps.getPlayerResponse?.() ?? readYouTubePlayerResponse()
       );
-      const track = selectCaptionTrack({ tracks, targetLang });
+      const trackCandidates = selectCaptionTrackCandidates({ tracks, targetLang });
 
-      if (!track) {
+      if (trackCandidates.length === 0) {
         this.current = null;
         this.control.setState({
           status: "unavailable",
@@ -156,15 +157,41 @@ export class YouTubeSubtitleSession {
         return;
       }
 
-      const cues = await (this.deps.fetchTranscript ?? fetchYouTubeTranscript)(
-        track
-      );
+      let track: YouTubeCaptionTrack | null = null;
+      let cues: YouTubeSubtitleCue[] = [];
+      let sawEmptyTranscript = false;
+      let lastTranscriptError: unknown = null;
+      const fetchTranscript = this.deps.fetchTranscript ?? fetchYouTubeTranscript;
+
+      for (const candidate of trackCandidates) {
+        try {
+          const candidateCues = await fetchTranscript(candidate);
+
+          if (sequence !== this.refreshSequence) {
+            return;
+          }
+
+          if (candidateCues.length > 0) {
+            track = candidate;
+            cues = candidateCues;
+            break;
+          }
+
+          sawEmptyTranscript = true;
+        } catch (error) {
+          lastTranscriptError = error;
+        }
+      }
 
       if (sequence !== this.refreshSequence) {
         return;
       }
 
-      if (cues.length === 0) {
+      if (!track) {
+        if (!sawEmptyTranscript && lastTranscriptError) {
+          throw lastTranscriptError;
+        }
+
         this.current = null;
         this.control.setState({
           status: "unavailable",

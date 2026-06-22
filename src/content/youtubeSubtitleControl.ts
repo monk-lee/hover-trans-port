@@ -42,19 +42,15 @@ function ensureControlStyle(): void {
       width: 48px;
     }
     .hover-trans-port-youtube-subtitle-control-icon {
+      align-items: center;
       box-sizing: border-box;
       color: #fff;
-      display: block;
-      fill: #fff;
-      height: 24px;
-      left: 50%;
+      display: flex;
+      height: 100%;
+      justify-content: center;
       pointer-events: none;
-      position: absolute;
-      stroke: none;
-      top: 50%;
-      transform: translate(-50%, -50%);
       visibility: visible;
-      width: 24px;
+      width: 100%;
     }
     .hover-trans-port-youtube-subtitle-control:hover {
       opacity: 1;
@@ -259,48 +255,28 @@ export class YouTubeSubtitleControl {
   }
 }
 
-function createTranslationIcon(): SVGSVGElement {
+function createTranslationIcon(): HTMLDivElement {
   const namespace = "http://www.w3.org/2000/svg";
+  const wrapper = document.createElement("div");
+  wrapper.className =
+    "ytp-subtitles-button-icon hover-trans-port-youtube-subtitle-control-icon";
+  wrapper.setAttribute("fill-opacity", "1");
+
   const svg = document.createElementNS(namespace, "svg");
-  svg.setAttribute("class", "hover-trans-port-youtube-subtitle-control-icon");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("height", "24");
   svg.setAttribute("viewBox", "0 0 24 24");
   svg.setAttribute("width", "24");
-  svg.setAttribute("height", "24");
-  svg.setAttribute("fill", "#fff");
-  svg.setAttribute("stroke", "none");
-  svg.setAttribute(
-    "style",
-    "box-sizing: border-box; color: #fff; display: block; fill: #fff !important; height: 24px; left: 50%; opacity: 1; pointer-events: none; position: absolute; stroke: none !important; top: 50%; transform: translate(-50%, -50%); visibility: visible; width: 24px;"
-  );
   svg.setAttribute("aria-hidden", "true");
 
-  const paths = [
-    [
-      "path",
-      {
-        d: "M12 2.25a9.75 9.75 0 1 0 0 19.5 9.75 9.75 0 0 0 0-19.5Zm0 1.9a7.85 7.85 0 1 1 0 15.7 7.85 7.85 0 0 1 0-15.7Z",
-        "clip-rule": "evenodd",
-        "fill-rule": "evenodd"
-      }
-    ],
-    ["path", { d: "M4.35 11.1h15.3v1.8H4.35z" }],
-    ["path", { d: "M11.1 3.55h1.8v16.9h-1.8z" }],
-    ["path", { d: "M7.15 6.55h9.7v1.7h-9.7z" }],
-    ["path", { d: "M7.15 15.75h9.7v1.7h-9.7z" }]
-  ] as const;
+  const path = document.createElementNS(namespace, "path");
+  path.setAttribute(
+    "d",
+    "M21.20 3.01L21 3H3L2.79 3.01C2.30 3.06 1.84 3.29 1.51 3.65C1.18 4.02 .99 4.50 1 5V19L1.01 19.20C1.05 19.66 1.26 20.08 1.58 20.41C1.91 20.73 2.33 20.94 2.79 20.99L3 21H21L21.20 20.98C21.66 20.94 22.08 20.73 22.41 20.41C22.73 20.08 22.94 19.66 22.99 19.20L23 19V5C23.00 4.50 22.81 4.02 22.48 3.65C22.15 3.29 21.69 3.06 21.20 3.01ZM3 19V5H21V19H3ZM8 11H6C5.73 11 5.48 11.10 5.29 11.29C5.10 11.48 5 11.73 5 12C5 12.26 5.10 12.51 5.29 12.70C5.48 12.89 5.73 13 6 13H8C8.26 13 8.51 12.89 8.70 12.70C8.89 12.51 9 12.26 9 12C9 11.73 8.89 11.48 8.70 11.29C8.51 11.10 8.26 11 8 11ZM18 11H12C11.73 11 11.48 11.10 11.29 11.29C11.10 11.48 11 11.73 11 12C11 12.26 11.10 12.51 11.29 12.70C11.48 12.89 11.73 13 12 13H18C18.26 13 18.51 12.89 18.70 12.70C18.89 12.51 19 12.26 19 12C19 11.73 18.89 11.48 18.70 11.29C18.51 11.10 18.26 11 18 11ZM18 15H16C15.73 15 15.48 15.10 15.29 15.29C15.10 15.48 15 15.73 15 16C15 16.26 15.10 16.51 15.29 16.70C15.48 16.89 15.73 17 16 17H18C18.26 17 18.51 16.89 18.70 16.70C18.89 16.51 19 16.26 19 16C19 15.73 18.89 15.48 18.70 15.29C18.51 15.10 18.26 15 18 15ZM12 15H6C5.73 15 5.48 15.10 5.29 15.29C5.10 15.48 5 15.73 5 16C5 16.26 5.10 16.51 5.29 16.70C5.48 16.89 5.73 17 6 17H12C12.26 17 12.51 16.89 12.70 16.70C12.89 16.51 13 16.26 13 16C13 15.73 12.89 15.48 12.70 15.29C12.51 15.10 12.26 15 12 15Z"
+  );
+  path.setAttribute("fill", "white");
+  svg.appendChild(path);
+  wrapper.appendChild(svg);
 
-  for (const [tagName, attributes] of paths) {
-    const node = document.createElementNS(namespace, tagName);
-
-    for (const [name, value] of Object.entries(attributes)) {
-      node.setAttribute(name, value);
-    }
-
-    node.setAttribute("fill", "#fff");
-    node.setAttribute("stroke", "none");
-    node.setAttribute("style", "fill: #fff !important; stroke: none !important;");
-    svg.appendChild(node);
-  }
-
-  return svg;
+  return wrapper;
 }

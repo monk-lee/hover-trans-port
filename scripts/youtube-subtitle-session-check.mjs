@@ -374,6 +374,30 @@ const playerResponseFixture = {
   }
 };
 
+const fallbackPlayerResponseFixture = {
+  captions: {
+    playerCaptionsTracklistRenderer: {
+      captionTracks: [
+        {
+          baseUrl:
+            "https://www.youtube.com/api/timedtext?v=abc123&lang=en-US",
+          languageCode: "en-US",
+          name: { simpleText: "English (United States)" },
+          vssId: ".en-US"
+        },
+        {
+          baseUrl:
+            "https://www.youtube.com/api/timedtext?v=abc123&lang=en&kind=asr",
+          languageCode: "en",
+          kind: "asr",
+          name: { simpleText: "English (auto-generated)" },
+          vssId: "a.en"
+        }
+      ]
+    }
+  }
+};
+
 const tempDir = mkdtempSync(
   join(tmpdir(), "hover-trans-port-youtube-subtitle-session-")
 );
@@ -512,6 +536,28 @@ try {
     sentMessages.length > previousScriptSentMessageCount &&
       sentMessages.at(-1).type === "GET_SUBTITLE_TRANSLATION_CACHE",
     "session should fall back to parsing ytInitialPlayerResponse from page scripts"
+  );
+
+  const fallbackFetches = [];
+  const previousFallbackSentMessageCount = sentMessages.length;
+  await new YouTubeSubtitleSession({
+    getPlayerResponse: () => fallbackPlayerResponseFixture,
+    fetchTranscript: async (track) => {
+      fallbackFetches.push(`${track.languageCode}:${track.kind}`);
+
+      return track.kind === "manual"
+        ? []
+        : [{ id: "cue-0", startMs: 0, endMs: 1000, text: "Hello" }];
+    }
+  }).refresh();
+  assert(
+    fallbackFetches.join(",") === "en-US:manual,en:asr",
+    "session should try the next caption track when the preferred track has no text"
+  );
+  assert(
+    sentMessages.length > previousFallbackSentMessageCount &&
+      sentMessages.at(-1).type === "GET_SUBTITLE_TRANSLATION_CACHE",
+    "session should continue with the first caption track that yields transcript cues"
   );
 
   global.chrome.storage.local.get = () =>
