@@ -133,8 +133,10 @@ export class YouTubeSubtitleControl {
 
     if (!existing) {
       this.renderedStateKey = null;
-      const settings = container.querySelector(".ytp-settings-button");
-      container.insertBefore(this.node, settings);
+    }
+
+    if (container.firstElementChild !== this.node) {
+      container.insertBefore(this.node, container.firstElementChild);
     }
 
     this.setState(this.state);

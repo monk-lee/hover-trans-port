@@ -54,6 +54,10 @@ class FakeElement {
     return this.childNodes.filter((node) => node instanceof FakeElement);
   }
 
+  get firstElementChild() {
+    return this.children[0] ?? null;
+  }
+
   get textContent() {
     return this.childNodes.map((node) => node.textContent ?? "").join("");
   }
@@ -294,42 +298,39 @@ try {
   });
   control.mount(controls);
   control.setState({ status: "prompt" });
+  const mountedControl = controls.children[0];
   assert(
     document.head.textContent.includes("transform: translate(-50%, -50%)"),
     "control icon should be absolutely centered inside the YouTube button"
   );
   assert(
-    !controls.children[1].textContent.includes("번"),
-    "control should use an icon instead of a text label"
+    mountedControl.getAttribute("data-hover-trans-port-youtube-subtitle-control") ===
+      "true",
+    "control should mount as the leftmost YouTube right-controls-left button"
   );
   assert(
-    controls.children[1].querySelector("svg"),
-    "control should render a multilingual icon"
+    !mountedControl.textContent.includes("번"),
+    "control should use an icon instead of a text label"
   );
-  const firstIcon = controls.children[1].querySelector("svg");
+  assert(mountedControl.querySelector("svg"), "control should render a multilingual icon");
+  const firstIcon = mountedControl.querySelector("svg");
   assert(
     firstIcon.getAttribute("stroke") === "#fff",
     "control icon should force a white stroke so it remains visible on YouTube controls"
   );
   control.setState({ status: "prompt" });
   assert(
-    controls.children[1].querySelector("svg") === firstIcon,
+    mountedControl.querySelector("svg") === firstIcon,
     "control should not recreate its icon when the visible state is unchanged"
-  );
-  assert(
-    controls.children[1].getAttribute(
-      "data-hover-trans-port-youtube-subtitle-control"
-    ) === "true",
-    "control should mount between subtitle and settings buttons"
   );
 
   control.setState({ status: "loading", message: "번역 중..." });
   assert(
-    controls.children[1].textContent === "",
+    mountedControl.textContent === "",
     "loading state should use the spinner without widening the YouTube control"
   );
   assert(
-    controls.children[1].getAttribute("aria-label") === "번역 중...",
+    mountedControl.getAttribute("aria-label") === "번역 중...",
     "loading state should keep accessible status text"
   );
 
@@ -337,8 +338,8 @@ try {
     status: "unavailable",
     message: "사용 가능한 YouTube 자막이 없습니다."
   });
-  assert(!controls.children[1].disabled, "unavailable state should remain clickable");
-  controls.children[1].onclick();
+  assert(!mountedControl.disabled, "unavailable state should remain clickable");
+  mountedControl.onclick();
   assert(
     controls.textContent.includes("사용 가능한 YouTube 자막이 없습니다."),
     "clicking unavailable control should explain why translation cannot start"
