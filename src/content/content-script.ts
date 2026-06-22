@@ -25,6 +25,7 @@ import type {
   TriggerHotkey
 } from "../shared/options";
 import type { ModifierTriggerCode } from "../shared/hotkeys";
+import { startYouTubeSubtitleSession } from "./youtubeSubtitleSession";
 
 const hoverTracker = new HoverTracker();
 const inlineRenderer = new InlineRenderer();
@@ -780,3 +781,7 @@ chrome.runtime.onMessage.addListener(
     });
   }
 );
+
+if (location.hostname === "www.youtube.com" || location.hostname === "youtube.com") {
+  startYouTubeSubtitleSession();
+}
