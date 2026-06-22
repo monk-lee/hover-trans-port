@@ -1,20 +1,10 @@
-import {
-  getBrowserTargetLang,
-  getModelForProvider,
-  normalizeCacheEnabled,
-  normalizeDebugLogging,
-  normalizeProvider,
-  normalizeTargetLang,
-  normalizeTimeoutMs,
-  type StoredOptions
-} from "../shared/options";
 import type {
   SubtitleTrackTranslationRequest,
   SubtitleTranslationCacheRequest,
   SubtitleTranslationCacheResponse,
   SubtitleTranslationResultResponse
 } from "../shared/messages";
-import type { ProviderSelection } from "../shared/providers";
+import type { ProviderId, ProviderSelection } from "../shared/providers";
 import {
   createSubtitleSourceTimelineHash,
   createSubtitleTrackIdentity,
@@ -34,9 +24,51 @@ import { YouTubeSubtitleOverlay } from "./youtubeSubtitleOverlay";
 
 type FetchYouTubeTranscript = typeof fetchYouTubeTranscript;
 
+type StoredOptions = {
+  hoverTransPort?: {
+    provider?: string;
+    codexModel?: string;
+    modelsByProvider?: Partial<Record<ProviderId, string>>;
+    targetLang?: string;
+    timeoutMs?: number | string;
+    cacheEnabled?: boolean;
+    debugLogging?: boolean;
+  };
+};
+
 type SessionDeps = {
   getPlayerResponse?: () => unknown;
   fetchTranscript?: FetchYouTubeTranscript;
+};
+
+const DEFAULT_PROVIDER: ProviderSelection = "codex";
+const DEFAULT_TARGET_LANG = "Korean";
+const DEFAULT_TIMEOUT_MS = 30000;
+const MIN_TIMEOUT_MS = 5000;
+const MAX_TIMEOUT_MS = 120000;
+const DEFAULT_CACHE_ENABLED = true;
+const DEFAULT_DEBUG_LOGGING = false;
+const PROVIDER_SELECTIONS = new Set<ProviderSelection>([
+  "codex",
+  "claude",
+  "gemini",
+  "opencode",
+  "antigravity",
+  "auto"
+]);
+const PROVIDER_DEFAULT_MODELS: Record<ProviderId, string> = {
+  codex: "gpt-5.4-mini",
+  claude: "haiku",
+  gemini: "",
+  opencode: "",
+  antigravity: ""
+};
+const LOCALE_TARGET_LANG_BY_PREFIX: Record<string, string> = {
+  ko: "Korean",
+  en: "English",
+  ja: "Japanese",
+  zh: "Chinese",
+  es: "Spanish"
 };
 
 type CurrentSubtitleSource = {
@@ -317,6 +349,85 @@ function createRequestId(): string {
   }
 
   return `${Date.now()}-${Math.random()}`;
+}
+
+function normalizeProvider(provider: string | undefined): ProviderSelection {
+  return provider && PROVIDER_SELECTIONS.has(provider as ProviderSelection)
+    ? (provider as ProviderSelection)
+    : DEFAULT_PROVIDER;
+}
+
+function resolveProviderForModel(provider: ProviderSelection): ProviderId {
+  return provider === "auto" ? "codex" : provider;
+}
+
+function normalizeProviderModel(
+  provider: ProviderId,
+  model: string | undefined
+): string {
+  const trimmed = model?.trim();
+
+  return trimmed || PROVIDER_DEFAULT_MODELS[provider];
+}
+
+function getModelForProvider(
+  options: StoredOptions["hoverTransPort"],
+  provider: ProviderSelection
+): string {
+  const providerId = resolveProviderForModel(provider);
+  const configured =
+    options?.modelsByProvider?.[providerId] ??
+    (providerId === "codex" ? options?.codexModel : undefined);
+
+  return normalizeProviderModel(providerId, configured);
+}
+
+function normalizeTargetLang(targetLang: string | undefined, fallback: string): string {
+  const trimmed = targetLang?.trim();
+
+  if (trimmed) {
+    return trimmed;
+  }
+
+  return fallback.trim() || DEFAULT_TARGET_LANG;
+}
+
+function getBrowserTargetLang(locales: Array<string | undefined>): string {
+  for (const locale of locales) {
+    const prefix = locale?.trim().toLowerCase().split(/[-_]/u)[0];
+
+    if (prefix && LOCALE_TARGET_LANG_BY_PREFIX[prefix]) {
+      return LOCALE_TARGET_LANG_BY_PREFIX[prefix];
+    }
+  }
+
+  return DEFAULT_TARGET_LANG;
+}
+
+function normalizeTimeoutMs(timeoutMs: number | string | undefined): number {
+  const parsed =
+    typeof timeoutMs === "number" ? timeoutMs : Number(timeoutMs ?? "");
+
+  if (!Number.isFinite(parsed)) {
+    return DEFAULT_TIMEOUT_MS;
+  }
+
+  return Math.min(
+    MAX_TIMEOUT_MS,
+    Math.max(MIN_TIMEOUT_MS, Math.round(parsed))
+  );
+}
+
+function normalizeCacheEnabled(cacheEnabled: boolean | undefined): boolean {
+  return typeof cacheEnabled === "boolean"
+    ? cacheEnabled
+    : DEFAULT_CACHE_ENABLED;
+}
+
+function normalizeDebugLogging(debugLogging: boolean | undefined): boolean {
+  return typeof debugLogging === "boolean"
+    ? debugLogging
+    : DEFAULT_DEBUG_LOGGING;
 }
 
 function getCurrentYouTubeVideoId(): string | null {

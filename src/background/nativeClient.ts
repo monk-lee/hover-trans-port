@@ -54,7 +54,6 @@ import {
   normalizeTimeoutMs,
   type StoredOptions
 } from "../shared/options";
-import { SUBTITLE_CHUNK_MAX_CUES } from "../shared/youtubeSubtitles";
 import {
   createTranslationInflightKey,
   TranslationInflightRegistry
@@ -64,6 +63,7 @@ const NATIVE_HOST_TIMEOUT_MS = 5000;
 const NATIVE_HOST_UPDATE_STATUS_TIMEOUT_MS = 15000;
 const NATIVE_HOST_UPDATE_TIMEOUT_MS = 130000;
 const NATIVE_TRANSLATION_OVERHEAD_MS = 5000;
+const SUBTITLE_CHUNK_MAX_CUES = 80;
 const STATUS_CHECK_MAX_ATTEMPTS = 3;
 const STATUS_CHECK_INITIAL_RETRY_DELAY_MS = 300;
 const STATUS_CHECK_BACKOFF_FACTOR = 3;
