@@ -12,7 +12,7 @@ The desired feature is intentionally narrower than full video translation: suppo
 
 Let users pre-translate a YouTube video's available caption track before watching, then display the translated subtitles in sync with video playback.
 
-The feature must feel native to the YouTube player. When a caption track is available and no cached translation exists, HoverTransPort asks from the YouTube control bar whether to translate the subtitles first. If the user accepts, the extension pauses the video, translates the full timed transcript through the existing local provider flow, shows a spinner in the control bar, stores the result locally, and then displays translated subtitle cues during playback.
+The feature must feel native to the YouTube player. HoverTransPort fetches and normalizes the selected YouTube caption track before prompting so it can compute the source timeline hash and check the local cache. It must not invoke a translation provider until the user accepts. When no cached translation exists, HoverTransPort asks from the YouTube control bar whether to translate the subtitles first. If the user accepts, the extension pauses the video, translates the full timed transcript through the existing local provider flow, shows a spinner in the control bar, stores the result locally, and then displays translated subtitle cues during playback.
 
 ## Non-Goals
 
@@ -26,7 +26,7 @@ The feature must feel native to the YouTube player. When a caption track is avai
 
 ## User Experience
 
-On YouTube watch pages, the content script looks for a usable caption track and the player controls. When the player has an available caption track, HoverTransPort inserts a compact control into `.ytp-right-controls-left`.
+On YouTube watch pages, the content script looks for the player controls, the video element, and usable caption tracks. HoverTransPort inserts a compact control into `.ytp-right-controls-left` when the YouTube player controls are available. If no usable caption track exists, the control uses the `unavailable` state and does not show the translation prompt automatically.
 
 Preferred placement:
 
@@ -57,6 +57,18 @@ When the user selects `예`, the content script pauses the video if it is playin
 When the user selects `아니오`, the extension suppresses automatic prompting for the current video id and page session. The compact control remains in the disabled state; clicking it reopens the prompt manually.
 
 If a cached translation exists for the current video, caption track, provider, model, and target language, the feature skips the question and shows the enabled/disabled control immediately. The first playback experience is not blocked by an already-cached result.
+
+## Caption Track Selection
+
+The first iteration translates one caption track per video session. Use this deterministic selection order:
+
+1. The caption track currently active in the YouTube player, if captions are already enabled and the active track can be resolved to a fetchable track.
+2. A manual caption track whose language is different from the normalized target language.
+3. An automatic caption track whose language is different from the normalized target language.
+4. The first manual caption track in YouTube's provided track order.
+5. The first automatic caption track in YouTube's provided track order.
+
+If no track in this order has a fetchable transcript URL, the session enters the `unavailable` state. The selected track identity must be stable enough for cache use and must include YouTube's track language, display name when available, track kind such as manual or ASR, and the fetch URL or a normalized hash of it.
 
 ## Subtitle Display
 
@@ -105,6 +117,8 @@ The cache key must include:
 
 Including a source timeline hash prevents stale translations from being reused when YouTube changes an automatic caption track for the same video.
 
+The source timeline hash is computed after fetching and normalizing the selected transcript. Cache lookup cannot run before this hash exists. Fetching the YouTube transcript for cache lookup is allowed before prompting because it does not invoke the configured translation provider.
+
 ## Architecture
 
 Add YouTube-specific content modules instead of folding this behavior into the generic hover/selection path.
@@ -124,6 +138,8 @@ Expected background messages:
 - `TRANSLATE_SUBTITLE_TRACK`
 - `CLEAR_TRANSLATION_CACHE` clears subtitle translations as well as existing text translations.
 
+`GET_SUBTITLE_TRANSLATION_CACHE` must receive the video id, selected source track identity, source timeline hash, target language, provider, model, and subtitle prompt version. `TRANSLATE_SUBTITLE_TRACK` must receive those same cache dimensions plus the normalized source cues.
+
 Expected native helper protocol:
 
 - add `TRANSLATE_SUBTITLES`
@@ -131,6 +147,15 @@ Expected native helper protocol:
 - keep existing `TRANSLATE` behavior unchanged
 
 The native helper performs subtitle translation as one batch request when cue count and text size fit within provider limits. When a transcript exceeds those limits, it chunks internally by cue ranges while preserving cue ids and order.
+
+Initial chunking policy:
+
+- Maximum 80 cues per provider request.
+- Maximum 6,000 source characters per provider request, counted after cue text normalization and excluding JSON envelope overhead.
+- Use the existing normalized user timeout as the per-chunk provider timeout.
+- The background native-message timeout for a subtitle request is `(perChunkTimeoutMs + 5000) * chunkCount`.
+- The content control uses an indeterminate spinner in the first iteration; it does not need percentage progress.
+- If any chunk fails, times out, or returns invalid structured output, the entire subtitle translation request fails and no partial subtitle cache entry is written.
 
 ## Translation Prompt Contract
 
@@ -152,22 +177,25 @@ The native helper validates the provider output before returning success. A vali
 1. The user navigates to a YouTube watch page.
 2. `youtubePageObserver` identifies the current video id, player root, controls, and video element.
 3. `youtubeCaptionTracks` finds YouTube-provided captions or automatic captions.
-4. `youtubeSubtitleSession` asks the background for a matching local subtitle translation cache entry.
-5. If a cache hit exists, `youtubeSubtitleOverlay` activates translated subtitles and `youtubeSubtitleControl` shows the enabled state.
-6. If no cache hit exists, `youtubeSubtitleControl` inserts the compact prompt in `.ytp-right-controls-left`.
-7. If the user chooses `아니오`, the prompt is suppressed for that video id in the page session.
-8. If the user chooses `예`, the session pauses the video, fetches the full timed transcript, and sends `TRANSLATE_SUBTITLE_TRACK`.
-9. The background checks native host compatibility and sends `TRANSLATE_SUBTITLES` to the native helper.
-10. The native helper checks subtitle cache, runs the selected provider if needed, validates structured output, writes cache, and returns translated cues.
-11. The content script activates the overlay and updates it as playback time changes.
+4. `youtubeSubtitleSession` selects one caption track using the deterministic track selection order.
+5. If no fetchable track exists, `youtubeSubtitleControl` shows the `unavailable` state and does not prompt.
+6. `youtubeTranscriptFetch` fetches and normalizes the selected transcript, then computes the source timeline hash.
+7. `youtubeSubtitleSession` asks the background for a matching local subtitle translation cache entry using the full cache key dimensions.
+8. If a cache hit exists, `youtubeSubtitleOverlay` activates translated subtitles and `youtubeSubtitleControl` shows the enabled state.
+9. If no cache hit exists, `youtubeSubtitleControl` inserts or updates the compact prompt in `.ytp-right-controls-left`.
+10. If the user chooses `아니오`, the prompt is suppressed for that video id in the page session.
+11. If the user chooses `예`, the session pauses the video and sends `TRANSLATE_SUBTITLE_TRACK` with the normalized cues and cache key dimensions.
+12. The background checks native host compatibility and sends `TRANSLATE_SUBTITLES` to the native helper.
+13. The native helper checks subtitle cache again to deduplicate races, runs the selected provider if needed, validates structured output, writes one complete cache entry, and returns translated cues.
+14. The content script activates the overlay and updates it as playback time changes.
 
 ## Error Handling
 
-If no usable caption track exists, do not show the translation prompt automatically. If the compact control is visible and the user opens it manually, show the short message: `사용 가능한 YouTube 자막이 없습니다.`
+If no usable caption track exists, keep the compact control in the `unavailable` state and do not show the translation prompt automatically. If the user opens the unavailable control manually, show the short message: `사용 가능한 YouTube 자막이 없습니다.`
 
-If fetching the transcript fails, show an error state in the control with retry. Do not start provider translation.
+If fetching the transcript fails, show an error state in the control with retry. Do not start provider translation and do not ask the background for a cache entry because the source timeline hash is unavailable.
 
-If the provider times out or output validation fails, show the existing provider-aware error message style and allow retry.
+If the provider times out, a subtitle chunk fails, or output validation fails, show the existing provider-aware error message style and allow retry. Do not write partial translated cues to cache.
 
 If YouTube re-renders controls or navigates to another video while translation is in flight, the response must be ignored unless it still matches the active video id and source track hash.
 
@@ -186,8 +214,11 @@ The local cache stores normalized source subtitle text and translated subtitle t
 Add focused tests for pure parsing and cache logic:
 
 - caption track extraction from representative YouTube player data
+- deterministic track selection for active, manual, automatic, target-language, and missing-track cases
 - transcript normalization into ordered cues
 - subtitle cache key changes when cue text, timing, provider, model, target language, or prompt version changes
+- cache lookup happens only after transcript normalization and source timeline hash calculation
+- subtitle chunk planning respects cue-count and source-character limits
 - native helper validation rejects missing, duplicate, reordered, or malformed cue translations
 - control injection is idempotent when `.ytp-right-controls-left` is re-rendered
 - session ignores stale translation responses after video id changes
@@ -199,6 +230,7 @@ Manual verification before claiming implementation complete:
 - `예` pauses playback, shows spinner, translates, then enables overlay
 - `아니오` suppresses the prompt for the current video id and page session
 - cached result loads without asking again
+- long transcripts show an indeterminate spinner and fail as one request if any chunk fails
 - translated subtitle overlay follows playback, seeking, pause, resume, fullscreen, and theater mode
 - videos without captions do not show a misleading prompt
 - existing hover-block and selection translation behavior still works on normal web pages
