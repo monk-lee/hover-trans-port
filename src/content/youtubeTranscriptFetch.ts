@@ -18,6 +18,14 @@ type TranscriptPanelRequest = {
   params: string;
 };
 
+const TRANSCRIPT_SEGMENT_SELECTOR =
+  "ytd-transcript-segment-renderer, yt-transcript-segment-renderer";
+const TRANSCRIPT_BUTTON_SELECTOR =
+  'button, tp-yt-paper-button, ytd-button-renderer, yt-button-shape button, a[role="button"]';
+const TRANSCRIPT_BUTTON_TEXT_PATTERN =
+  /스크립트\s*표시|show transcript|transcript/iu;
+const SHOW_MORE_BUTTON_TEXT_PATTERN = /더보기|show more/iu;
+
 export function withJson3Format(baseUrl: string): string {
   const url = new URL(baseUrl);
   url.searchParams.set("fmt", "json3");
@@ -171,6 +179,155 @@ export function parseYouTubeInnertubeTranscript(
 
   visit(value);
   return normalizeSubtitleCues(cues);
+}
+
+export async function fetchYouTubeTranscriptFromTranscriptPanel(): Promise<
+  YouTubeSubtitleCue[]
+> {
+  const existingCues = parseYouTubeTranscriptPanelDocument();
+
+  if (existingCues.length > 0) {
+    return existingCues;
+  }
+
+  if (!(await openYouTubeTranscriptPanel())) {
+    return [];
+  }
+
+  return waitForTranscriptPanelCues();
+}
+
+export function parseYouTubeTranscriptPanelDocument(
+  root: Pick<ParentNode, "querySelectorAll"> = document
+): YouTubeSubtitleCue[] {
+  const segments = Array.from(root.querySelectorAll(TRANSCRIPT_SEGMENT_SELECTOR));
+  const parsedSegments = segments
+    .map((segment) => {
+      const startMs = parseTimestampToMilliseconds(
+        findTranscriptSegmentTimestamp(segment)
+      );
+      const text = formattedTranscriptPanelText(
+        findTranscriptSegmentText(segment)
+      );
+
+      return startMs === null || !text ? null : { startMs, text };
+    })
+    .filter(
+      (segment): segment is { startMs: number; text: string } => segment !== null
+    );
+
+  return normalizeSubtitleCues(
+    parsedSegments.map((segment, index) => ({
+      id: `transcript-panel-dom-${index}`,
+      startMs: segment.startMs,
+      endMs: Math.max(
+        segment.startMs + 1000,
+        parsedSegments[index + 1]?.startMs ?? segment.startMs + 4000
+      ),
+      text: segment.text
+    }))
+  );
+}
+
+async function openYouTubeTranscriptPanel(): Promise<boolean> {
+  if (clickButtonMatchingText(TRANSCRIPT_BUTTON_TEXT_PATTERN)) {
+    return true;
+  }
+
+  if (clickButtonMatchingText(SHOW_MORE_BUTTON_TEXT_PATTERN)) {
+    await delay(200);
+
+    return clickButtonMatchingText(TRANSCRIPT_BUTTON_TEXT_PATTERN);
+  }
+
+  return false;
+}
+
+async function waitForTranscriptPanelCues(): Promise<YouTubeSubtitleCue[]> {
+  const startedAt = Date.now();
+  const timeoutMs = 5000;
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const cues = parseYouTubeTranscriptPanelDocument();
+
+    if (cues.length > 0) {
+      return cues;
+    }
+
+    await delay(100);
+  }
+
+  return [];
+}
+
+function clickButtonMatchingText(pattern: RegExp): boolean {
+  for (const element of Array.from(
+    document.querySelectorAll(TRANSCRIPT_BUTTON_SELECTOR)
+  )) {
+    const text = [
+      element.textContent ?? "",
+      element.getAttribute("aria-label") ?? "",
+      element.getAttribute("title") ?? ""
+    ].join(" ");
+
+    if (!pattern.test(text)) {
+      continue;
+    }
+
+    const clickable = element as HTMLElement & { click?: () => void };
+
+    if (typeof clickable.click !== "function") {
+      continue;
+    }
+
+    clickable.click();
+    return true;
+  }
+
+  return false;
+}
+
+function findTranscriptSegmentTimestamp(segment: Element): string {
+  return (
+    segment.querySelector(
+      ".segment-timestamp, #segment-start-offset, #cue-group-start-offset, [class*='timestamp']"
+    )?.textContent ?? ""
+  );
+}
+
+function findTranscriptSegmentText(segment: Element): string {
+  return (
+    segment.querySelector(
+      ".segment-text, #segment-text, yt-formatted-string, [class*='segment-text']"
+    )?.textContent ?? ""
+  );
+}
+
+function formattedTranscriptPanelText(text: string): string {
+  return text.replace(/\s+/gu, " ").trim();
+}
+
+function parseTimestampToMilliseconds(value: string): number | null {
+  const parts = value
+    .trim()
+    .split(":")
+    .map((part) => Number(part));
+
+  if (
+    parts.length < 2 ||
+    parts.length > 3 ||
+    parts.some((part) => !Number.isFinite(part))
+  ) {
+    return null;
+  }
+
+  return parts.reduce((total, part) => total * 60 + part, 0) * 1000;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
 }
 
 function parseTranscriptRendererCue(

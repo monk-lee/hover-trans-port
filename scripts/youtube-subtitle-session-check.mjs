@@ -574,6 +574,52 @@ try {
     "session should fall back to the YouTube transcript panel when timedtext tracks are empty"
   );
 
+  const previousLazyPanelSentMessageCount = sentMessages.length;
+  const lazyPanelSession = new YouTubeSubtitleSession({
+    getPlayerResponse: () => fallbackPlayerResponseFixture,
+    fetchTranscript: async () => [],
+    fetchTranscriptPanel: async () => [],
+    fetchTranscriptFromPanelDom: async () => [
+      { id: "dom-panel-0", startMs: 0, endMs: 1000, text: "Hello from DOM" }
+    ]
+  });
+  await lazyPanelSession.refresh();
+  const lazyPanelControl = document.querySelector(
+    '[data-hover-trans-port-youtube-subtitle-control="true"]'
+  );
+  assert(
+    lazyPanelControl.getAttribute("data-hover-trans-port-status") === "prompt",
+    "session should keep the translate button usable when caption tracks exist but direct transcript fetches are empty"
+  );
+  await lazyPanelSession.acceptTranslation();
+  assert(
+    sentMessages.length > previousLazyPanelSentMessageCount &&
+      sentMessages.some(
+        (message, index) =>
+          index >= previousLazyPanelSentMessageCount &&
+          message.type === "TRANSLATE_SUBTITLE_TRACK" &&
+          message.cues[0].text === "Hello from DOM"
+      ),
+    "accept should collect transcript cues from YouTube's rendered transcript panel before translating"
+  );
+
+  let repeatedEmptyFetchCount = 0;
+  const repeatedEmptySession = new YouTubeSubtitleSession({
+    getPlayerResponse: () => fallbackPlayerResponseFixture,
+    fetchTranscript: async () => {
+      repeatedEmptyFetchCount += 1;
+
+      return [];
+    },
+    fetchTranscriptPanel: async () => []
+  });
+  await repeatedEmptySession.refresh();
+  await repeatedEmptySession.refresh();
+  assert(
+    repeatedEmptyFetchCount === 2,
+    "session should not repeatedly refetch the same empty pending subtitle source on every refresh"
+  );
+
   global.chrome.storage.local.get = () =>
     Promise.reject(new Error("Extension context invalidated."));
   await assertDoesNotReject(

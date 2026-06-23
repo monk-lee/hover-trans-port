@@ -86,7 +86,28 @@ class FakeDomParser {
   }
 }
 
+class FakeTranscriptSegment {
+  constructor(timestamp, text) {
+    this.timestamp = timestamp;
+    this.text = text;
+  }
+
+  querySelector(selector) {
+    if (selector.includes("timestamp")) {
+      return { textContent: this.timestamp };
+    }
+
+    if (selector.includes("text")) {
+      return { textContent: this.text };
+    }
+
+    return null;
+  }
+}
+
 const fakeScripts = [];
+const fakeTranscriptSegments = [];
+const fakeButtons = [];
 global.document = {
   createElement(tagName) {
     if (tagName !== "textarea") {
@@ -96,7 +117,19 @@ global.document = {
     return new FakeTextArea();
   },
   querySelectorAll(selector) {
-    return selector === "script" ? fakeScripts : [];
+    if (selector === "script") {
+      return fakeScripts;
+    }
+
+    if (selector.includes("ytd-transcript-segment-renderer")) {
+      return fakeTranscriptSegments;
+    }
+
+    if (selector.includes("button")) {
+      return fakeButtons;
+    }
+
+    return [];
   }
 };
 global.DOMParser = FakeDomParser;
@@ -123,9 +156,11 @@ writeFileSync(
 try {
   const {
     fetchYouTubeTranscript,
+    fetchYouTubeTranscriptFromTranscriptPanel,
     fetchYouTubeTranscriptPanel,
     parseYouTubeInnertubeTranscript,
     parseYouTubeJson3Transcript,
+    parseYouTubeTranscriptPanelDocument,
     parseYouTubeXmlTranscript
   } = await import(
     pathToFileURL(join(tempContentDir, "youtubeTranscriptFetch.js")).href
@@ -253,6 +288,44 @@ try {
   assert(
     JSON.parse(panelFetchRequest.init.body).params === "panel=params",
     "transcript panel fallback should parse escaped params from ytInitialData"
+  );
+
+  fakeTranscriptSegments.push(
+    new FakeTranscriptSegment("0:01", "First panel line"),
+    new FakeTranscriptSegment("0:04", "Second panel line")
+  );
+  const domPanelCues = parseYouTubeTranscriptPanelDocument();
+  assert(domPanelCues.length === 2, "transcript panel DOM cues should parse");
+  assert(
+    domPanelCues[0].startMs === 1000 && domPanelCues[0].endMs === 4000,
+    "transcript panel DOM cue end should use the next segment timestamp"
+  );
+  assert(
+    domPanelCues[1].text === "Second panel line",
+    "transcript panel DOM cue text should parse"
+  );
+
+  fakeTranscriptSegments.length = 0;
+  let transcriptButtonClicks = 0;
+  fakeButtons.push({
+    textContent: "스크립트 표시",
+    getAttribute: () => null,
+    click() {
+      transcriptButtonClicks += 1;
+      fakeTranscriptSegments.push(
+        new FakeTranscriptSegment("0:02", "Loaded from YouTube transcript panel")
+      );
+    }
+  });
+  const loadedPanelCues = await fetchYouTubeTranscriptFromTranscriptPanel();
+  assert(
+    transcriptButtonClicks === 1,
+    "transcript panel fallback should click YouTube's transcript button"
+  );
+  assert(
+    loadedPanelCues.length === 1 &&
+      loadedPanelCues[0].text === "Loaded from YouTube transcript panel",
+    "transcript panel fallback should read cues after YouTube renders the panel"
   );
 } finally {
   rmSync(tempDir, { recursive: true, force: true });

@@ -19,6 +19,7 @@ import {
 } from "./youtubeCaptionTracks";
 import {
   fetchYouTubeTranscript,
+  fetchYouTubeTranscriptFromTranscriptPanel,
   fetchYouTubeTranscriptPanel
 } from "./youtubeTranscriptFetch";
 import { YouTubeSubtitleControl } from "./youtubeSubtitleControl";
@@ -26,6 +27,8 @@ import { YouTubeSubtitleOverlay } from "./youtubeSubtitleOverlay";
 
 type FetchYouTubeTranscript = typeof fetchYouTubeTranscript;
 type FetchYouTubeTranscriptPanel = typeof fetchYouTubeTranscriptPanel;
+type FetchYouTubeTranscriptFromPanelDom =
+  typeof fetchYouTubeTranscriptFromTranscriptPanel;
 
 type StoredOptions = {
   hoverTransPort?: {
@@ -43,6 +46,7 @@ type SessionDeps = {
   getPlayerResponse?: () => unknown;
   fetchTranscript?: FetchYouTubeTranscript;
   fetchTranscriptPanel?: FetchYouTubeTranscriptPanel;
+  fetchTranscriptFromPanelDom?: FetchYouTubeTranscriptFromPanelDom;
 };
 
 const DEFAULT_PROVIDER: ProviderSelection = "codex";
@@ -88,6 +92,17 @@ type CurrentSubtitleSource = {
   debugLogging: boolean;
 };
 
+type PendingSubtitleSource = {
+  videoId: string;
+  trackCandidates: YouTubeCaptionTrack[];
+  targetLang: string;
+  provider: ProviderSelection;
+  model: string;
+  timeoutMs: number;
+  cacheEnabled: boolean;
+  debugLogging: boolean;
+};
+
 let startedSession: YouTubeSubtitleSession | null = null;
 let refreshTimer: number | null = null;
 
@@ -100,6 +115,7 @@ export class YouTubeSubtitleSession {
   });
   private readonly overlay = new YouTubeSubtitleOverlay();
   private current: CurrentSubtitleSource | null = null;
+  private pending: PendingSubtitleSource | null = null;
   private video: HTMLVideoElement | null = null;
   private refreshSequence = 0;
   private stopped = false;
@@ -153,6 +169,7 @@ export class YouTubeSubtitleSession {
 
       if (trackCandidates.length === 0) {
         this.current = null;
+        this.pending = null;
         this.control.setState({
           status: "unavailable",
           message: "사용 가능한 YouTube 자막이 없습니다."
@@ -160,78 +177,9 @@ export class YouTubeSubtitleSession {
         return;
       }
 
-      let track: YouTubeCaptionTrack | null = null;
-      let cues: YouTubeSubtitleCue[] = [];
-      let sawEmptyTranscript = false;
-      let lastTranscriptError: unknown = null;
-      const fetchTranscript = this.deps.fetchTranscript ?? fetchYouTubeTranscript;
-
-      for (const candidate of trackCandidates) {
-        try {
-          const candidateCues = await fetchTranscript(candidate);
-
-          if (sequence !== this.refreshSequence) {
-            return;
-          }
-
-          if (candidateCues.length > 0) {
-            track = candidate;
-            cues = candidateCues;
-            break;
-          }
-
-          sawEmptyTranscript = true;
-        } catch (error) {
-          lastTranscriptError = error;
-        }
-      }
-
-      if (sequence !== this.refreshSequence) {
-        return;
-      }
-
-      if (!track) {
-        const panelCues = await (
-          this.deps.fetchTranscriptPanel ?? fetchYouTubeTranscriptPanel
-        )();
-
-        if (sequence !== this.refreshSequence) {
-          return;
-        }
-
-        if (panelCues.length > 0) {
-          const fallbackTrack = trackCandidates[0];
-          track = {
-            id: `transcript-panel:${videoId}`,
-            languageCode: fallbackTrack?.languageCode ?? "unknown",
-            displayName: "YouTube transcript",
-            kind: fallbackTrack?.kind ?? "manual",
-            baseUrl: `youtubei:get_transcript:${videoId}`
-          };
-          cues = panelCues;
-        }
-      }
-
-      if (!track) {
-        if (!sawEmptyTranscript && lastTranscriptError) {
-          throw lastTranscriptError;
-        }
-
-        this.current = null;
-        this.control.setState({
-          status: "unavailable",
-          message: "번역할 YouTube 자막 내용이 없습니다."
-        });
-        return;
-      }
-
-      const sourceTimelineHash = createSubtitleSourceTimelineHash(cues);
-      const sourceTrackIdentity = createSubtitleTrackIdentity(track);
-      const nextCurrent = {
+      const pendingSource: PendingSubtitleSource = {
         videoId,
-        cues,
-        sourceTimelineHash,
-        sourceTrackIdentity,
+        trackCandidates,
         targetLang,
         provider,
         model,
@@ -239,8 +187,42 @@ export class YouTubeSubtitleSession {
         cacheEnabled,
         debugLogging
       };
-      const sourceChanged = !isSameSubtitleSource(this.current, nextCurrent);
-      this.current = nextCurrent;
+      const previousPending = this.pending;
+      this.pending = pendingSource;
+
+      if (
+        !this.current &&
+        isSamePendingSubtitleSource(previousPending, pendingSource)
+      ) {
+        this.control.setState(
+          this.declinedVideoIds.has(videoId)
+            ? { status: "disabled" }
+            : { status: "prompt" }
+        );
+        return;
+      }
+
+      const loadedSource = await this.loadCurrentSubtitleSource(pendingSource, {
+        allowTranscriptPanelDom: false
+      });
+
+      if (sequence !== this.refreshSequence) {
+        return;
+      }
+
+      if (!loadedSource) {
+        this.current = null;
+        this.control.setState(
+          this.declinedVideoIds.has(videoId)
+            ? { status: "disabled" }
+            : { status: "prompt" }
+        );
+        return;
+      }
+
+      const sourceChanged = !isSameSubtitleSource(this.current, loadedSource);
+      this.current = loadedSource;
+      this.pending = null;
 
       if (cacheEnabled) {
         const cacheResponse = await this.lookupCache(this.current);
@@ -281,13 +263,61 @@ export class YouTubeSubtitleSession {
   }
 
   async acceptTranslation(): Promise<void> {
-    if (this.stopped || !this.current) {
+    if (this.stopped) {
       return;
     }
 
     const video = this.video ?? document.querySelector("video");
     const wasPlaying = Boolean(video && !video.paused);
     video?.pause();
+
+    if (!this.current) {
+      if (!this.pending) {
+        return;
+      }
+
+      this.control.setState({
+        status: "loading",
+        message: "자막 스크립트 읽는 중..."
+      });
+
+      try {
+        this.current = await this.loadCurrentSubtitleSource(this.pending, {
+          allowTranscriptPanelDom: true
+        });
+      } catch (error) {
+        if (isExtensionContextInvalidated(error)) {
+          this.stop();
+          return;
+        }
+
+        this.current = null;
+      }
+
+      if (!this.current) {
+        this.control.setState({
+          status: "error",
+          message: "YouTube 자막 스크립트를 읽지 못했습니다."
+        });
+        return;
+      }
+
+      this.pending = null;
+
+      if (this.current.cacheEnabled) {
+        const cacheResponse = await this.lookupCache(this.current);
+
+        if (cacheResponse.ok && cacheResponse.cached) {
+          this.activate(cacheResponse.cues);
+
+          if (wasPlaying) {
+            await video?.play().catch(() => undefined);
+          }
+          return;
+        }
+      }
+    }
+
     this.control.setState({ status: "loading", message: "번역 중..." });
 
     const requestId = createRequestId();
@@ -338,6 +368,84 @@ export class YouTubeSubtitleSession {
       status: "error",
       message: "자막 번역에 실패했습니다."
     });
+  }
+
+  private async loadCurrentSubtitleSource(
+    pendingSource: PendingSubtitleSource,
+    options: { allowTranscriptPanelDom: boolean }
+  ): Promise<CurrentSubtitleSource | null> {
+    const loaded = await this.loadSubtitleCues(
+      pendingSource.videoId,
+      pendingSource.trackCandidates,
+      options
+    );
+
+    if (!loaded) {
+      return null;
+    }
+
+    return {
+      videoId: pendingSource.videoId,
+      cues: loaded.cues,
+      sourceTimelineHash: createSubtitleSourceTimelineHash(loaded.cues),
+      sourceTrackIdentity: createSubtitleTrackIdentity(loaded.track),
+      targetLang: pendingSource.targetLang,
+      provider: pendingSource.provider,
+      model: pendingSource.model,
+      timeoutMs: pendingSource.timeoutMs,
+      cacheEnabled: pendingSource.cacheEnabled,
+      debugLogging: pendingSource.debugLogging
+    };
+  }
+
+  private async loadSubtitleCues(
+    videoId: string,
+    trackCandidates: YouTubeCaptionTrack[],
+    options: { allowTranscriptPanelDom: boolean }
+  ): Promise<{ track: YouTubeCaptionTrack; cues: YouTubeSubtitleCue[] } | null> {
+    let sawEmptyTranscript = false;
+    let lastTranscriptError: unknown = null;
+    const fetchTranscript = this.deps.fetchTranscript ?? fetchYouTubeTranscript;
+
+    for (const candidate of trackCandidates) {
+      try {
+        const candidateCues = await fetchTranscript(candidate);
+
+        if (candidateCues.length > 0) {
+          return { track: candidate, cues: candidateCues };
+        }
+
+        sawEmptyTranscript = true;
+      } catch (error) {
+        lastTranscriptError = error;
+      }
+    }
+
+    const panelTrack = createTranscriptPanelTrack(videoId, trackCandidates[0]);
+    const panelCues = await (
+      this.deps.fetchTranscriptPanel ?? fetchYouTubeTranscriptPanel
+    )();
+
+    if (panelCues.length > 0) {
+      return { track: panelTrack, cues: panelCues };
+    }
+
+    if (options.allowTranscriptPanelDom) {
+      const panelDomCues = await (
+        this.deps.fetchTranscriptFromPanelDom ??
+        fetchYouTubeTranscriptFromTranscriptPanel
+      )();
+
+      if (panelDomCues.length > 0) {
+        return { track: panelTrack, cues: panelDomCues };
+      }
+    }
+
+    if (!sawEmptyTranscript && lastTranscriptError) {
+      throw lastTranscriptError;
+    }
+
+    return null;
   }
 
   private async lookupCache(
@@ -481,6 +589,41 @@ function isSameSubtitleSource(
       left.provider === right.provider &&
       left.model === right.model
   );
+}
+
+function isSamePendingSubtitleSource(
+  left: PendingSubtitleSource | null,
+  right: PendingSubtitleSource
+): boolean {
+  return Boolean(
+    left &&
+      left.videoId === right.videoId &&
+      left.targetLang === right.targetLang &&
+      left.provider === right.provider &&
+      left.model === right.model &&
+      left.timeoutMs === right.timeoutMs &&
+      left.cacheEnabled === right.cacheEnabled &&
+      left.debugLogging === right.debugLogging &&
+      createTrackCandidatesIdentity(left.trackCandidates) ===
+        createTrackCandidatesIdentity(right.trackCandidates)
+  );
+}
+
+function createTrackCandidatesIdentity(tracks: YouTubeCaptionTrack[]): string {
+  return tracks.map((track) => createSubtitleTrackIdentity(track)).join("\n");
+}
+
+function createTranscriptPanelTrack(
+  videoId: string,
+  fallbackTrack: YouTubeCaptionTrack | undefined
+): YouTubeCaptionTrack {
+  return {
+    id: `transcript-panel:${videoId}`,
+    languageCode: fallbackTrack?.languageCode ?? "unknown",
+    displayName: "YouTube transcript",
+    kind: fallbackTrack?.kind ?? "manual",
+    baseUrl: `youtubei:get_transcript:${videoId}`
+  };
 }
 
 function resolveProviderForModel(provider: ProviderSelection): ProviderId {
