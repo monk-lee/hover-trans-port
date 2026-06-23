@@ -304,6 +304,10 @@ try {
     "control icon wrapper should center the YouTube-style icon"
   );
   assert(
+    document.head.textContent.includes("bottom: 72px"),
+    "control popover should sit above the YouTube playback controls"
+  );
+  assert(
     mountedControl.getAttribute("data-hover-trans-port-youtube-subtitle-control") ===
       "true",
     "control should mount as the leftmost YouTube right-controls-left button"

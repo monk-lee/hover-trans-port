@@ -78,7 +78,7 @@ function ensureControlStyle(): void {
       align-items: center;
       background: rgba(18, 18, 18, 0.96);
       border-radius: 4px;
-      bottom: 42px;
+      bottom: 72px;
       box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
       color: #fff;
       display: flex;

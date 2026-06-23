@@ -18,12 +18,14 @@ import {
   selectCaptionTrackCandidates
 } from "./youtubeCaptionTracks";
 import {
-  fetchYouTubeTranscript
+  fetchYouTubeTranscript,
+  fetchYouTubeTranscriptPanel
 } from "./youtubeTranscriptFetch";
 import { YouTubeSubtitleControl } from "./youtubeSubtitleControl";
 import { YouTubeSubtitleOverlay } from "./youtubeSubtitleOverlay";
 
 type FetchYouTubeTranscript = typeof fetchYouTubeTranscript;
+type FetchYouTubeTranscriptPanel = typeof fetchYouTubeTranscriptPanel;
 
 type StoredOptions = {
   hoverTransPort?: {
@@ -40,6 +42,7 @@ type StoredOptions = {
 type SessionDeps = {
   getPlayerResponse?: () => unknown;
   fetchTranscript?: FetchYouTubeTranscript;
+  fetchTranscriptPanel?: FetchYouTubeTranscriptPanel;
 };
 
 const DEFAULT_PROVIDER: ProviderSelection = "codex";
@@ -185,6 +188,28 @@ export class YouTubeSubtitleSession {
 
       if (sequence !== this.refreshSequence) {
         return;
+      }
+
+      if (!track) {
+        const panelCues = await (
+          this.deps.fetchTranscriptPanel ?? fetchYouTubeTranscriptPanel
+        )();
+
+        if (sequence !== this.refreshSequence) {
+          return;
+        }
+
+        if (panelCues.length > 0) {
+          const fallbackTrack = trackCandidates[0];
+          track = {
+            id: `transcript-panel:${videoId}`,
+            languageCode: fallbackTrack?.languageCode ?? "unknown",
+            displayName: "YouTube transcript",
+            kind: fallbackTrack?.kind ?? "manual",
+            baseUrl: `youtubei:get_transcript:${videoId}`
+          };
+          cues = panelCues;
+        }
       }
 
       if (!track) {

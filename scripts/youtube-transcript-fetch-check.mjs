@@ -86,6 +86,7 @@ class FakeDomParser {
   }
 }
 
+const fakeScripts = [];
 global.document = {
   createElement(tagName) {
     if (tagName !== "textarea") {
@@ -93,6 +94,9 @@ global.document = {
     }
 
     return new FakeTextArea();
+  },
+  querySelectorAll(selector) {
+    return selector === "script" ? fakeScripts : [];
   }
 };
 global.DOMParser = FakeDomParser;
@@ -119,6 +123,8 @@ writeFileSync(
 try {
   const {
     fetchYouTubeTranscript,
+    fetchYouTubeTranscriptPanel,
+    parseYouTubeInnertubeTranscript,
     parseYouTubeJson3Transcript,
     parseYouTubeXmlTranscript
   } = await import(
@@ -182,6 +188,71 @@ try {
   assert(
     fetchRequest.url.includes("fmt=json3"),
     "YouTube timedtext fetch should request json3 format"
+  );
+
+  const innertubeResponse = {
+    actions: [
+      {
+        updateEngagementPanelAction: {
+          content: {
+            transcriptRenderer: {
+              body: {
+                transcriptSegmentListRenderer: {
+                  initialSegments: [
+                    {
+                      transcriptSegmentRenderer: {
+                        startMs: "0",
+                        endMs: "1200",
+                        snippet: { runs: [{ text: "Panel" }, { text: " cue" }] }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  };
+  const innertubeCues = parseYouTubeInnertubeTranscript(innertubeResponse);
+  assert(innertubeCues.length === 1, "Innertube transcript cue should parse");
+  assert(
+    innertubeCues[0].text === "Panel cue",
+    "Innertube transcript runs should join"
+  );
+
+  fakeScripts.push({
+    textContent:
+      'ytcfg.set({"INNERTUBE_API_KEY":"test-key","INNERTUBE_CONTEXT":{"client":{"clientName":"WEB","clientVersion":"2.0","visitorData":"visitor"}}}); window["ytInitialData"] = {"engagementPanels":[{"content":{"continuationItemRenderer":{"continuationEndpoint":{"getTranscriptEndpoint":{"videoId":"abc","params":"panel\\u003Dparams"}}}}}]};'
+  });
+  let panelFetchRequest = null;
+  global.fetch = (url, init) => {
+    panelFetchRequest = { url: String(url), init };
+
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve(innertubeResponse)
+    });
+  };
+  const panelCues = await fetchYouTubeTranscriptPanel();
+  assert(panelCues.length === 1, "transcript panel fallback should return cues");
+  assert(
+    panelFetchRequest.url.includes("/youtubei/v1/get_transcript") &&
+      panelFetchRequest.url.includes("key=test-key"),
+    "transcript panel fallback should call the YouTube Innertube transcript endpoint"
+  );
+  assert(
+    panelFetchRequest.init.credentials === "include",
+    "transcript panel fallback should include YouTube credentials"
+  );
+  assert(
+    panelFetchRequest.init.headers["x-youtube-client-name"] === "1",
+    "transcript panel fallback should send the WEB client header expected by YouTube"
+  );
+  assert(
+    JSON.parse(panelFetchRequest.init.body).params === "panel=params",
+    "transcript panel fallback should parse escaped params from ytInitialData"
   );
 } finally {
   rmSync(tempDir, { recursive: true, force: true });

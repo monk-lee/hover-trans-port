@@ -560,6 +560,20 @@ try {
     "session should continue with the first caption track that yields transcript cues"
   );
 
+  const previousPanelFallbackSentMessageCount = sentMessages.length;
+  await new YouTubeSubtitleSession({
+    getPlayerResponse: () => fallbackPlayerResponseFixture,
+    fetchTranscript: async () => [],
+    fetchTranscriptPanel: async () => [
+      { id: "panel-0", startMs: 0, endMs: 1000, text: "Hello from panel" }
+    ]
+  }).refresh();
+  assert(
+    sentMessages.length > previousPanelFallbackSentMessageCount &&
+      sentMessages.at(-1).type === "GET_SUBTITLE_TRANSLATION_CACHE",
+    "session should fall back to the YouTube transcript panel when timedtext tracks are empty"
+  );
+
   global.chrome.storage.local.get = () =>
     Promise.reject(new Error("Extension context invalidated."));
   await assertDoesNotReject(
