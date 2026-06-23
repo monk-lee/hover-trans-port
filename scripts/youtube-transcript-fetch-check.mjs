@@ -308,6 +308,7 @@ try {
 
   fakeTranscriptSegments.length = 0;
   let transcriptButtonClicks = 0;
+  let transcriptCloseClicks = 0;
   fakeButtons.push({
     tagName: "BUTTON",
     textContent: "스크립트 표시",
@@ -319,6 +320,14 @@ try {
       );
     }
   });
+  fakeButtons.push({
+    tagName: "BUTTON",
+    textContent: "닫기",
+    getAttribute: () => null,
+    click() {
+      transcriptCloseClicks += 1;
+    }
+  });
   const panelDebugEvents = [];
   const loadedPanelCues = await fetchYouTubeTranscriptFromTranscriptPanel({
     onDebug(event, fields) {
@@ -328,6 +337,10 @@ try {
   assert(
     transcriptButtonClicks === 1,
     "transcript panel fallback should click YouTube's transcript button"
+  );
+  assert(
+    transcriptCloseClicks === 1,
+    "transcript panel fallback should close the rendered transcript panel after reading it"
   );
   assert(
     loadedPanelCues.length === 1 &&
@@ -350,6 +363,14 @@ try {
         fields.cueCount === 1
     ),
     "transcript panel fallback should debug-log the final rendered transcript cue count"
+  );
+  assert(
+    panelDebugEvents.some(
+      ({ event, fields }) =>
+        event === "youtube.subtitle.panel_dom_close" &&
+        fields.closed === true
+    ),
+    "transcript panel fallback should debug-log whether it closed the rendered transcript panel"
   );
 
   fakeTranscriptSegments.length = 0;

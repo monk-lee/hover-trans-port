@@ -29,6 +29,12 @@ async function assertDoesNotReject(promise, message) {
   }
 }
 
+async function flushPromises(count = 50) {
+  for (let index = 0; index < count; index += 1) {
+    await Promise.resolve();
+  }
+}
+
 class FakeTextNode {
   nodeType = 3;
   parentElement = null;
@@ -622,6 +628,7 @@ try {
     "session should keep the translate button usable when caption tracks exist but direct transcript fetches are empty"
   );
   await lazyPanelSession.acceptTranslation();
+  await flushPromises();
   assert(
     lazyPanelTimedTextFetchCount === 2 && lazyPanelApiFetchCount === 0,
     "accept should go straight to the rendered transcript panel after direct prefetch already failed"
@@ -644,6 +651,49 @@ try {
         message.fields?.cueCount === 1
     ),
     "accept should write a debug event with the transcript panel DOM cue count"
+  );
+  assert(
+    sentMessages.some(
+      (message, index) =>
+        index >= previousLazyPanelSentMessageCount &&
+        message.type === "WRITE_DEBUG_LOG_EVENT" &&
+        message.event === "youtube.subtitle.source_loaded" &&
+        message.fields?.cueCount === 1
+    ),
+    "accept should write a debug event after loading subtitle cues"
+  );
+  assert(
+    sentMessages.some(
+      (message, index) =>
+        index >= previousLazyPanelSentMessageCount &&
+        message.type === "WRITE_DEBUG_LOG_EVENT" &&
+        message.event === "youtube.subtitle.cache_lookup_result" &&
+        message.fields?.ok === true &&
+        message.fields?.cached === false
+    ),
+    "accept should write a debug event with the subtitle cache lookup result"
+  );
+  assert(
+    sentMessages.some(
+      (message, index) =>
+        index >= previousLazyPanelSentMessageCount &&
+        message.type === "WRITE_DEBUG_LOG_EVENT" &&
+        message.event === "youtube.subtitle.translation_start" &&
+        message.fields?.cueCount === 1 &&
+        message.fields?.chunkCountEstimate === 1
+    ),
+    "accept should write a debug event before requesting subtitle translation"
+  );
+  assert(
+    sentMessages.some(
+      (message, index) =>
+        index >= previousLazyPanelSentMessageCount &&
+        message.type === "WRITE_DEBUG_LOG_EVENT" &&
+        message.event === "youtube.subtitle.translation_result" &&
+        message.fields?.ok === true &&
+        message.fields?.translatedCueCount === 1
+    ),
+    "accept should write a debug event with the subtitle translation result"
   );
   assert(
     sentMessages.length > previousLazyPanelSentMessageCount &&

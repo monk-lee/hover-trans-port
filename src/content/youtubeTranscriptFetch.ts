@@ -43,6 +43,16 @@ type TranscriptPanelOpenResult = {
   clickTargetTagName?: string | null;
 };
 
+type TranscriptPanelCloseResult = {
+  closed: boolean;
+  closeMethod: string;
+  buttonCandidateCount: number;
+  visibleCandidateCount?: number;
+  matchedText: string | null;
+  matchedTagName?: string | null;
+  clickTargetTagName?: string | null;
+};
+
 const TRANSCRIPT_SEGMENT_SELECTOR =
   "ytd-transcript-segment-renderer, yt-transcript-segment-renderer";
 const TRANSCRIPT_BUTTON_SELECTOR =
@@ -62,6 +72,7 @@ const TRANSCRIPT_CLICK_TARGET_SELECTOR =
 const TRANSCRIPT_BUTTON_TEXT_PATTERN =
   /스크립트\s*표시|show transcript|transcript/iu;
 const SHOW_MORE_BUTTON_TEXT_PATTERN = /더보기|show more/iu;
+const CLOSE_TRANSCRIPT_PANEL_TEXT_PATTERN = /닫기|close/iu;
 
 export function withJson3Format(baseUrl: string): string {
   const url = new URL(baseUrl);
@@ -239,7 +250,16 @@ export async function fetchYouTubeTranscriptFromTranscriptPanel(
     return [];
   }
 
-  return waitForTranscriptPanelCues(options);
+  const panelCues = await waitForTranscriptPanelCues(options);
+
+  if (panelCues.length > 0) {
+    options.onDebug?.(
+      "youtube.subtitle.panel_dom_close",
+      closeYouTubeTranscriptPanel()
+    );
+  }
+
+  return panelCues;
 }
 
 export function parseYouTubeTranscriptPanelDocument(
@@ -409,6 +429,31 @@ function clickButtonMatchingText(pattern: RegExp): {
     matchedText: null,
     matchedTagName: null,
     clickTargetTagName: null
+  };
+}
+
+function closeYouTubeTranscriptPanel(): TranscriptPanelCloseResult {
+  if (
+    countTranscriptSegmentElements() === 0 &&
+    countTranscriptPanelElements() === 0
+  ) {
+    return {
+      closed: false,
+      closeMethod: "close-not-needed",
+      buttonCandidateCount: 0,
+      visibleCandidateCount: 0,
+      matchedText: null,
+      matchedTagName: null,
+      clickTargetTagName: null
+    };
+  }
+
+  const closeClick = clickButtonMatchingText(CLOSE_TRANSCRIPT_PANEL_TEXT_PATTERN);
+
+  return {
+    ...closeClick,
+    closed: closeClick.clicked,
+    closeMethod: closeClick.clicked ? "close-button" : "close-not-found"
   };
 }
 

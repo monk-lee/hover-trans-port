@@ -11,6 +11,7 @@ import type { ProviderId, ProviderSelection } from "../shared/providers";
 import {
   createSubtitleSourceTimelineHash,
   createSubtitleTrackIdentity,
+  planSubtitleChunks,
   SUBTITLE_TRANSLATION_PROMPT_VERSION,
   type TranslatedSubtitleCue,
   type YouTubeCaptionTrack,
@@ -323,11 +324,44 @@ export class YouTubeSubtitleSession {
       }
 
       this.pending = null;
+      this.writeDebugEvent("youtube.subtitle.source_loaded", {
+        videoId: this.current.videoId,
+        cueCount: this.current.cues.length,
+        sourceTimelineHash: this.current.sourceTimelineHash,
+        sourceTrackIdentity: this.current.sourceTrackIdentity,
+        targetLang: this.current.targetLang,
+        provider: this.current.provider,
+        model: this.current.model,
+        cacheEnabled: this.current.cacheEnabled
+      });
 
       if (this.current.cacheEnabled) {
-        const cacheResponse = await this.lookupCache(this.current);
+        this.writeDebugEvent("youtube.subtitle.cache_lookup_start", {
+          videoId: this.current.videoId,
+          sourceTimelineHash: this.current.sourceTimelineHash
+        });
+        let cacheResponse: SubtitleTranslationCacheResponse | null = null;
 
-        if (cacheResponse.ok && cacheResponse.cached) {
+        try {
+          cacheResponse = await this.lookupCache(this.current);
+        } catch (error) {
+          this.writeDebugEvent("youtube.subtitle.cache_lookup_result", {
+            ok: false,
+            cached: false,
+            message: formatDebugError(error)
+          });
+        }
+
+        if (cacheResponse) {
+          this.writeDebugEvent("youtube.subtitle.cache_lookup_result", {
+            ok: cacheResponse.ok,
+            cached: cacheResponse.ok ? cacheResponse.cached : false,
+            error: cacheResponse.ok ? null : cacheResponse.error,
+            message: cacheResponse.ok ? null : cacheResponse.message
+          });
+        }
+
+        if (cacheResponse?.ok && cacheResponse.cached) {
           this.activate(cacheResponse.cues);
 
           if (wasPlaying) {
@@ -339,6 +373,17 @@ export class YouTubeSubtitleSession {
     }
 
     this.control.setState({ status: "loading", message: "번역 중..." });
+    const chunkCountEstimate = planSubtitleChunks(this.current.cues).length;
+    this.writeDebugEvent("youtube.subtitle.translation_start", {
+      videoId: this.current.videoId,
+      cueCount: this.current.cues.length,
+      chunkCountEstimate,
+      targetLang: this.current.targetLang,
+      provider: this.current.provider,
+      model: this.current.model,
+      timeoutMs: this.current.timeoutMs,
+      cacheEnabled: this.current.cacheEnabled
+    });
 
     const requestId = createRequestId();
     let response: SubtitleTranslationResultResponse;
@@ -368,12 +413,25 @@ export class YouTubeSubtitleSession {
         return;
       }
 
+      this.writeDebugEvent("youtube.subtitle.translation_error", {
+        message: formatDebugError(error)
+      });
       this.control.setState({
         status: "error",
         message: "자막 번역에 실패했습니다."
       });
       return;
     }
+
+    this.writeDebugEvent("youtube.subtitle.translation_result", {
+      ok: response.ok,
+      cached: response.ok ? response.cached : false,
+      provider: response.ok ? response.provider : response.provider ?? null,
+      translatedCueCount: response.ok ? response.cues.length : 0,
+      error: response.ok ? null : response.error,
+      message: response.ok ? null : response.message,
+      elapsedMs: response.ok ? response.elapsedMs : response.elapsedMs ?? null
+    });
 
     if (response.type === "SUBTITLE_TRANSLATION_RESULT" && response.ok) {
       this.activate(response.cues);
