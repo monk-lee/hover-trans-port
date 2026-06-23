@@ -221,7 +221,7 @@ write_metadata() {
   cat > "$metadata_path" <<METADATA
 {
   "hostVersion": "$HOST_VERSION",
-  "protocolVersion": 1,
+  "protocolVersion": 2,
   "source": "macos-script-installer",
   "updaterPath": "$updater_path"
 }

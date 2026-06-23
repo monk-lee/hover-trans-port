@@ -3,7 +3,7 @@ use serde_json::{Map, Value};
 
 pub const NATIVE_BRIDGE_VERSION: &str = "0.2.15-rust-helper";
 pub const NATIVE_HOST_VERSION: &str = "0.2.15";
-pub const NATIVE_HOST_PROTOCOL_VERSION: u64 = 1;
+pub const NATIVE_HOST_PROTOCOL_VERSION: u64 = 2;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

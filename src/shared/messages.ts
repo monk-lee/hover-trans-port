@@ -199,7 +199,12 @@ export type SubtitleTranslationCacheResponse =
       type: "SUBTITLE_TRANSLATION_CACHE_RESULT";
       requestId: string;
       ok: false;
-      error: "NATIVE_HOST_UNAVAILABLE" | "CACHE_ERROR" | "UNKNOWN_ERROR";
+      error:
+        | "NATIVE_HOST_UNAVAILABLE"
+        | "NATIVE_HOST_UPDATE_REQUIRED"
+        | "NATIVE_HOST_UNSUPPORTED"
+        | "CACHE_ERROR"
+        | "UNKNOWN_ERROR";
       message: string;
       retryable: boolean;
     };

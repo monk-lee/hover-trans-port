@@ -13,6 +13,11 @@ function assertIncludes(content, expected, label) {
 
 const messagesTs = readFileSync("src/shared/messages.ts", "utf8");
 const nativeProtocolTs = readFileSync("src/shared/nativeProtocol.ts", "utf8");
+const nativeHostCompatibilityTs = readFileSync(
+  "src/shared/nativeHostCompatibility.ts",
+  "utf8"
+);
+const nativeHelperMessagesRs = readFileSync("native-helper/src/messages.rs", "utf8");
 const serviceWorkerTs = readFileSync("src/background/service-worker.ts", "utf8");
 const nativeClientTs = readFileSync("src/background/nativeClient.ts", "utf8");
 
@@ -52,6 +57,31 @@ assertIncludes(
   nativeClientTs,
   "translateSubtitleTrack",
   "native client should expose subtitle translation"
+);
+assertIncludes(
+  messagesTs,
+  '"NATIVE_HOST_UPDATE_REQUIRED"',
+  "subtitle protocol should be able to report native host update-required errors"
+);
+assertIncludes(
+  nativeClientTs,
+  'nativeHostStatus.error === "NATIVE_HOST_UPDATE_REQUIRED"',
+  "subtitle cache lookup should preserve native host update-required errors"
+);
+assertIncludes(
+  nativeHostCompatibilityTs,
+  "REQUIRED_NATIVE_HOST_PROTOCOL_VERSION = 2",
+  "subtitle-capable extension should require native host protocol 2"
+);
+assertIncludes(
+  nativeProtocolTs,
+  "NATIVE_HOST_PROTOCOL_VERSION = 2",
+  "subtitle-capable native protocol should advertise protocol 2"
+);
+assertIncludes(
+  nativeHelperMessagesRs,
+  "NATIVE_HOST_PROTOCOL_VERSION: u64 = 2",
+  "subtitle-capable native helper should report protocol 2"
 );
 
 console.log("youtube-subtitle-protocol-check: ok");

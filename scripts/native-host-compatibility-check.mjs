@@ -35,14 +35,14 @@ try {
   ).href;
   const compatibility = await import(moduleUrl);
 
-  assert.equal(compatibility.REQUIRED_NATIVE_HOST_PROTOCOL_VERSION, 1);
-  assert.equal(compatibility.MAX_SUPPORTED_NATIVE_HOST_PROTOCOL_VERSION, 1);
+  assert.equal(compatibility.REQUIRED_NATIVE_HOST_PROTOCOL_VERSION, 2);
+  assert.equal(compatibility.MAX_SUPPORTED_NATIVE_HOST_PROTOCOL_VERSION, 2);
 
   assert.deepEqual(
     compatibility.evaluateNativeHostCompatibility({
       hostVersion: "0.1.0",
       bridgeVersion: "0.1.0-phase5",
-      protocolVersion: 1
+      protocolVersion: 2
     }),
     {
       ok: true,
@@ -55,7 +55,7 @@ try {
     compatibility.evaluateNativeHostCompatibility({
       hostVersion: "0.0.9",
       bridgeVersion: "0.0.9",
-      protocolVersion: 0
+      protocolVersion: 1
     }).status,
     "updateRequired"
   );
@@ -64,7 +64,7 @@ try {
     compatibility.evaluateNativeHostCompatibility({
       hostVersion: "9.0.0",
       bridgeVersion: "9.0.0",
-      protocolVersion: 2
+      protocolVersion: 3
     }).status,
     "unsupportedNewer"
   );
@@ -73,7 +73,7 @@ try {
     compatibility.evaluateNativeHostCompatibility({
       hostVersion: "0.1.0",
       bridgeVersion: "0.1.0-phase5",
-      protocolVersion: "1"
+      protocolVersion: "2"
     }).status,
     "invalidHostInfo"
   );
@@ -81,7 +81,7 @@ try {
   assert.equal(
     compatibility.evaluateNativeHostCompatibility({
       bridgeVersion: "0.1.0-phase5",
-      protocolVersion: 1
+      protocolVersion: 2
     }).status,
     "invalidHostInfo"
   );
@@ -89,7 +89,7 @@ try {
   assert.equal(
     compatibility.evaluateNativeHostCompatibility({
       hostVersion: "0.1.0",
-      protocolVersion: 1
+      protocolVersion: 2
     }).status,
     "invalidHostInfo"
   );
@@ -98,7 +98,7 @@ try {
     compatibility.evaluateNativeHostCompatibility({
       hostVersion: 1,
       bridgeVersion: "0.1.0-phase5",
-      protocolVersion: 1
+      protocolVersion: 2
     }).status,
     "invalidHostInfo"
   );

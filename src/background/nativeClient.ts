@@ -1372,7 +1372,11 @@ export async function getSubtitleTranslationCache(
   if (!nativeHostStatus.ok) {
     return {
       ok: false,
-      error: "NATIVE_HOST_UNAVAILABLE",
+      error:
+        nativeHostStatus.error === "NATIVE_HOST_UPDATE_REQUIRED" ||
+        nativeHostStatus.error === "NATIVE_HOST_UNSUPPORTED"
+          ? nativeHostStatus.error
+          : "NATIVE_HOST_UNAVAILABLE",
       message: nativeHostStatus.message,
       retryable: nativeHostStatus.retryable
     };

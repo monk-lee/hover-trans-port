@@ -484,7 +484,7 @@ fn native_host_update_invokes_persisted_updater() {
     fs::write(
         install_root.join("current").join("metadata.json"),
         format!(
-            "{{\"hostVersion\":\"0.2.3\",\"protocolVersion\":1,\"source\":\"macos-script-installer\",\"updaterPath\":\"{}\"}}",
+            "{{\"hostVersion\":\"0.2.3\",\"protocolVersion\":2,\"source\":\"macos-script-installer\",\"updaterPath\":\"{}\"}}",
             updater_path.display()
         ),
     )
@@ -645,7 +645,7 @@ fn update_fixture_with_marker(temp_path: &Path) -> (BTreeMap<String, String>, Pa
     fs::write(
         install_root.join("current").join("metadata.json"),
         format!(
-            "{{\"hostVersion\":\"0.2.3\",\"protocolVersion\":1,\"source\":\"macos-script-installer\",\"updaterPath\":\"{}\"}}",
+            "{{\"hostVersion\":\"0.2.3\",\"protocolVersion\":2,\"source\":\"macos-script-installer\",\"updaterPath\":\"{}\"}}",
             updater_path.display()
         ),
     )
