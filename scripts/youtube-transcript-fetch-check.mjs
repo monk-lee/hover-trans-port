@@ -317,7 +317,12 @@ try {
       );
     }
   });
-  const loadedPanelCues = await fetchYouTubeTranscriptFromTranscriptPanel();
+  const panelDebugEvents = [];
+  const loadedPanelCues = await fetchYouTubeTranscriptFromTranscriptPanel({
+    onDebug(event, fields) {
+      panelDebugEvents.push({ event, fields });
+    }
+  });
   assert(
     transcriptButtonClicks === 1,
     "transcript panel fallback should click YouTube's transcript button"
@@ -326,6 +331,23 @@ try {
     loadedPanelCues.length === 1 &&
       loadedPanelCues[0].text === "Loaded from YouTube transcript panel",
     "transcript panel fallback should read cues after YouTube renders the panel"
+  );
+  assert(
+    panelDebugEvents.some(
+      ({ event, fields }) =>
+        event === "youtube.subtitle.panel_dom_open" &&
+        fields.opened === true &&
+        fields.openMethod === "transcript-button"
+    ),
+    "transcript panel fallback should debug-log how it tried to open the YouTube transcript panel"
+  );
+  assert(
+    panelDebugEvents.some(
+      ({ event, fields }) =>
+        event === "youtube.subtitle.panel_dom_wait" &&
+        fields.cueCount === 1
+    ),
+    "transcript panel fallback should debug-log the final rendered transcript cue count"
   );
 } finally {
   rmSync(tempDir, { recursive: true, force: true });

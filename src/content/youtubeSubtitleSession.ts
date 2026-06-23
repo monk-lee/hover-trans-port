@@ -120,6 +120,7 @@ export class YouTubeSubtitleSession {
   private current: CurrentSubtitleSource | null = null;
   private pending: PendingSubtitleSource | null = null;
   private video: HTMLVideoElement | null = null;
+  private debugLogWriteQueue: Promise<void> = Promise.resolve();
   private refreshSequence = 0;
   private stopped = false;
   private readonly handleVideoTimeUpdate = () => {
@@ -433,13 +434,13 @@ export class YouTubeSubtitleSession {
     const panelTrack = createTranscriptPanelTrack(videoId, trackCandidates[0]);
 
     if (options.preferTranscriptPanelDom) {
-      const panelDomCues = await (
+      const fetchFromPanelDom =
         this.deps.fetchTranscriptFromPanelDom ??
-        fetchYouTubeTranscriptFromTranscriptPanel
-      )();
-      this.writeDebugEvent("youtube.subtitle.panel_dom_result", {
-        cueCount: panelDomCues.length,
-        videoId
+        fetchYouTubeTranscriptFromTranscriptPanel;
+      const panelDomCues = await fetchFromPanelDom({
+        onDebug: (event, fields = {}) => {
+          this.writeDebugEvent(event, { ...fields, videoId });
+        }
       });
 
       if (panelDomCues.length > 0) {
@@ -502,13 +503,16 @@ export class YouTubeSubtitleSession {
 
     const requestId = createRequestId();
 
-    void chrome.runtime
-      .sendMessage<ExtensionRequest, ExtensionResponse>({
-        type: "WRITE_DEBUG_LOG_EVENT",
-        requestId,
-        event,
-        fields
-      })
+    this.debugLogWriteQueue = this.debugLogWriteQueue
+      .then(() =>
+        chrome.runtime.sendMessage<ExtensionRequest, ExtensionResponse>({
+          type: "WRITE_DEBUG_LOG_EVENT",
+          requestId,
+          event,
+          fields
+        })
+      )
+      .then(() => undefined)
       .catch(() => undefined);
   }
 

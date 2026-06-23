@@ -601,9 +601,13 @@ try {
 
       return [];
     },
-    fetchTranscriptFromPanelDom: async () => [
-      { id: "dom-panel-0", startMs: 0, endMs: 1000, text: "Hello from DOM" }
-    ]
+    fetchTranscriptFromPanelDom: async (options) => {
+      options?.onDebug?.("youtube.subtitle.panel_dom_wait", { cueCount: 1 });
+
+      return [
+        { id: "dom-panel-0", startMs: 0, endMs: 1000, text: "Hello from DOM" }
+      ];
+    }
   });
   await lazyPanelSession.refresh();
   assert(
@@ -636,7 +640,7 @@ try {
       (message, index) =>
         index >= previousLazyPanelSentMessageCount &&
         message.type === "WRITE_DEBUG_LOG_EVENT" &&
-        message.event === "youtube.subtitle.panel_dom_result" &&
+        message.event === "youtube.subtitle.panel_dom_wait" &&
         message.fields?.cueCount === 1
     ),
     "accept should write a debug event with the transcript panel DOM cue count"

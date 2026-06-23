@@ -18,6 +18,28 @@ type TranscriptPanelRequest = {
   params: string;
 };
 
+type TranscriptPanelDebugFields = Record<
+  string,
+  string | number | boolean | null | undefined
+>;
+
+type TranscriptPanelDebugLogger = (
+  event: string,
+  fields?: TranscriptPanelDebugFields
+) => void;
+
+type TranscriptPanelFetchOptions = {
+  onDebug?: TranscriptPanelDebugLogger;
+  timeoutMs?: number;
+};
+
+type TranscriptPanelOpenResult = {
+  opened: boolean;
+  openMethod: string;
+  buttonCandidateCount: number;
+  matchedText: string | null;
+};
+
 const TRANSCRIPT_SEGMENT_SELECTOR =
   "ytd-transcript-segment-renderer, yt-transcript-segment-renderer";
 const TRANSCRIPT_BUTTON_SELECTOR =
@@ -191,20 +213,28 @@ export function parseYouTubeInnertubeTranscript(
   return normalizeSubtitleCues(cues);
 }
 
-export async function fetchYouTubeTranscriptFromTranscriptPanel(): Promise<
-  YouTubeSubtitleCue[]
-> {
+export async function fetchYouTubeTranscriptFromTranscriptPanel(
+  options: TranscriptPanelFetchOptions = {}
+): Promise<YouTubeSubtitleCue[]> {
   const existingCues = parseYouTubeTranscriptPanelDocument();
+  options.onDebug?.("youtube.subtitle.panel_dom_existing", {
+    cueCount: existingCues.length,
+    segmentElementCount: countTranscriptSegmentElements(),
+    panelElementCount: countTranscriptPanelElements()
+  });
 
   if (existingCues.length > 0) {
     return existingCues;
   }
 
-  if (!(await openYouTubeTranscriptPanel())) {
+  const openResult = await openYouTubeTranscriptPanel();
+  options.onDebug?.("youtube.subtitle.panel_dom_open", openResult);
+
+  if (!openResult.opened) {
     return [];
   }
 
-  return waitForTranscriptPanelCues();
+  return waitForTranscriptPanelCues(options);
 }
 
 export function parseYouTubeTranscriptPanelDocument(
@@ -239,41 +269,94 @@ export function parseYouTubeTranscriptPanelDocument(
   );
 }
 
-async function openYouTubeTranscriptPanel(): Promise<boolean> {
-  if (clickButtonMatchingText(TRANSCRIPT_BUTTON_TEXT_PATTERN)) {
-    return true;
+async function openYouTubeTranscriptPanel(): Promise<TranscriptPanelOpenResult> {
+  const transcriptButtonClick = clickButtonMatchingText(
+    TRANSCRIPT_BUTTON_TEXT_PATTERN
+  );
+
+  if (transcriptButtonClick.clicked) {
+    return {
+      opened: true,
+      openMethod: "transcript-button",
+      buttonCandidateCount: transcriptButtonClick.buttonCandidateCount,
+      matchedText: transcriptButtonClick.matchedText
+    };
   }
 
-  if (clickButtonMatchingText(SHOW_MORE_BUTTON_TEXT_PATTERN)) {
+  const showMoreClick = clickButtonMatchingText(SHOW_MORE_BUTTON_TEXT_PATTERN);
+
+  if (showMoreClick.clicked) {
     await delay(200);
+    const expandedTranscriptButtonClick = clickButtonMatchingText(
+      TRANSCRIPT_BUTTON_TEXT_PATTERN
+    );
 
-    return clickButtonMatchingText(TRANSCRIPT_BUTTON_TEXT_PATTERN);
+    return {
+      opened: expandedTranscriptButtonClick.clicked,
+      openMethod: expandedTranscriptButtonClick.clicked
+        ? "show-more-transcript-button"
+        : "show-more-only",
+      buttonCandidateCount:
+        showMoreClick.buttonCandidateCount +
+        expandedTranscriptButtonClick.buttonCandidateCount,
+      matchedText:
+        expandedTranscriptButtonClick.matchedText ?? showMoreClick.matchedText
+    };
   }
 
-  return false;
+  return {
+    opened: false,
+    openMethod: "not-found",
+    buttonCandidateCount: transcriptButtonClick.buttonCandidateCount,
+    matchedText: null
+  };
 }
 
-async function waitForTranscriptPanelCues(): Promise<YouTubeSubtitleCue[]> {
+async function waitForTranscriptPanelCues(
+  options: TranscriptPanelFetchOptions
+): Promise<YouTubeSubtitleCue[]> {
   const startedAt = Date.now();
-  const timeoutMs = 5000;
+  const timeoutMs = options.timeoutMs ?? 5000;
+  let pollCount = 0;
 
   while (Date.now() - startedAt < timeoutMs) {
+    pollCount += 1;
     const cues = parseYouTubeTranscriptPanelDocument();
 
     if (cues.length > 0) {
+      options.onDebug?.("youtube.subtitle.panel_dom_wait", {
+        cueCount: cues.length,
+        elapsedMs: Date.now() - startedAt,
+        pollCount,
+        segmentElementCount: countTranscriptSegmentElements(),
+        panelElementCount: countTranscriptPanelElements()
+      });
       return cues;
     }
 
     await delay(100);
   }
 
+  options.onDebug?.("youtube.subtitle.panel_dom_wait", {
+    cueCount: 0,
+    elapsedMs: Date.now() - startedAt,
+    pollCount,
+    segmentElementCount: countTranscriptSegmentElements(),
+    panelElementCount: countTranscriptPanelElements()
+  });
   return [];
 }
 
-function clickButtonMatchingText(pattern: RegExp): boolean {
-  for (const element of Array.from(
+function clickButtonMatchingText(pattern: RegExp): {
+  clicked: boolean;
+  buttonCandidateCount: number;
+  matchedText: string | null;
+} {
+  const candidates = Array.from(
     document.querySelectorAll(TRANSCRIPT_BUTTON_SELECTOR)
-  )) {
+  );
+
+  for (const element of candidates) {
     const text = [
       element.textContent ?? "",
       element.getAttribute("aria-label") ?? "",
@@ -291,10 +374,37 @@ function clickButtonMatchingText(pattern: RegExp): boolean {
     }
 
     clickable.click();
-    return true;
+    return {
+      clicked: true,
+      buttonCandidateCount: candidates.length,
+      matchedText: shortenDebugText(text)
+    };
   }
 
-  return false;
+  return {
+    clicked: false,
+    buttonCandidateCount: candidates.length,
+    matchedText: null
+  };
+}
+
+function countTranscriptSegmentElements(): number {
+  return document.querySelectorAll(TRANSCRIPT_SEGMENT_SELECTOR).length;
+}
+
+function countTranscriptPanelElements(): number {
+  return document.querySelectorAll(
+    [
+      "ytd-transcript-renderer",
+      "ytd-transcript-search-panel-renderer",
+      "ytd-transcript-segment-list-renderer",
+      "yt-transcript-renderer"
+    ].join(", ")
+  ).length;
+}
+
+function shortenDebugText(text: string): string {
+  return formattedTranscriptPanelText(text).slice(0, 120);
 }
 
 function findTranscriptSegmentTimestamp(segment: Element): string {
