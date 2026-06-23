@@ -62,7 +62,7 @@ export async function fetchYouTubeTranscript(
   track: YouTubeCaptionTrack
 ): Promise<YouTubeSubtitleCue[]> {
   const response = await fetch(withJson3Format(track.baseUrl), {
-    credentials: "omit"
+    credentials: "include"
   });
 
   if (!response.ok) {

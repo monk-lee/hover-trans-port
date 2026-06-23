@@ -118,6 +118,7 @@ writeFileSync(
 
 try {
   const {
+    fetchYouTubeTranscript,
     parseYouTubeJson3Transcript,
     parseYouTubeXmlTranscript
   } = await import(
@@ -156,6 +157,32 @@ try {
     "XML duration seconds should become end milliseconds"
   );
   assert(xmlCues[0].text === "Tom & Jerry", "XML entities should decode");
+
+  let fetchRequest = null;
+  global.fetch = (url, init) => {
+    fetchRequest = { url: String(url), init };
+
+    return Promise.resolve({
+      ok: true,
+      headers: { get: () => "application/json" },
+      text: () => Promise.resolve(json3)
+    });
+  };
+  await fetchYouTubeTranscript({
+    id: ".en",
+    languageCode: "en",
+    displayName: "English",
+    kind: "manual",
+    baseUrl: "https://www.youtube.com/api/timedtext?v=abc&lang=en"
+  });
+  assert(
+    fetchRequest.init.credentials === "include",
+    "YouTube timedtext fetch should include YouTube credentials for signed caption URLs"
+  );
+  assert(
+    fetchRequest.url.includes("fmt=json3"),
+    "YouTube timedtext fetch should request json3 format"
+  );
 } finally {
   rmSync(tempDir, { recursive: true, force: true });
 }

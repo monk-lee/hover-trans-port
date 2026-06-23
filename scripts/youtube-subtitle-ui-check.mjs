@@ -316,8 +316,14 @@ try {
     mountedControl.firstElementChild.tagName === "DIV" &&
       mountedControl.firstElementChild.className
         .split(/\s+/g)
-        .includes("ytp-subtitles-button-icon"),
-    "control icon should use the same wrapper structure as YouTube player buttons"
+        .includes("hover-trans-port-youtube-subtitle-control-icon"),
+    "control icon should use its own wrapper structure"
+  );
+  assert(
+    !mountedControl.firstElementChild.className
+      .split(/\s+/g)
+      .includes("ytp-subtitles-button-icon"),
+    "control icon should not reuse the YouTube captions button class"
   );
   assert(
     mountedControl.firstElementChild.getAttribute("fill-opacity") === "1",
@@ -334,7 +340,14 @@ try {
   assert(
     firstIcon.getAttribute("fill") === "none" &&
       firstIcon.querySelector("path").getAttribute("fill") === "white",
-    "control icon should use the same white filled path pattern as YouTube player buttons"
+    "control icon should use a white filled path"
+  );
+  assert(
+    firstIcon
+      .querySelector("path")
+      .getAttribute("d")
+      .startsWith("M12.87 15.07"),
+    "control icon should render a translation glyph, not the YouTube captions glyph"
   );
   control.setState({ status: "prompt" });
   assert(
