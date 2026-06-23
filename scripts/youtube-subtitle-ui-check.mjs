@@ -403,6 +403,14 @@ try {
     ),
     "existing YouTube caption containers should not receive fallback positioning CSS"
   );
+  assert(
+    document.head.textContent.includes(
+      '[data-hover-trans-port-youtube-subtitles-active="true"]'
+    ) &&
+      document.head.textContent.includes("display: block !important") &&
+      document.head.textContent.includes("visibility: visible !important"),
+    "active translated captions should force YouTube's caption container visible"
+  );
   overlay.setCues([
     { id: "a", startMs: 0, endMs: 1000, translatedText: "안녕" }
   ]);

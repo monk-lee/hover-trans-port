@@ -702,7 +702,10 @@ try {
         message.type === "WRITE_DEBUG_LOG_EVENT" &&
         message.event === "youtube.subtitle.overlay_activated" &&
         message.fields?.cueCount === 1 &&
-        message.fields?.activeCueId === "cue-0"
+        message.fields?.activeCueId === "cue-0" &&
+        message.fields?.overlayNodeHidden === false &&
+        message.fields?.overlayTextLength === 2 &&
+        message.fields?.captionContainerActive === true
     ),
     "accept should write a debug event with the active translated cue"
   );

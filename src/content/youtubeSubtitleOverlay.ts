@@ -23,25 +23,33 @@ function ensureOverlayStyle(): void {
       position: absolute;
       z-index: 60;
     }
+    [${ACTIVE_ATTRIBUTE}="true"] {
+      display: block !important;
+      opacity: 1 !important;
+      visibility: visible !important;
+    }
     [${ACTIVE_ATTRIBUTE}="true"] > .caption-window:not([${OVERLAY_ATTRIBUTE}="true"]) {
       visibility: hidden !important;
     }
-    .caption-window.hover-trans-port-youtube-subtitle-overlay {
+    .caption-window.hover-trans-port-youtube-subtitle-overlay:not([hidden]) {
       background-color: rgba(8, 8, 8, 0.25);
       bottom: 2%;
       box-sizing: border-box;
+      display: block !important;
       left: 50%;
       margin-left: 0;
       max-width: min(86vw, 960px);
+      opacity: 1 !important;
       pointer-events: none;
       position: absolute;
       text-align: center;
       transform: translateX(-50%);
+      visibility: visible !important;
       width: max-content;
-      z-index: 1;
+      z-index: 60;
     }
     .hover-trans-port-youtube-subtitle-overlay[hidden] {
-      display: none;
+      display: none !important;
     }
     .hover-trans-port-youtube-subtitle-overlay .captions-text,
     .hover-trans-port-youtube-subtitle-overlay .caption-visual-line {
@@ -130,6 +138,28 @@ export class YouTubeSubtitleOverlay {
     }
   }
 
+  getDebugState(): Record<string, string | number | boolean | null> {
+    const nodeStyle = getElementStyleSummary(this.node);
+    const containerStyle = getElementStyleSummary(this.captionContainer);
+    const nodeRect = getElementRectSummary(this.node);
+
+    return {
+      overlayNodeConnected: Boolean(this.node?.parentElement),
+      overlayNodeHidden: this.node?.hidden ?? null,
+      overlayTextLength: this.segment?.textContent?.length ?? null,
+      overlayDisplay: nodeStyle.display,
+      overlayVisibility: nodeStyle.visibility,
+      overlayOpacity: nodeStyle.opacity,
+      overlayRectWidth: nodeRect.width,
+      overlayRectHeight: nodeRect.height,
+      captionContainerActive:
+        this.captionContainer?.getAttribute(ACTIVE_ATTRIBUTE) === "true",
+      captionContainerDisplay: containerStyle.display,
+      captionContainerVisibility: containerStyle.visibility,
+      captionContainerOpacity: containerStyle.opacity
+    };
+  }
+
   private ensureAttached(): void {
     if (
       this.node &&
@@ -147,6 +177,41 @@ export class YouTubeSubtitleOverlay {
       this.captionContainer?.removeAttribute(ACTIVE_ATTRIBUTE);
     }
   }
+}
+
+function getElementStyleSummary(
+  element: HTMLElement | null
+): { display: string | null; visibility: string | null; opacity: string | null } {
+  if (
+    !element ||
+    typeof window === "undefined" ||
+    typeof window.getComputedStyle !== "function"
+  ) {
+    return { display: null, visibility: null, opacity: null };
+  }
+
+  const style = window.getComputedStyle(element);
+
+  return {
+    display: style.display,
+    visibility: style.visibility,
+    opacity: style.opacity
+  };
+}
+
+function getElementRectSummary(
+  element: HTMLElement | null
+): { width: number | null; height: number | null } {
+  if (!element || typeof element.getBoundingClientRect !== "function") {
+    return { width: null, height: null };
+  }
+
+  const rect = element.getBoundingClientRect();
+
+  return {
+    width: Math.round(rect.width),
+    height: Math.round(rect.height)
+  };
 }
 
 function findOrCreateCaptionContainer(playerRoot: Element): HTMLElement {

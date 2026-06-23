@@ -610,7 +610,8 @@ export class YouTubeSubtitleSession {
         : null,
       activeCueId: this.video
         ? findActiveTranslatedCue(cues, this.video.currentTime)?.id ?? null
-        : null
+        : null,
+      ...this.overlay.getDebugState()
     });
   }
 
