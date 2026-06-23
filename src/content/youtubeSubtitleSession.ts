@@ -203,7 +203,8 @@ export class YouTubeSubtitleSession {
       }
 
       const loadedSource = await this.loadCurrentSubtitleSource(pendingSource, {
-        allowTranscriptPanelDom: false
+        allowTranscriptPanelDom: false,
+        allowTranscriptPanelApi: false
       });
 
       if (sequence !== this.refreshSequence) {
@@ -283,7 +284,9 @@ export class YouTubeSubtitleSession {
 
       try {
         this.current = await this.loadCurrentSubtitleSource(this.pending, {
-          allowTranscriptPanelDom: true
+          allowTranscriptPanelDom: true,
+          allowTranscriptPanelApi: false,
+          preferTranscriptPanelDom: true
         });
       } catch (error) {
         if (isExtensionContextInvalidated(error)) {
@@ -372,7 +375,11 @@ export class YouTubeSubtitleSession {
 
   private async loadCurrentSubtitleSource(
     pendingSource: PendingSubtitleSource,
-    options: { allowTranscriptPanelDom: boolean }
+    options: {
+      allowTranscriptPanelDom: boolean;
+      allowTranscriptPanelApi: boolean;
+      preferTranscriptPanelDom?: boolean;
+    }
   ): Promise<CurrentSubtitleSource | null> {
     const loaded = await this.loadSubtitleCues(
       pendingSource.videoId,
@@ -401,8 +408,27 @@ export class YouTubeSubtitleSession {
   private async loadSubtitleCues(
     videoId: string,
     trackCandidates: YouTubeCaptionTrack[],
-    options: { allowTranscriptPanelDom: boolean }
+    options: {
+      allowTranscriptPanelDom: boolean;
+      allowTranscriptPanelApi: boolean;
+      preferTranscriptPanelDom?: boolean;
+    }
   ): Promise<{ track: YouTubeCaptionTrack; cues: YouTubeSubtitleCue[] } | null> {
+    const panelTrack = createTranscriptPanelTrack(videoId, trackCandidates[0]);
+
+    if (options.preferTranscriptPanelDom) {
+      const panelDomCues = await (
+        this.deps.fetchTranscriptFromPanelDom ??
+        fetchYouTubeTranscriptFromTranscriptPanel
+      )();
+
+      if (panelDomCues.length > 0) {
+        return { track: panelTrack, cues: panelDomCues };
+      }
+
+      return null;
+    }
+
     let sawEmptyTranscript = false;
     let lastTranscriptError: unknown = null;
     const fetchTranscript = this.deps.fetchTranscript ?? fetchYouTubeTranscript;
@@ -421,10 +447,9 @@ export class YouTubeSubtitleSession {
       }
     }
 
-    const panelTrack = createTranscriptPanelTrack(videoId, trackCandidates[0]);
-    const panelCues = await (
-      this.deps.fetchTranscriptPanel ?? fetchYouTubeTranscriptPanel
-    )();
+    const panelCues = options.allowTranscriptPanelApi
+      ? await (this.deps.fetchTranscriptPanel ?? fetchYouTubeTranscriptPanel)()
+      : [];
 
     if (panelCues.length > 0) {
       return { track: panelTrack, cues: panelCues };

@@ -21,7 +21,17 @@ type TranscriptPanelRequest = {
 const TRANSCRIPT_SEGMENT_SELECTOR =
   "ytd-transcript-segment-renderer, yt-transcript-segment-renderer";
 const TRANSCRIPT_BUTTON_SELECTOR =
-  'button, tp-yt-paper-button, ytd-button-renderer, yt-button-shape button, a[role="button"]';
+  [
+    "button",
+    '[role="button"]',
+    "tp-yt-paper-button",
+    "ytd-button-renderer",
+    "yt-button-shape button",
+    "yt-chip-cloud-chip-renderer",
+    "yt-button-view-model",
+    "button-view-model",
+    "a[role='button']"
+  ].join(", ");
 const TRANSCRIPT_BUTTON_TEXT_PATTERN =
   /스크립트\s*표시|show transcript|transcript/iu;
 const SHOW_MORE_BUTTON_TEXT_PATTERN = /더보기|show more/iu;

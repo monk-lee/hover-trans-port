@@ -560,30 +560,47 @@ try {
     "session should continue with the first caption track that yields transcript cues"
   );
 
-  const previousPanelFallbackSentMessageCount = sentMessages.length;
+  let refreshPanelApiFetchCount = 0;
   await new YouTubeSubtitleSession({
     getPlayerResponse: () => fallbackPlayerResponseFixture,
     fetchTranscript: async () => [],
-    fetchTranscriptPanel: async () => [
-      { id: "panel-0", startMs: 0, endMs: 1000, text: "Hello from panel" }
-    ]
+    fetchTranscriptPanel: async () => {
+      refreshPanelApiFetchCount += 1;
+
+      return [
+        { id: "panel-0", startMs: 0, endMs: 1000, text: "Hello from panel" }
+      ];
+    }
   }).refresh();
   assert(
-    sentMessages.length > previousPanelFallbackSentMessageCount &&
-      sentMessages.at(-1).type === "GET_SUBTITLE_TRANSLATION_CACHE",
-    "session should fall back to the YouTube transcript panel when timedtext tracks are empty"
+    refreshPanelApiFetchCount === 0,
+    "session should not call YouTube's get_transcript API automatically when timedtext tracks are empty"
   );
 
   const previousLazyPanelSentMessageCount = sentMessages.length;
+  let lazyPanelTimedTextFetchCount = 0;
+  let lazyPanelApiFetchCount = 0;
   const lazyPanelSession = new YouTubeSubtitleSession({
     getPlayerResponse: () => fallbackPlayerResponseFixture,
-    fetchTranscript: async () => [],
-    fetchTranscriptPanel: async () => [],
+    fetchTranscript: async () => {
+      lazyPanelTimedTextFetchCount += 1;
+
+      return [];
+    },
+    fetchTranscriptPanel: async () => {
+      lazyPanelApiFetchCount += 1;
+
+      return [];
+    },
     fetchTranscriptFromPanelDom: async () => [
       { id: "dom-panel-0", startMs: 0, endMs: 1000, text: "Hello from DOM" }
     ]
   });
   await lazyPanelSession.refresh();
+  assert(
+    lazyPanelTimedTextFetchCount === 2 && lazyPanelApiFetchCount === 0,
+    "refresh should make one best-effort direct transcript prefetch"
+  );
   const lazyPanelControl = document.querySelector(
     '[data-hover-trans-port-youtube-subtitle-control="true"]'
   );
@@ -592,6 +609,10 @@ try {
     "session should keep the translate button usable when caption tracks exist but direct transcript fetches are empty"
   );
   await lazyPanelSession.acceptTranslation();
+  assert(
+    lazyPanelTimedTextFetchCount === 2 && lazyPanelApiFetchCount === 0,
+    "accept should go straight to the rendered transcript panel after direct prefetch already failed"
+  );
   assert(
     sentMessages.length > previousLazyPanelSentMessageCount &&
       sentMessages.some(
