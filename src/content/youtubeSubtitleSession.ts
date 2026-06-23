@@ -1,4 +1,7 @@
 import type {
+  DebugLogFields,
+  ExtensionRequest,
+  ExtensionResponse,
   SubtitleTrackTranslationRequest,
   SubtitleTranslationCacheRequest,
   SubtitleTranslationCacheResponse,
@@ -271,9 +274,15 @@ export class YouTubeSubtitleSession {
     const video = this.video ?? document.querySelector("video");
     const wasPlaying = Boolean(video && !video.paused);
     video?.pause();
+    this.writeDebugEvent("youtube.subtitle.accept", {
+      hasCurrent: this.current !== null,
+      hasPending: this.pending !== null,
+      videoId: this.current?.videoId ?? this.pending?.videoId ?? null
+    });
 
     if (!this.current) {
       if (!this.pending) {
+        this.writeDebugEvent("youtube.subtitle.accept_no_source");
         return;
       }
 
@@ -294,10 +303,17 @@ export class YouTubeSubtitleSession {
           return;
         }
 
+        this.writeDebugEvent("youtube.subtitle.panel_dom_error", {
+          message: formatDebugError(error)
+        });
         this.current = null;
       }
 
       if (!this.current) {
+        this.writeDebugEvent("youtube.subtitle.panel_dom_empty", {
+          videoId: this.pending.videoId,
+          trackCandidateCount: this.pending.trackCandidates.length
+        });
         this.control.setState({
           status: "error",
           message: "YouTube 자막 스크립트를 읽지 못했습니다."
@@ -421,6 +437,10 @@ export class YouTubeSubtitleSession {
         this.deps.fetchTranscriptFromPanelDom ??
         fetchYouTubeTranscriptFromTranscriptPanel
       )();
+      this.writeDebugEvent("youtube.subtitle.panel_dom_result", {
+        cueCount: panelDomCues.length,
+        videoId
+      });
 
       if (panelDomCues.length > 0) {
         return { track: panelTrack, cues: panelDomCues };
@@ -471,6 +491,25 @@ export class YouTubeSubtitleSession {
     }
 
     return null;
+  }
+
+  private writeDebugEvent(event: string, fields: DebugLogFields = {}): void {
+    const debugLogging = this.current?.debugLogging ?? this.pending?.debugLogging;
+
+    if (!debugLogging) {
+      return;
+    }
+
+    const requestId = createRequestId();
+
+    void chrome.runtime
+      .sendMessage<ExtensionRequest, ExtensionResponse>({
+        type: "WRITE_DEBUG_LOG_EVENT",
+        requestId,
+        event,
+        fields
+      })
+      .catch(() => undefined);
   }
 
   private async lookupCache(
@@ -593,6 +632,10 @@ function createRequestId(): string {
   }
 
   return `${Date.now()}-${Math.random()}`;
+}
+
+function formatDebugError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function normalizeProvider(provider: string | undefined): ProviderSelection {

@@ -337,6 +337,14 @@ global.chrome = {
           ]
         });
       }
+      if (message.type === "WRITE_DEBUG_LOG_EVENT") {
+        return Promise.resolve({
+          type: "DEBUG_LOG_WRITE_RESULT",
+          requestId: message.requestId,
+          ok: true,
+          written: true
+        });
+      }
       return Promise.resolve({ type: "ERROR", message: "unexpected" });
     }
   },
@@ -348,7 +356,8 @@ global.chrome = {
             provider: "codex",
             targetLang: "Korean",
             cacheEnabled: true,
-            timeoutMs: 30000
+            timeoutMs: 30000,
+            debugLogging: true
           }
         });
       }
@@ -612,6 +621,25 @@ try {
   assert(
     lazyPanelTimedTextFetchCount === 2 && lazyPanelApiFetchCount === 0,
     "accept should go straight to the rendered transcript panel after direct prefetch already failed"
+  );
+  assert(
+    sentMessages.some(
+      (message, index) =>
+        index >= previousLazyPanelSentMessageCount &&
+        message.type === "WRITE_DEBUG_LOG_EVENT" &&
+        message.event === "youtube.subtitle.accept"
+    ),
+    "accept should write a debug event when YouTube subtitle debug logging is enabled"
+  );
+  assert(
+    sentMessages.some(
+      (message, index) =>
+        index >= previousLazyPanelSentMessageCount &&
+        message.type === "WRITE_DEBUG_LOG_EVENT" &&
+        message.event === "youtube.subtitle.panel_dom_result" &&
+        message.fields?.cueCount === 1
+    ),
+    "accept should write a debug event with the transcript panel DOM cue count"
   );
   assert(
     sentMessages.length > previousLazyPanelSentMessageCount &&
