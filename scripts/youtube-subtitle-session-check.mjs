@@ -696,6 +696,17 @@ try {
     "accept should write a debug event with the subtitle translation result"
   );
   assert(
+    sentMessages.some(
+      (message, index) =>
+        index >= previousLazyPanelSentMessageCount &&
+        message.type === "WRITE_DEBUG_LOG_EVENT" &&
+        message.event === "youtube.subtitle.overlay_activated" &&
+        message.fields?.cueCount === 1 &&
+        message.fields?.activeCueId === "cue-0"
+    ),
+    "accept should write a debug event with the active translated cue"
+  );
+  assert(
     sentMessages.length > previousLazyPanelSentMessageCount &&
       sentMessages.some(
         (message, index) =>

@@ -603,6 +603,15 @@ export class YouTubeSubtitleSession {
     this.overlay.setCues(cues);
     this.control.setState({ status: "enabled" });
     this.handleVideoTimeUpdate();
+    this.writeDebugEvent("youtube.subtitle.overlay_activated", {
+      cueCount: cues.length,
+      currentTimeMs: this.video
+        ? Math.round(this.video.currentTime * 1000)
+        : null,
+      activeCueId: this.video
+        ? findActiveTranslatedCue(cues, this.video.currentTime)?.id ?? null
+        : null
+    });
   }
 
   private declineTranslation(): void {
@@ -801,6 +810,17 @@ function getBrowserTargetLang(locales: Array<string | undefined>): string {
   }
 
   return DEFAULT_TARGET_LANG;
+}
+
+function findActiveTranslatedCue(
+  cues: TranslatedSubtitleCue[],
+  currentTimeSeconds: number
+): TranslatedSubtitleCue | null {
+  const currentMs = Math.round(currentTimeSeconds * 1000);
+
+  return (
+    cues.find((cue) => currentMs >= cue.startMs && currentMs < cue.endMs) ?? null
+  );
 }
 
 function normalizeTimeoutMs(timeoutMs: number | string | undefined): number {

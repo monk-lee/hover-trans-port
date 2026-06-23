@@ -100,12 +100,7 @@ export class YouTubeSubtitleOverlay {
 
   setCues(cues: TranslatedSubtitleCue[]): void {
     this.cues = [...cues].sort((left, right) => left.startMs - right.startMs);
-
-    if (this.cues.length > 0) {
-      this.captionContainer?.setAttribute(ACTIVE_ATTRIBUTE, "true");
-    } else {
-      this.captionContainer?.removeAttribute(ACTIVE_ATTRIBUTE);
-    }
+    this.setNativeCaptionHidden(false);
   }
 
   update(currentTimeSeconds: number): void {
@@ -121,6 +116,7 @@ export class YouTubeSubtitleOverlay {
     this.segment.textContent = cue?.translatedText ?? "";
     this.node.hidden = !cue;
     this.node.setAttribute("aria-hidden", cue ? "false" : "true");
+    this.setNativeCaptionHidden(Boolean(cue));
   }
 
   clear(): void {
@@ -141,6 +137,14 @@ export class YouTubeSubtitleOverlay {
       this.node.parentElement !== this.captionContainer
     ) {
       this.captionContainer.appendChild(this.node);
+    }
+  }
+
+  private setNativeCaptionHidden(hidden: boolean): void {
+    if (hidden) {
+      this.captionContainer?.setAttribute(ACTIVE_ATTRIBUTE, "true");
+    } else {
+      this.captionContainer?.removeAttribute(ACTIVE_ATTRIBUTE);
     }
   }
 }

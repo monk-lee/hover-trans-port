@@ -430,6 +430,10 @@ try {
     !captionContainer.textContent.includes("안녕"),
     "overlay should hide inactive cue"
   );
+  assert(
+    captionContainer.getAttribute("data-hover-trans-port-youtube-subtitles-active") === null,
+    "inactive translated cue should not hide native YouTube captions"
+  );
   overlay.clear();
   assert(
     captionContainer.getAttribute("data-hover-trans-port-youtube-subtitles-active") === null,
