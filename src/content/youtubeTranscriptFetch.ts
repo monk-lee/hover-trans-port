@@ -37,7 +37,10 @@ type TranscriptPanelOpenResult = {
   opened: boolean;
   openMethod: string;
   buttonCandidateCount: number;
+  visibleCandidateCount?: number;
   matchedText: string | null;
+  matchedTagName?: string | null;
+  clickTargetTagName?: string | null;
 };
 
 const TRANSCRIPT_SEGMENT_SELECTOR =
@@ -54,6 +57,8 @@ const TRANSCRIPT_BUTTON_SELECTOR =
     "button-view-model",
     "a[role='button']"
   ].join(", ");
+const TRANSCRIPT_CLICK_TARGET_SELECTOR =
+  "button, a[role='button'], [role='button']";
 const TRANSCRIPT_BUTTON_TEXT_PATTERN =
   /스크립트\s*표시|show transcript|transcript/iu;
 const SHOW_MORE_BUTTON_TEXT_PATTERN = /더보기|show more/iu;
@@ -350,42 +355,110 @@ async function waitForTranscriptPanelCues(
 function clickButtonMatchingText(pattern: RegExp): {
   clicked: boolean;
   buttonCandidateCount: number;
+  visibleCandidateCount: number;
   matchedText: string | null;
+  matchedTagName: string | null;
+  clickTargetTagName: string | null;
 } {
   const candidates = Array.from(
     document.querySelectorAll(TRANSCRIPT_BUTTON_SELECTOR)
   );
+  let visibleCandidateCount = 0;
 
   for (const element of candidates) {
+    const clickTarget = findTranscriptClickTarget(element);
+    const candidateVisible = isVisibleForClick(element);
+    const clickTargetVisible =
+      clickTarget === element || clickTarget === null
+        ? candidateVisible
+        : isVisibleForClick(clickTarget);
+
+    if (candidateVisible || clickTargetVisible) {
+      visibleCandidateCount += 1;
+    }
+
     const text = [
       element.textContent ?? "",
       element.getAttribute("aria-label") ?? "",
       element.getAttribute("title") ?? ""
     ].join(" ");
 
-    if (!pattern.test(text)) {
+    if (!pattern.test(text) || (!candidateVisible && !clickTargetVisible)) {
       continue;
     }
 
-    const clickable = element as HTMLElement & { click?: () => void };
-
-    if (typeof clickable.click !== "function") {
+    if (!clickTarget || typeof clickTarget.click !== "function") {
       continue;
     }
 
-    clickable.click();
+    clickTarget.click();
     return {
       clicked: true,
       buttonCandidateCount: candidates.length,
-      matchedText: shortenDebugText(text)
+      visibleCandidateCount,
+      matchedText: shortenDebugText(text),
+      matchedTagName: lowerTagName(element),
+      clickTargetTagName: lowerTagName(clickTarget)
     };
   }
 
   return {
     clicked: false,
     buttonCandidateCount: candidates.length,
-    matchedText: null
+    visibleCandidateCount,
+    matchedText: null,
+    matchedTagName: null,
+    clickTargetTagName: null
   };
+}
+
+function findTranscriptClickTarget(
+  element: Element
+): (HTMLElement & { click?: () => void }) | null {
+  if (isInteractiveClickTarget(element)) {
+    return element as HTMLElement & { click?: () => void };
+  }
+
+  const nestedTarget = element.querySelector(TRANSCRIPT_CLICK_TARGET_SELECTOR);
+
+  return nestedTarget
+    ? (nestedTarget as HTMLElement & { click?: () => void })
+    : null;
+}
+
+function isInteractiveClickTarget(element: Element): boolean {
+  const tagName = lowerTagName(element);
+
+  return (
+    tagName === "button" ||
+    tagName === "a" ||
+    element.getAttribute("role") === "button"
+  );
+}
+
+function isVisibleForClick(element: Element): boolean {
+  const htmlElement = element as HTMLElement;
+
+  if (
+    typeof window !== "undefined" &&
+    typeof window.getComputedStyle === "function"
+  ) {
+    const style = window.getComputedStyle(htmlElement);
+
+    if (
+      style.display === "none" ||
+      style.visibility === "hidden" ||
+      Number(style.opacity) === 0
+    ) {
+      return false;
+    }
+  }
+
+  if (typeof htmlElement.getClientRects === "function") {
+    return htmlElement.getClientRects().length > 0;
+  }
+
+  return true;
 }
 
 function countTranscriptSegmentElements(): number {
@@ -405,6 +478,10 @@ function countTranscriptPanelElements(): number {
 
 function shortenDebugText(text: string): string {
   return formattedTranscriptPanelText(text).slice(0, 120);
+}
+
+function lowerTagName(element: Element): string | null {
+  return element.tagName?.toLowerCase() ?? null;
 }
 
 function findTranscriptSegmentTimestamp(segment: Element): string {

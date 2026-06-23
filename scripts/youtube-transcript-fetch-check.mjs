@@ -133,6 +133,7 @@ global.document = {
   }
 };
 global.DOMParser = FakeDomParser;
+global.window = { setTimeout };
 
 const tempDir = mkdtempSync(
   join(tmpdir(), "hover-trans-port-youtube-transcript-fetch-")
@@ -308,6 +309,7 @@ try {
   fakeTranscriptSegments.length = 0;
   let transcriptButtonClicks = 0;
   fakeButtons.push({
+    tagName: "BUTTON",
     textContent: "스크립트 표시",
     getAttribute: () => null,
     click() {
@@ -348,6 +350,45 @@ try {
         fields.cueCount === 1
     ),
     "transcript panel fallback should debug-log the final rendered transcript cue count"
+  );
+
+  fakeTranscriptSegments.length = 0;
+  fakeButtons.length = 0;
+  let wrapperClicks = 0;
+  let nestedButtonClicks = 0;
+  const nestedTranscriptButton = {
+    tagName: "BUTTON",
+    textContent: "",
+    getAttribute: () => null,
+    click() {
+      nestedButtonClicks += 1;
+      fakeTranscriptSegments.push(
+        new FakeTranscriptSegment("0:03", "Loaded from nested transcript button")
+      );
+    }
+  };
+  fakeButtons.push({
+    tagName: "YTD-BUTTON-RENDERER",
+    textContent: "스크립트 표시",
+    getAttribute: () => null,
+    querySelector(selector) {
+      return selector.includes("button") ? nestedTranscriptButton : null;
+    },
+    click() {
+      wrapperClicks += 1;
+    }
+  });
+  const nestedButtonCues = await fetchYouTubeTranscriptFromTranscriptPanel({
+    timeoutMs: 20
+  });
+  assert(
+    wrapperClicks === 0 && nestedButtonClicks === 1,
+    "transcript panel fallback should click a nested real button instead of its wrapper"
+  );
+  assert(
+    nestedButtonCues.length === 1 &&
+      nestedButtonCues[0].text === "Loaded from nested transcript button",
+    "transcript panel fallback should read cues after clicking the nested transcript button"
   );
 } finally {
   rmSync(tempDir, { recursive: true, force: true });
