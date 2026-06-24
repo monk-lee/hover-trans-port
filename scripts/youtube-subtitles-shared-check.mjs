@@ -45,7 +45,7 @@ try {
     pathToFileURL(join(tempSharedDir, "youtubeSubtitles.js")).href
   );
   assert(
-    subtitles.SUBTITLE_TRANSLATION_PROMPT_VERSION === 2,
+    subtitles.SUBTITLE_TRANSLATION_PROMPT_VERSION === 3,
     "subtitle prompt version should invalidate older cache entries after prompt changes"
   );
   const cues = subtitles.normalizeSubtitleCues([

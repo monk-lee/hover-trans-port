@@ -1,6 +1,6 @@
 import type { ProviderSelection } from "./providers";
 
-export const SUBTITLE_TRANSLATION_PROMPT_VERSION = 2;
+export const SUBTITLE_TRANSLATION_PROMPT_VERSION = 3;
 export const SUBTITLE_CHUNK_MAX_CUES = 80;
 export const SUBTITLE_CHUNK_MAX_SOURCE_CHARS = 6000;
 export const SUBTITLE_CHUNK_CONTEXT_CUES = 8;

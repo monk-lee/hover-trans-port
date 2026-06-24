@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::process::ProviderError;
 
-pub const SUBTITLE_TRANSLATION_PROMPT_VERSION: u64 = 2;
+pub const SUBTITLE_TRANSLATION_PROMPT_VERSION: u64 = 3;
 pub const SUBTITLE_CHUNK_MAX_CUES: usize = 80;
 pub const SUBTITLE_CHUNK_MAX_SOURCE_CHARS: usize = 6000;
 pub const SUBTITLE_CHUNK_CONTEXT_CUES: usize = 8;
@@ -94,6 +94,11 @@ pub fn build_subtitle_translation_prompt(chunk: &SubtitleChunk, target_lang: &st
     let context_before = prompt_cue_input(&chunk.context_before);
     let cues_to_translate = prompt_cue_input(&chunk.cues);
     let context_after = prompt_cue_input(&chunk.context_after);
+    let expected_cue_ids = chunk
+        .cues
+        .iter()
+        .map(|cue| cue.id.as_str())
+        .collect::<Vec<_>>();
 
     [
         format!("Translate YouTube subtitle cues into {target_lang}."),
@@ -101,6 +106,11 @@ pub fn build_subtitle_translation_prompt(chunk: &SubtitleChunk, target_lang: &st
         "Use surrounding context to resolve pronouns, omitted subjects, terminology, speaker intent, and tone.".to_string(),
         "When a sentence spans multiple cues, translate each cue fragment so the full sequence reads naturally while preserving cue boundaries.".to_string(),
         "contextBefore and contextAfter are reference context only; translate cuesToTranslate only.".to_string(),
+        "Do not output ids from contextBefore or contextAfter.".to_string(),
+        format!(
+            "Return exactly {} cues, using only expectedCueIds in the same order.",
+            expected_cue_ids.len()
+        ),
         "Return valid JSON only.".to_string(),
         "Use this exact shape: {\"cues\":[{\"id\":\"cue-id\",\"translatedText\":\"translated text\"}]}.".to_string(),
         "Preserve cue ids exactly.".to_string(),
@@ -112,7 +122,8 @@ pub fn build_subtitle_translation_prompt(chunk: &SubtitleChunk, target_lang: &st
         serde_json::to_string(&serde_json::json!({
             "contextBefore": context_before,
             "cuesToTranslate": cues_to_translate,
-            "contextAfter": context_after
+            "contextAfter": context_after,
+            "expectedCueIds": expected_cue_ids
         }))
         .unwrap_or_else(|_| {
             "{\"contextBefore\":[],\"cuesToTranslate\":[],\"contextAfter\":[]}".to_string()
@@ -156,15 +167,23 @@ pub fn validate_subtitle_translation_output(
         }
     })?;
 
-    if parsed.cues.len() != source.len() {
+    let source_ids = source.iter().map(|cue| cue.id.as_str()).collect::<Vec<_>>();
+    let target_outputs = parsed
+        .cues
+        .into_iter()
+        .filter(|cue| source_ids.contains(&cue.id.as_str()))
+        .collect::<Vec<_>>();
+
+    if target_outputs.len() != source.len() {
         return Err(ProviderError::OutputParseFailed {
-            message: "Subtitle output cue count did not match source cue count.".to_string(),
+            message: "Subtitle output target cue count did not match source cue count."
+                .to_string(),
         });
     }
 
     source
         .iter()
-        .zip(parsed.cues)
+        .zip(target_outputs)
         .map(|(source, translated)| {
             if translated.id != source.id || translated.translated_text.trim().is_empty() {
                 return Err(ProviderError::OutputParseFailed {

@@ -337,6 +337,10 @@ try {
     "loading state should be exposed for styling and debugging"
   );
   assert(
+    loadingPrompt.querySelector("svg")?.querySelector("animateTransform"),
+    "loading state should render a self-animating SVG spinner"
+  );
+  assert(
     loadingPrompt.textContent.includes("번역 중..."),
     "loading state should show progress text"
   );

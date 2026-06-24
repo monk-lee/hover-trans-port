@@ -25,7 +25,7 @@ fn chunk_plan_respects_count_and_character_limits() {
 
 #[test]
 fn subtitle_prompt_version_invalidates_older_cache_entries() {
-    assert_eq!(SUBTITLE_TRANSLATION_PROMPT_VERSION, 2);
+    assert_eq!(SUBTITLE_TRANSLATION_PROMPT_VERSION, 3);
 }
 
 #[test]
@@ -43,12 +43,14 @@ fn prompt_uses_surrounding_context_without_requesting_context_output() {
 
     assert!(prompt.contains("Return valid JSON only."));
     assert!(prompt.contains("cuesToTranslate"));
+    assert!(prompt.contains("expectedCueIds"));
     assert!(prompt.contains("contextBefore"));
     assert!(prompt.contains("contextAfter"));
     assert!(prompt.contains("cue-79"));
     assert!(prompt.contains("cue-80"));
     assert!(prompt.contains("cue-160"));
     assert!(prompt.contains("contextBefore and contextAfter are reference context only"));
+    assert!(prompt.contains("Do not output ids from contextBefore or contextAfter."));
     assert!(prompt.contains("natural subtitle-style Korean"));
     assert!(prompt.contains("Do not merge, split, drop, or reorder cues."));
 }
@@ -102,4 +104,33 @@ fn validation_rejects_missing_duplicate_or_reordered_cues() {
         r#"{"cues":[{"id":"b","translatedText":"잘 가"},{"id":"a","translatedText":"안녕"}]}"#
     )
     .is_err());
+}
+
+#[test]
+fn validation_ignores_extra_context_cues_when_target_cues_are_complete() {
+    let source = vec![
+        SubtitleCue {
+            id: "target-a".to_string(),
+            start_ms: 1_000,
+            end_ms: 2_000,
+            text: "This is the cue to translate.".to_string(),
+        },
+        SubtitleCue {
+            id: "target-b".to_string(),
+            start_ms: 2_000,
+            end_ms: 3_000,
+            text: "Keep the target ids only.".to_string(),
+        },
+    ];
+
+    let translated = validate_subtitle_translation_output(
+        &source,
+        r#"{"cues":[{"id":"context-before","translatedText":"앞 문맥"},{"id":"target-a","translatedText":"번역 대상 자막입니다."},{"id":"target-b","translatedText":"대상 ID만 유지하세요."},{"id":"context-after","translatedText":"뒤 문맥"}]}"#,
+    )
+    .unwrap();
+
+    assert_eq!(translated.len(), 2);
+    assert_eq!(translated[0].id, "target-a");
+    assert_eq!(translated[0].translated_text, "번역 대상 자막입니다.");
+    assert_eq!(translated[1].id, "target-b");
 }
