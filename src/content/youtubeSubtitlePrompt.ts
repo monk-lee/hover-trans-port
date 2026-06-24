@@ -1,0 +1,182 @@
+export type YouTubeSubtitlePromptState =
+  | { status: "hidden" }
+  | { status: "prompt" }
+  | { status: "loading"; message: string }
+  | { status: "error"; message: string };
+
+type YouTubeSubtitlePromptHandlers = {
+  onAccept: () => void;
+  onDecline: () => void;
+};
+
+const PROMPT_ATTRIBUTE = "data-hover-trans-port-youtube-subtitle-prompt";
+const STYLE_ID = "hover-trans-port-youtube-subtitle-prompt-style";
+
+function ensurePromptStyle(): void {
+  if (document.getElementById(STYLE_ID)) {
+    return;
+  }
+
+  const style = document.createElement("style");
+  style.id = STYLE_ID;
+  style.textContent = `
+    .hover-trans-port-youtube-subtitle-prompt {
+      align-items: center;
+      background: rgba(18, 18, 18, 0.96);
+      border-radius: 4px;
+      bottom: 72px;
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+      box-sizing: border-box;
+      color: #fff;
+      display: flex;
+      font: 500 12px/1.4 Arial, sans-serif;
+      gap: 8px;
+      left: 50%;
+      max-width: min(520px, calc(100% - 32px));
+      padding: 8px 10px;
+      position: absolute;
+      transform: translateX(-50%);
+      white-space: normal;
+      z-index: 2147483647;
+    }
+    .hover-trans-port-youtube-subtitle-prompt[hidden] {
+      display: none !important;
+    }
+    .hover-trans-port-youtube-subtitle-prompt-message {
+      overflow-wrap: anywhere;
+    }
+    .hover-trans-port-youtube-subtitle-prompt-actions {
+      display: flex;
+      flex: 0 0 auto;
+      gap: 6px;
+    }
+    .hover-trans-port-youtube-subtitle-prompt button {
+      background: rgba(255, 255, 255, 0.16);
+      border: 0;
+      border-radius: 3px;
+      color: #fff;
+      cursor: pointer;
+      font: inherit;
+      padding: 3px 7px;
+    }
+    .hover-trans-port-youtube-subtitle-prompt button:hover {
+      background: rgba(255, 255, 255, 0.26);
+    }
+    .hover-trans-port-youtube-subtitle-prompt-spinner {
+      animation: hover-trans-port-youtube-subtitle-prompt-spin 0.9s linear infinite;
+      border: 2px solid rgba(255, 255, 255, 0.45);
+      border-radius: 999px;
+      border-top-color: #fff;
+      flex: 0 0 auto;
+      height: 12px;
+      width: 12px;
+    }
+    @keyframes hover-trans-port-youtube-subtitle-prompt-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+  `;
+  (document.head ?? document.documentElement).appendChild(style);
+}
+
+export class YouTubeSubtitlePrompt {
+  private node: HTMLElement | null = null;
+  private state: YouTubeSubtitlePromptState = { status: "hidden" };
+  private renderedStateKey: string | null = null;
+
+  constructor(private readonly handlers: YouTubeSubtitlePromptHandlers) {}
+
+  mount(playerRoot: Element): void {
+    ensurePromptStyle();
+    const existing = playerRoot.querySelector<HTMLElement>(
+      `[${PROMPT_ATTRIBUTE}="true"]`
+    );
+    this.node = existing ?? document.createElement("div");
+    this.node.className =
+      "hover-trans-port-youtube-subtitle-prompt notranslate";
+    this.node.setAttribute(PROMPT_ATTRIBUTE, "true");
+
+    if (!existing) {
+      playerRoot.appendChild(this.node);
+      this.renderedStateKey = null;
+    }
+
+    this.setState(this.state);
+  }
+
+  setState(state: YouTubeSubtitlePromptState): void {
+    this.state = state;
+
+    if (!this.node) {
+      return;
+    }
+
+    this.node.setAttribute("data-hover-trans-port-status", state.status);
+    this.node.hidden = state.status === "hidden";
+    const message =
+      state.status === "prompt"
+        ? "이 자막을 한국어로 번역할까요?"
+        : state.status === "hidden"
+          ? ""
+          : state.message;
+    const nextStateKey = `${state.status}:${message}`;
+
+    if (this.renderedStateKey === nextStateKey) {
+      return;
+    }
+
+    this.renderedStateKey = nextStateKey;
+    this.node.replaceChildren();
+
+    if (state.status === "hidden") {
+      return;
+    }
+
+    if (state.status === "loading") {
+      const spinner = document.createElement("span");
+      spinner.className = "hover-trans-port-youtube-subtitle-prompt-spinner";
+      spinner.setAttribute("aria-hidden", "true");
+      this.node.appendChild(spinner);
+    }
+
+    const messageNode = document.createElement("span");
+    messageNode.className = "hover-trans-port-youtube-subtitle-prompt-message";
+    messageNode.textContent = message;
+    this.node.appendChild(messageNode);
+
+    if (state.status === "prompt") {
+      this.node.appendChild(this.createActions());
+    }
+  }
+
+  destroy(): void {
+    this.node?.remove();
+    this.node = null;
+    this.renderedStateKey = null;
+  }
+
+  private createActions(): HTMLElement {
+    const actions = document.createElement("span");
+    actions.className = "hover-trans-port-youtube-subtitle-prompt-actions";
+
+    const yes = document.createElement("button");
+    yes.type = "button";
+    yes.textContent = "예";
+    yes.onclick = () => {
+      this.setState({ status: "hidden" });
+      this.handlers.onAccept();
+    };
+
+    const no = document.createElement("button");
+    no.type = "button";
+    no.textContent = "아니오";
+    no.onclick = () => {
+      this.setState({ status: "hidden" });
+      this.handlers.onDecline();
+    };
+
+    actions.append(yes, no);
+    return actions;
+  }
+}

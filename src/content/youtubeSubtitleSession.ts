@@ -26,8 +26,8 @@ import {
   fetchYouTubeTranscriptFromTranscriptPanel,
   fetchYouTubeTranscriptPanel
 } from "./youtubeTranscriptFetch";
-import { YouTubeSubtitleControl } from "./youtubeSubtitleControl";
 import { YouTubeSubtitleOverlay } from "./youtubeSubtitleOverlay";
+import { YouTubeSubtitlePrompt } from "./youtubeSubtitlePrompt";
 
 type FetchYouTubeTranscript = typeof fetchYouTubeTranscript;
 type FetchYouTubeTranscriptPanel = typeof fetchYouTubeTranscriptPanel;
@@ -112,15 +112,16 @@ let refreshTimer: number | null = null;
 
 export class YouTubeSubtitleSession {
   private readonly declinedVideoIds = new Set<string>();
-  private readonly control = new YouTubeSubtitleControl({
+  private readonly prompt = new YouTubeSubtitlePrompt({
     onAccept: () => void this.acceptTranslation(),
-    onDecline: () => this.declineTranslation(),
-    onToggle: () => this.toggleOverlay()
+    onDecline: () => this.declineTranslation()
   });
   private readonly overlay = new YouTubeSubtitleOverlay();
   private current: CurrentSubtitleSource | null = null;
   private pending: PendingSubtitleSource | null = null;
+  private translatedCues: TranslatedSubtitleCue[] | null = null;
   private video: HTMLVideoElement | null = null;
+  private nativeSubtitleButton: HTMLButtonElement | null = null;
   private debugLogWriteQueue: Promise<void> = Promise.resolve();
   private refreshSequence = 0;
   private stopped = false;
@@ -128,6 +129,9 @@ export class YouTubeSubtitleSession {
     if (!this.stopped && this.video) {
       this.overlay.update(this.video.currentTime);
     }
+  };
+  private readonly handleNativeSubtitleButtonClick = () => {
+    void Promise.resolve().then(() => this.syncNativeSubtitleButtonState());
   };
 
   constructor(private readonly deps: SessionDeps = {}) {}
@@ -139,18 +143,19 @@ export class YouTubeSubtitleSession {
 
     const sequence = (this.refreshSequence += 1);
     const videoId = getCurrentYouTubeVideoId();
-    const controls = document.querySelector(".ytp-right-controls-left");
     const playerRoot =
       document.querySelector(".html5-video-player") ?? document.body;
     const video = document.querySelector("video");
+    const nativeSubtitleButton = getNativeSubtitleButton();
 
-    if (!videoId || !controls || !(video instanceof HTMLVideoElement)) {
+    if (!videoId || !(video instanceof HTMLVideoElement)) {
       return;
     }
 
-    this.control.mount(controls);
+    this.prompt.mount(playerRoot);
     this.overlay.mount(playerRoot);
     this.bindVideo(video);
+    this.bindNativeSubtitleButton(nativeSubtitleButton);
 
     try {
       const options = (await chrome.storage.local.get(
@@ -175,10 +180,16 @@ export class YouTubeSubtitleSession {
       if (trackCandidates.length === 0) {
         this.current = null;
         this.pending = null;
-        this.control.setState({
-          status: "unavailable",
-          message: "사용 가능한 YouTube 자막이 없습니다."
-        });
+        this.translatedCues = null;
+        this.overlay.clear();
+        this.prompt.setState(
+          this.isNativeSubtitleButtonOn()
+            ? {
+                status: "error",
+                message: "사용 가능한 YouTube 자막이 없습니다."
+              }
+            : { status: "hidden" }
+        );
         return;
       }
 
@@ -199,11 +210,7 @@ export class YouTubeSubtitleSession {
         !this.current &&
         isSamePendingSubtitleSource(previousPending, pendingSource)
       ) {
-        this.control.setState(
-          this.declinedVideoIds.has(videoId)
-            ? { status: "disabled" }
-            : { status: "prompt" }
-        );
+        this.syncNativeSubtitleButtonState();
         return;
       }
 
@@ -218,11 +225,7 @@ export class YouTubeSubtitleSession {
 
       if (!loadedSource) {
         this.current = null;
-        this.control.setState(
-          this.declinedVideoIds.has(videoId)
-            ? { status: "disabled" }
-            : { status: "prompt" }
-        );
+        this.syncNativeSubtitleButtonState();
         return;
       }
 
@@ -238,20 +241,24 @@ export class YouTubeSubtitleSession {
         }
 
         if (cacheResponse.ok && cacheResponse.cached) {
-          this.activate(cacheResponse.cues);
+          this.translatedCues = cacheResponse.cues;
+
+          if (this.isNativeSubtitleButtonOn()) {
+            this.activate(cacheResponse.cues);
+          } else {
+            this.overlay.clear();
+            this.prompt.setState({ status: "hidden" });
+          }
           return;
         }
       }
 
       if (sourceChanged) {
+        this.translatedCues = null;
         this.overlay.clear();
       }
 
-      this.control.setState(
-        this.declinedVideoIds.has(videoId)
-          ? { status: "disabled" }
-          : { status: "prompt" }
-      );
+      this.syncNativeSubtitleButtonState();
     } catch (error) {
       if (isExtensionContextInvalidated(error)) {
         this.stop();
@@ -260,10 +267,14 @@ export class YouTubeSubtitleSession {
 
       if (sequence === this.refreshSequence) {
         this.current = null;
-        this.control.setState({
-          status: "error",
-          message: "YouTube 자막을 불러오지 못했습니다."
-        });
+        this.prompt.setState(
+          this.isNativeSubtitleButtonOn()
+            ? {
+                status: "error",
+                message: "YouTube 자막을 불러오지 못했습니다."
+              }
+            : { status: "hidden" }
+        );
       }
     }
   }
@@ -285,10 +296,14 @@ export class YouTubeSubtitleSession {
     if (!this.current) {
       if (!this.pending) {
         this.writeDebugEvent("youtube.subtitle.accept_no_source");
+        this.prompt.setState({
+          status: "error",
+          message: "YouTube 자막 스크립트를 읽지 못했습니다."
+        });
         return;
       }
 
-      this.control.setState({
+      this.prompt.setState({
         status: "loading",
         message: "자막 스크립트 읽는 중..."
       });
@@ -316,7 +331,7 @@ export class YouTubeSubtitleSession {
           videoId: this.pending.videoId,
           trackCandidateCount: this.pending.trackCandidates.length
         });
-        this.control.setState({
+        this.prompt.setState({
           status: "error",
           message: "YouTube 자막 스크립트를 읽지 못했습니다."
         });
@@ -372,7 +387,7 @@ export class YouTubeSubtitleSession {
       }
     }
 
-    this.control.setState({ status: "loading", message: "번역 중..." });
+    this.prompt.setState({ status: "loading", message: "번역 중..." });
     const chunkCountEstimate = planSubtitleChunks(this.current.cues).length;
     this.writeDebugEvent("youtube.subtitle.translation_start", {
       videoId: this.current.videoId,
@@ -416,7 +431,7 @@ export class YouTubeSubtitleSession {
       this.writeDebugEvent("youtube.subtitle.translation_error", {
         message: formatDebugError(error)
       });
-      this.control.setState({
+      this.prompt.setState({
         status: "error",
         message: "자막 번역에 실패했습니다."
       });
@@ -442,7 +457,7 @@ export class YouTubeSubtitleSession {
       return;
     }
 
-    this.control.setState({
+    this.prompt.setState({
       status: "error",
       message: "자막 번역에 실패했습니다."
     });
@@ -600,8 +615,9 @@ export class YouTubeSubtitleSession {
       return;
     }
 
+    this.translatedCues = cues;
     this.overlay.setCues(cues);
-    this.control.setState({ status: "enabled" });
+    this.prompt.setState({ status: "hidden" });
     this.handleVideoTimeUpdate();
     this.writeDebugEvent("youtube.subtitle.overlay_activated", {
       cueCount: cues.length,
@@ -618,14 +634,11 @@ export class YouTubeSubtitleSession {
   private declineTranslation(): void {
     if (this.current) {
       this.declinedVideoIds.add(this.current.videoId);
+    } else if (this.pending) {
+      this.declinedVideoIds.add(this.pending.videoId);
     }
 
-    this.control.setState({ status: "disabled" });
-  }
-
-  private toggleOverlay(): void {
-    this.overlay.clear();
-    this.control.setState({ status: "disabled" });
+    this.prompt.setState({ status: "hidden" });
   }
 
   private bindVideo(video: HTMLVideoElement): void {
@@ -643,11 +656,59 @@ export class YouTubeSubtitleSession {
     this.video.addEventListener("seeked", this.handleVideoTimeUpdate);
   }
 
+  private bindNativeSubtitleButton(button: HTMLButtonElement | null): void {
+    if (this.nativeSubtitleButton === button) {
+      return;
+    }
+
+    this.nativeSubtitleButton?.removeEventListener(
+      "click",
+      this.handleNativeSubtitleButtonClick
+    );
+    this.nativeSubtitleButton = button;
+    this.nativeSubtitleButton?.addEventListener(
+      "click",
+      this.handleNativeSubtitleButtonClick
+    );
+  }
+
+  private syncNativeSubtitleButtonState(): void {
+    if (this.stopped) {
+      return;
+    }
+
+    if (!this.isNativeSubtitleButtonOn()) {
+      this.overlay.clear();
+      this.prompt.setState({ status: "hidden" });
+      return;
+    }
+
+    if (this.translatedCues) {
+      this.activate(this.translatedCues);
+      return;
+    }
+
+    const videoId = this.current?.videoId ?? this.pending?.videoId;
+
+    this.prompt.setState(
+      videoId && !this.declinedVideoIds.has(videoId)
+        ? { status: "prompt" }
+        : { status: "hidden" }
+    );
+  }
+
+  private isNativeSubtitleButtonOn(): boolean {
+    return this.nativeSubtitleButton?.getAttribute("aria-pressed") === "true";
+  }
+
   private stop(): void {
     this.stopped = true;
     this.current = null;
+    this.pending = null;
+    this.translatedCues = null;
     this.overlay.clear();
-    this.control.destroy();
+    this.prompt.destroy();
+    this.bindNativeSubtitleButton(null);
 
     if (this.video) {
       this.video.removeEventListener("timeupdate", this.handleVideoTimeUpdate);
@@ -852,6 +913,12 @@ function normalizeDebugLogging(debugLogging: boolean | undefined): boolean {
 
 function getCurrentYouTubeVideoId(): string | null {
   return new URL(location.href).searchParams.get("v");
+}
+
+function getNativeSubtitleButton(): HTMLButtonElement | null {
+  const button = document.querySelector(".ytp-subtitles-button");
+
+  return button instanceof HTMLButtonElement ? button : null;
 }
 
 function isYouTubeHost(): boolean {

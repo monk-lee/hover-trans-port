@@ -230,9 +230,9 @@ function matchesSelector(element, selector) {
   return element.tagName.toLowerCase() === selector.toLowerCase();
 }
 
-function findAllControls(root) {
+function findAllPrompts(root) {
   return root.querySelectorAll(
-    '[data-hover-trans-port-youtube-subtitle-control="true"]'
+    '[data-hover-trans-port-youtube-subtitle-prompt="true"]'
   );
 }
 
@@ -261,8 +261,8 @@ writeFileSync(
   transpile("src/shared/youtubeSubtitles.ts")
 );
 writeFileSync(
-  join(tempContentDir, "youtubeSubtitleControl.js"),
-  transpile("src/content/youtubeSubtitleControl.ts")
+  join(tempContentDir, "youtubeSubtitlePrompt.js"),
+  transpile("src/content/youtubeSubtitlePrompt.ts")
 );
 writeFileSync(
   join(tempContentDir, "youtubeSubtitleOverlay.js"),
@@ -273,118 +273,87 @@ writeFileSync(
 );
 
 try {
-  const { YouTubeSubtitleControl } = await import(
-    pathToFileURL(join(tempContentDir, "youtubeSubtitleControl.js")).href
+  const { YouTubeSubtitlePrompt } = await import(
+    pathToFileURL(join(tempContentDir, "youtubeSubtitlePrompt.js")).href
   );
   const { YouTubeSubtitleOverlay } = await import(
     pathToFileURL(join(tempContentDir, "youtubeSubtitleOverlay.js")).href
   );
 
-  const controls = document.createElement("div");
-  controls.className = "ytp-right-controls-left";
-  const subtitleButton = document.createElement("button");
-  subtitleButton.className = "ytp-subtitles-button ytp-button";
-  const settingsButton = document.createElement("button");
-  settingsButton.className = "ytp-settings-button ytp-button";
-  controls.appendChild(subtitleButton);
-  controls.appendChild(settingsButton);
-  document.body.appendChild(controls);
-
-  const events = [];
-  const control = new YouTubeSubtitleControl({
-    onAccept: () => events.push("accept"),
-    onDecline: () => events.push("decline"),
-    onToggle: () => events.push("toggle")
-  });
-  control.mount(controls);
-  control.setState({ status: "prompt" });
-  const mountedControl = controls.children[0];
-  assert(
-    document.head.textContent.includes("justify-content: center"),
-    "control icon wrapper should center the YouTube-style icon"
-  );
-  assert(
-    document.head.textContent.includes("bottom: 72px"),
-    "control popover should sit above the YouTube playback controls"
-  );
-  assert(
-    mountedControl.getAttribute("data-hover-trans-port-youtube-subtitle-control") ===
-      "true",
-    "control should mount as the leftmost YouTube right-controls-left button"
-  );
-  assert(
-    !mountedControl.textContent.includes("번"),
-    "control should use an icon instead of a text label"
-  );
-  assert(
-    mountedControl.firstElementChild.tagName === "DIV" &&
-      mountedControl.firstElementChild.className
-        .split(/\s+/g)
-        .includes("hover-trans-port-youtube-subtitle-control-icon"),
-    "control icon should use its own wrapper structure"
-  );
-  assert(
-    !mountedControl.firstElementChild.className
-      .split(/\s+/g)
-      .includes("ytp-subtitles-button-icon"),
-    "control icon should not reuse the YouTube captions button class"
-  );
-  assert(
-    mountedControl.firstElementChild.getAttribute("fill-opacity") === "1",
-    "control icon wrapper should match YouTube caption button icon attributes"
-  );
-  assert(mountedControl.querySelector("svg"), "control should render a multilingual icon");
-  const firstIcon = mountedControl.firstElementChild.querySelector("svg");
-  assert(
-    firstIcon.getAttribute("width") === "24" &&
-      firstIcon.getAttribute("height") === "24" &&
-      firstIcon.getAttribute("viewBox") === "0 0 24 24",
-    "control icon SVG should match YouTube player icon dimensions"
-  );
-  assert(
-    firstIcon.getAttribute("fill") === "none" &&
-      firstIcon.querySelector("path").getAttribute("fill") === "white",
-    "control icon should use a white filled path"
-  );
-  assert(
-    firstIcon
-      .querySelector("path")
-      .getAttribute("d")
-      .startsWith("M12.87 15.07"),
-    "control icon should render a translation glyph, not the YouTube captions glyph"
-  );
-  control.setState({ status: "prompt" });
-  assert(
-    mountedControl.querySelector("svg") === firstIcon,
-    "control should not recreate its icon when the visible state is unchanged"
-  );
-
-  control.setState({ status: "loading", message: "번역 중..." });
-  assert(
-    mountedControl.textContent === "",
-    "loading state should use the spinner without widening the YouTube control"
-  );
-  assert(
-    mountedControl.getAttribute("aria-label") === "번역 중...",
-    "loading state should keep accessible status text"
-  );
-
-  control.setState({
-    status: "unavailable",
-    message: "사용 가능한 YouTube 자막이 없습니다."
-  });
-  assert(!mountedControl.disabled, "unavailable state should remain clickable");
-  mountedControl.onclick();
-  assert(
-    controls.textContent.includes("사용 가능한 YouTube 자막이 없습니다."),
-    "clicking unavailable control should explain why translation cannot start"
-  );
-
-  control.mount(controls);
-  assert(findAllControls(controls).length === 1, "control mount should be idempotent");
-
   const player = document.createElement("div");
   player.className = "html5-video-player";
+  document.body.appendChild(player);
+
+  const events = [];
+  const prompt = new YouTubeSubtitlePrompt({
+    onAccept: () => events.push("accept"),
+    onDecline: () => events.push("decline")
+  });
+  prompt.mount(player);
+  prompt.setState({ status: "prompt" });
+  const promptNode = player.querySelector(
+    '[data-hover-trans-port-youtube-subtitle-prompt="true"]'
+  );
+  assert(promptNode, "prompt should mount inside the YouTube player root");
+  assert(
+    document.head.textContent.includes("bottom: 72px"),
+    "prompt should sit above the YouTube playback controls"
+  );
+  assert(
+    !document.body.querySelector(
+      '[data-hover-trans-port-youtube-subtitle-control="true"]'
+    ),
+    "prompt should not create a separate YouTube player button"
+  );
+  assert(
+    promptNode.textContent.includes("이 자막을 한국어로 번역할까요?"),
+    "prompt should ask whether to translate the native YouTube captions"
+  );
+  const promptButtons = promptNode.querySelectorAll("button");
+  assert(
+    promptButtons.length === 2 &&
+      promptButtons[0].textContent === "예" &&
+      promptButtons[1].textContent === "아니오",
+    "prompt should expose explicit yes/no actions"
+  );
+  promptButtons[0].onclick();
+  assert(events.join(",") === "accept", "prompt yes should accept translation");
+  prompt.setState({ status: "prompt" });
+  player
+    .querySelector('[data-hover-trans-port-youtube-subtitle-prompt="true"]')
+    .querySelectorAll("button")[1]
+    .onclick();
+  assert(
+    events.join(",") === "accept,decline",
+    "prompt no should decline translation"
+  );
+
+  prompt.setState({ status: "loading", message: "번역 중..." });
+  const loadingPrompt = player.querySelector(
+    '[data-hover-trans-port-youtube-subtitle-prompt="true"]'
+  );
+  assert(
+    loadingPrompt.getAttribute("data-hover-trans-port-status") === "loading",
+    "loading state should be exposed for styling and debugging"
+  );
+  assert(
+    loadingPrompt.textContent.includes("번역 중..."),
+    "loading state should show progress text"
+  );
+
+  prompt.setState({
+    status: "error",
+    message: "YouTube 자막 스크립트를 읽지 못했습니다."
+  });
+  assert(
+    player.textContent.includes("YouTube 자막 스크립트를 읽지 못했습니다."),
+    "error state should explain why translation cannot start"
+  );
+  prompt.mount(player);
+  assert(
+    findAllPrompts(player).length === 1,
+    "prompt mount should be idempotent"
+  );
   const captionContainer = document.createElement("div");
   captionContainer.className = "ytp-caption-window-container";
   captionContainer.setAttribute("id", "ytp-caption-window-container");
@@ -393,7 +362,6 @@ try {
   nativeCaption.textContent = "Hello";
   captionContainer.appendChild(nativeCaption);
   player.appendChild(captionContainer);
-  document.body.appendChild(player);
 
   const overlay = new YouTubeSubtitleOverlay();
   overlay.mount(player);

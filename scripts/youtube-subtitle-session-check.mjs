@@ -53,6 +53,7 @@ class FakeElement {
   parentElement = null;
   childNodes = [];
   attributes = new Map();
+  eventListeners = new Map();
   dataset = {};
   className = "";
   hidden = false;
@@ -128,9 +129,40 @@ class FakeElement {
     this.parentElement?.removeChild(this);
   }
 
-  addEventListener() {}
+  addEventListener(type, listener) {
+    const listeners = this.eventListeners.get(type) ?? [];
+    listeners.push(listener);
+    this.eventListeners.set(type, listeners);
+  }
 
-  removeEventListener() {}
+  removeEventListener(type, listener) {
+    const listeners = this.eventListeners.get(type) ?? [];
+    this.eventListeners.set(
+      type,
+      listeners.filter((candidate) => candidate !== listener)
+    );
+  }
+
+  dispatchEvent(event) {
+    const normalizedEvent =
+      typeof event === "string"
+        ? { type: event, target: this, currentTarget: this }
+        : { target: this, currentTarget: this, ...event };
+
+    if (normalizedEvent.type === "click" && typeof this.onclick === "function") {
+      this.onclick(normalizedEvent);
+    }
+
+    for (const listener of this.eventListeners.get(normalizedEvent.type) ?? []) {
+      listener(normalizedEvent);
+    }
+
+    return true;
+  }
+
+  click() {
+    return this.dispatchEvent({ type: "click" });
+  }
 
   setAttribute(name, value) {
     this.attributes.set(name, String(value));
@@ -301,6 +333,7 @@ const controls = document.createElement("div");
 controls.className = "ytp-right-controls-left";
 const subtitleButton = document.createElement("button");
 subtitleButton.className = "ytp-subtitles-button ytp-button";
+subtitleButton.setAttribute("aria-pressed", "false");
 const settingsButton = document.createElement("button");
 settingsButton.className = "ytp-settings-button ytp-button";
 controls.appendChild(subtitleButton);
@@ -470,8 +503,8 @@ writeFileSync(
   ])
 );
 writeFileSync(
-  join(tempContentDir, "youtubeSubtitleControl.js"),
-  transpile("src/content/youtubeSubtitleControl.ts")
+  join(tempContentDir, "youtubeSubtitlePrompt.js"),
+  transpile("src/content/youtubeSubtitlePrompt.ts")
 );
 writeFileSync(
   join(tempContentDir, "youtubeSubtitleOverlay.js"),
@@ -486,7 +519,7 @@ writeFileSync(
     ["../shared/youtubeSubtitles", "../shared/youtubeSubtitles.js"],
     ["./youtubeCaptionTracks", "./youtubeCaptionTracks.js"],
     ["./youtubeTranscriptFetch", "./youtubeTranscriptFetch.js"],
-    ["./youtubeSubtitleControl", "./youtubeSubtitleControl.js"],
+    ["./youtubeSubtitlePrompt", "./youtubeSubtitlePrompt.js"],
     ["./youtubeSubtitleOverlay", "./youtubeSubtitleOverlay.js"]
   ])
 );
@@ -507,6 +540,22 @@ try {
   assert(
     sentMessages[0].type === "GET_SUBTITLE_TRANSLATION_CACHE",
     "session should check cache after transcript hash exists"
+  );
+  assert(
+    !document.querySelector(
+      '[data-hover-trans-port-youtube-subtitle-control="true"]'
+    ),
+    "session should not inject a separate YouTube subtitle translation button"
+  );
+
+  subtitleButton.setAttribute("aria-pressed", "true");
+  subtitleButton.dispatchEvent({ type: "click" });
+  await flushPromises();
+  assert(
+    document
+      .querySelector('[data-hover-trans-port-youtube-subtitle-prompt="true"]')
+      .textContent.includes("이 자막을 한국어로 번역할까요?"),
+    "turning on YouTube's native captions button should show the translation prompt"
   );
 
   await session.acceptTranslation();
@@ -620,12 +669,15 @@ try {
     lazyPanelTimedTextFetchCount === 2 && lazyPanelApiFetchCount === 0,
     "refresh should make one best-effort direct transcript prefetch"
   );
-  const lazyPanelControl = document.querySelector(
-    '[data-hover-trans-port-youtube-subtitle-control="true"]'
+  subtitleButton.setAttribute("aria-pressed", "true");
+  subtitleButton.dispatchEvent({ type: "click" });
+  await flushPromises();
+  const lazyPanelPrompt = document.querySelector(
+    '[data-hover-trans-port-youtube-subtitle-prompt="true"]'
   );
   assert(
-    lazyPanelControl.getAttribute("data-hover-trans-port-status") === "prompt",
-    "session should keep the translate button usable when caption tracks exist but direct transcript fetches are empty"
+    lazyPanelPrompt.getAttribute("data-hover-trans-port-status") === "prompt",
+    "session should keep the translation prompt usable when caption tracks exist but direct transcript fetches are empty"
   );
   await lazyPanelSession.acceptTranslation();
   await flushPromises();
