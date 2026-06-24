@@ -533,7 +533,7 @@ fn translate_subtitles_valid(request: TranslateSubtitlesRequest, deps: BridgeDep
     let mut response_provider = effective_provider;
 
     for chunk in plan_subtitle_chunks(&request.cues) {
-        let prompt = build_subtitle_translation_prompt(&chunk.cues, &request.target_lang);
+        let prompt = build_subtitle_translation_prompt(&chunk, &request.target_lang);
         let provider_result = registry.run_prompt(
             provider_selection.as_deref(),
             ProviderPromptRequest {

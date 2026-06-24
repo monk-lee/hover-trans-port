@@ -235,7 +235,7 @@ fn subtitle_cache_miss_returns_cached_false() {
             "videoId": "abc",
             "sourceTrackIdentity": "track",
             "sourceTimelineHash": "hash",
-            "promptVersion": 1
+            "promptVersion": 2
         }),
         BridgeDeps::with_env(env),
     );
@@ -590,7 +590,7 @@ fn subtitle_translate(request_id: &str, env: BTreeMap<String, String>) -> serde_
             "videoId": "abc",
             "sourceTrackIdentity": "track",
             "sourceTimelineHash": "hash",
-            "promptVersion": 1,
+            "promptVersion": 2,
             "cacheEnabled": true,
             "timeoutMs": 5_000,
             "cues": [

@@ -1,8 +1,9 @@
 import type { ProviderSelection } from "./providers";
 
-export const SUBTITLE_TRANSLATION_PROMPT_VERSION = 1;
+export const SUBTITLE_TRANSLATION_PROMPT_VERSION = 2;
 export const SUBTITLE_CHUNK_MAX_CUES = 80;
 export const SUBTITLE_CHUNK_MAX_SOURCE_CHARS = 6000;
+export const SUBTITLE_CHUNK_CONTEXT_CUES = 8;
 
 export type YouTubeCaptionTrackKind = "manual" | "asr";
 
@@ -41,6 +42,8 @@ export type SubtitleCacheKeyInput = {
 export type SubtitleChunk = {
   index: number;
   cues: YouTubeSubtitleCue[];
+  contextBefore: YouTubeSubtitleCue[];
+  contextAfter: YouTubeSubtitleCue[];
 };
 
 export function normalizeSubtitleText(text: string): string {
@@ -114,29 +117,56 @@ export function planSubtitleChunks(
 ): SubtitleChunk[] {
   const normalized = normalizeSubtitleCues(cues);
   const chunks: SubtitleChunk[] = [];
-  let current: YouTubeSubtitleCue[] = [];
+  let currentStart = 0;
+  let currentLength = 0;
   let currentChars = 0;
 
-  for (const cue of normalized) {
+  for (let index = 0; index < normalized.length; index += 1) {
+    const cue = normalized[index];
     const cueChars = cue.text.length;
-    const wouldExceedCount = current.length >= SUBTITLE_CHUNK_MAX_CUES;
+    const wouldExceedCount = currentLength >= SUBTITLE_CHUNK_MAX_CUES;
     const wouldExceedChars =
-      current.length > 0 &&
+      currentLength > 0 &&
       currentChars + cueChars > SUBTITLE_CHUNK_MAX_SOURCE_CHARS;
 
     if (wouldExceedCount || wouldExceedChars) {
-      chunks.push({ index: chunks.length, cues: current });
-      current = [];
+      chunks.push(createSubtitleChunk(chunks.length, normalized, currentStart, index));
+      currentStart = index;
+      currentLength = 0;
       currentChars = 0;
     }
 
-    current.push(cue);
+    currentLength += 1;
     currentChars += cueChars;
   }
 
-  if (current.length > 0) {
-    chunks.push({ index: chunks.length, cues: current });
+  if (currentLength > 0) {
+    chunks.push(
+      createSubtitleChunk(
+        chunks.length,
+        normalized,
+        currentStart,
+        normalized.length
+      )
+    );
   }
 
   return chunks;
+}
+
+function createSubtitleChunk(
+  index: number,
+  cues: YouTubeSubtitleCue[],
+  start: number,
+  end: number
+): SubtitleChunk {
+  const contextBeforeStart = Math.max(0, start - SUBTITLE_CHUNK_CONTEXT_CUES);
+  const contextAfterEnd = Math.min(cues.length, end + SUBTITLE_CHUNK_CONTEXT_CUES);
+
+  return {
+    index,
+    cues: cues.slice(start, end),
+    contextBefore: cues.slice(contextBeforeStart, start),
+    contextAfter: cues.slice(end, contextAfterEnd)
+  };
 }

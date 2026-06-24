@@ -44,6 +44,10 @@ try {
   const subtitles = await import(
     pathToFileURL(join(tempSharedDir, "youtubeSubtitles.js")).href
   );
+  assert(
+    subtitles.SUBTITLE_TRANSLATION_PROMPT_VERSION === 2,
+    "subtitle prompt version should invalidate older cache entries after prompt changes"
+  );
   const cues = subtitles.normalizeSubtitleCues([
     { id: "b", startMs: 2000, endMs: 3000, text: "  second\nline " },
     { id: "a", startMs: 0, endMs: 1200, text: "Hello   world" },
@@ -79,6 +83,15 @@ try {
   assert(chunks.length === 2, "81 cues should split at the 80 cue limit");
   assert(chunks[0].cues.length === 80, "first chunk should hold 80 cues");
   assert(chunks[1].cues.length === 1, "second chunk should hold remaining cue");
+  assert(
+    chunks[0].contextAfter[0].id === "cue-80",
+    "first chunk should include following cues as context"
+  );
+  assert(
+    chunks[1].contextBefore.length === 8 &&
+      chunks[1].contextBefore[0].id === "cue-72",
+    "later chunks should include preceding cues as context"
+  );
 } finally {
   rmSync(tempDir, { recursive: true, force: true });
 }
