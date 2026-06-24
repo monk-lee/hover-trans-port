@@ -52,6 +52,7 @@ import {
   normalizeProvider,
   normalizeTargetLang,
   normalizeTimeoutMs,
+  normalizeYouTubeSubtitleTimeoutMs,
   type StoredOptions
 } from "../shared/options";
 import {
@@ -1482,8 +1483,8 @@ export async function translateSubtitleTrack(
     input.targetLang,
     getBrowserTargetLang(getBrowserLocaleCandidates())
   );
-  const timeoutMsValue = normalizeTimeoutMs(
-    input.timeoutMs ?? options.hoverTransPort?.timeoutMs
+  const timeoutMsValue = normalizeYouTubeSubtitleTimeoutMs(
+    input.timeoutMs ?? options.hoverTransPort?.youtubeSubtitleTimeoutMs
   );
   const cacheEnabledValue =
     typeof input.cacheEnabled === "boolean"

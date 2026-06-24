@@ -41,6 +41,7 @@ type StoredOptions = {
     modelsByProvider?: Partial<Record<ProviderId, string>>;
     targetLang?: string;
     timeoutMs?: number | string;
+    youtubeSubtitleTimeoutMs?: number | string;
     cacheEnabled?: boolean;
     debugLogging?: boolean;
   };
@@ -55,7 +56,7 @@ type SessionDeps = {
 
 const DEFAULT_PROVIDER: ProviderSelection = "codex";
 const DEFAULT_TARGET_LANG = "Korean";
-const DEFAULT_TIMEOUT_MS = 30000;
+const DEFAULT_YOUTUBE_SUBTITLE_TIMEOUT_MS = 60000;
 const MIN_TIMEOUT_MS = 5000;
 const MAX_TIMEOUT_MS = 120000;
 const DEFAULT_CACHE_ENABLED = true;
@@ -174,7 +175,9 @@ export class YouTubeSubtitleSession {
       );
       const model = getModelForProvider(storedOptions, provider);
       const cacheEnabled = normalizeCacheEnabled(storedOptions?.cacheEnabled);
-      const timeoutMs = normalizeTimeoutMs(storedOptions?.timeoutMs);
+      const timeoutMs = normalizeYouTubeSubtitleTimeoutMs(
+        storedOptions?.youtubeSubtitleTimeoutMs
+      );
       const debugLogging = normalizeDebugLogging(storedOptions?.debugLogging);
 
       const tracks = extractCaptionTracksFromPlayerResponse(
@@ -447,10 +450,7 @@ export class YouTubeSubtitleSession {
       this.writeDebugEvent("youtube.subtitle.translation_error", {
         message: formatDebugError(error)
       });
-      this.prompt.setState({
-        status: "error",
-        message: "자막 번역에 실패했습니다."
-      });
+      this.showSubtitleTranslationError("자막 번역에 실패했습니다.");
       return;
     }
 
@@ -473,10 +473,11 @@ export class YouTubeSubtitleSession {
       return;
     }
 
-    this.prompt.setState({
-      status: "error",
-      message: "자막 번역에 실패했습니다."
-    });
+    this.showSubtitleTranslationError(
+      response.type === "SUBTITLE_TRANSLATION_RESULT" && !response.ok
+        ? response.message
+        : "자막 번역에 실패했습니다."
+    );
   }
 
   private async loadCurrentSubtitleSource(
@@ -644,6 +645,15 @@ export class YouTubeSubtitleSession {
         ? findActiveTranslatedCue(cues, this.video.currentTime)?.id ?? null
         : null,
       ...this.overlay.getDebugState()
+    });
+  }
+
+  private showSubtitleTranslationError(message: string): void {
+    this.translatedCues = null;
+    this.overlay.clear();
+    this.prompt.setState({
+      status: "error",
+      message
     });
   }
 
@@ -901,12 +911,31 @@ function findActiveTranslatedCue(
   );
 }
 
-function normalizeTimeoutMs(timeoutMs: number | string | undefined): number {
+function normalizeYouTubeSubtitleTimeoutMs(
+  timeoutMs: number | string | undefined
+): number {
+  return normalizeTimeoutMsWithFallback(
+    timeoutMs,
+    DEFAULT_YOUTUBE_SUBTITLE_TIMEOUT_MS
+  );
+}
+
+function normalizeTimeoutMsWithFallback(
+  timeoutMs: number | string | undefined,
+  fallbackMs: number
+): number {
+  const rawTimeoutMs =
+    typeof timeoutMs === "number" ? timeoutMs : timeoutMs?.trim();
+
+  if (rawTimeoutMs === undefined || rawTimeoutMs === "") {
+    return fallbackMs;
+  }
+
   const parsed =
-    typeof timeoutMs === "number" ? timeoutMs : Number(timeoutMs ?? "");
+    typeof rawTimeoutMs === "number" ? rawTimeoutMs : Number(rawTimeoutMs);
 
   if (!Number.isFinite(parsed)) {
-    return DEFAULT_TIMEOUT_MS;
+    return fallbackMs;
   }
 
   return Math.min(

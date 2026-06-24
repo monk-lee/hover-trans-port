@@ -395,7 +395,6 @@ global.chrome = {
             provider: "codex",
             targetLang: "Korean",
             cacheEnabled: true,
-            timeoutMs: 30000,
             debugLogging: true
           }
         });
@@ -564,6 +563,18 @@ try {
     "accept should request subtitle translation"
   );
   assert(
+    sentMessages.some(
+      (message) =>
+        message.type === "TRANSLATE_SUBTITLE_TRACK" &&
+        message.timeoutMs === 60000
+    ),
+    `YouTube subtitle translation should default to a 60 second timeout, got ${JSON.stringify(
+      sentMessages
+        .filter((message) => message.type === "TRANSLATE_SUBTITLE_TRACK")
+        .map((message) => message.timeoutMs)
+    )}`
+  );
+  assert(
     captionContainer.textContent.includes("안녕"),
     "successful translation should render in the YouTube caption container"
   );
@@ -621,6 +632,44 @@ try {
   await loadingPromise;
   global.chrome.runtime.sendMessage = defaultSendMessage;
 
+  global.chrome.runtime.sendMessage = (message) => {
+    if (message.type === "TRANSLATE_SUBTITLE_TRACK") {
+      return Promise.resolve({
+        type: "SUBTITLE_TRANSLATION_RESULT",
+        requestId: message.requestId,
+        ok: false,
+        provider: "codex",
+        error: "PROVIDER_TIMEOUT",
+        message: "Codex CLI 번역 시간이 초과되었습니다.",
+        retryable: true,
+        elapsedMs: 60003
+      });
+    }
+
+    return defaultSendMessage(message);
+  };
+  const failedTranslationSession = new YouTubeSubtitleSession({
+    getPlayerResponse: () => playerResponseFixture,
+    fetchTranscript: async () => [
+      { id: "cue-0", startMs: 0, endMs: 1000, text: "Hello" }
+    ]
+  });
+  await failedTranslationSession.refresh();
+  subtitleButton.setAttribute("aria-pressed", "true");
+  await failedTranslationSession.acceptTranslation();
+  const failedPrompt = document.querySelector(
+    '[data-hover-trans-port-youtube-subtitle-prompt="true"]'
+  );
+  assert(
+    failedPrompt.textContent.includes("Codex CLI 번역 시간이 초과되었습니다."),
+    "failed YouTube subtitle translation should show the provider error message"
+  );
+  assert(
+    captionContainer.getAttribute("data-hover-trans-port-youtube-subtitles-active") === null,
+    "failed YouTube subtitle translation should clear the translated overlay so native captions remain visible"
+  );
+  global.chrome.runtime.sendMessage = defaultSendMessage;
+
   const previousSentMessageCount = sentMessages.length;
   player.getPlayerResponse = () => playerResponseFixture;
   await new YouTubeSubtitleSession({
@@ -629,8 +678,11 @@ try {
     ]
   }).refresh();
   assert(
-    sentMessages.length > previousSentMessageCount &&
-      sentMessages.at(-1).type === "GET_SUBTITLE_TRANSLATION_CACHE",
+    sentMessages.some(
+      (message, index) =>
+        index >= previousSentMessageCount &&
+        message.type === "GET_SUBTITLE_TRANSLATION_CACHE"
+    ),
     "session should read caption tracks from the YouTube player getPlayerResponse API"
   );
   player.getPlayerResponse = undefined;
@@ -645,8 +697,11 @@ try {
     ]
   }).refresh();
   assert(
-    sentMessages.length > previousScriptSentMessageCount &&
-      sentMessages.at(-1).type === "GET_SUBTITLE_TRANSLATION_CACHE",
+    sentMessages.some(
+      (message, index) =>
+        index >= previousScriptSentMessageCount &&
+        message.type === "GET_SUBTITLE_TRANSLATION_CACHE"
+    ),
     "session should fall back to parsing ytInitialPlayerResponse from page scripts"
   );
 

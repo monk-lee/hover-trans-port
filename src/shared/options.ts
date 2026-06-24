@@ -14,6 +14,7 @@ import {
 
 export const DEFAULT_CODEX_MODEL = PROVIDER_DEFAULT_MODELS.codex;
 export const DEFAULT_TIMEOUT_MS = 30000;
+export const DEFAULT_YOUTUBE_SUBTITLE_TIMEOUT_MS = 60000;
 export const MIN_TIMEOUT_MS = 5000;
 export const MAX_TIMEOUT_MS = 120000;
 export const DEFAULT_EXTENSION_ENABLED = true;
@@ -50,6 +51,7 @@ export type HoverTransPortOptions = {
   targetLang?: string;
   triggerHotkey?: TriggerHotkey;
   timeoutMs?: number;
+  youtubeSubtitleTimeoutMs?: number;
   cacheEnabled?: boolean;
   debugLogging?: boolean;
   nativeHostUpdateAutoCheck?: boolean;
@@ -161,11 +163,34 @@ export function normalizeEnabled(enabled: boolean | undefined): boolean {
 }
 
 export function normalizeTimeoutMs(timeoutMs: number | string | undefined): number {
+  return normalizeTimeoutMsWithFallback(timeoutMs, DEFAULT_TIMEOUT_MS);
+}
+
+export function normalizeYouTubeSubtitleTimeoutMs(
+  timeoutMs: number | string | undefined
+): number {
+  return normalizeTimeoutMsWithFallback(
+    timeoutMs,
+    DEFAULT_YOUTUBE_SUBTITLE_TIMEOUT_MS
+  );
+}
+
+function normalizeTimeoutMsWithFallback(
+  timeoutMs: number | string | undefined,
+  fallbackMs: number
+): number {
+  const rawTimeoutMs =
+    typeof timeoutMs === "number" ? timeoutMs : timeoutMs?.trim();
+
+  if (rawTimeoutMs === undefined || rawTimeoutMs === "") {
+    return fallbackMs;
+  }
+
   const parsed =
-    typeof timeoutMs === "number" ? timeoutMs : Number(timeoutMs ?? "");
+    typeof rawTimeoutMs === "number" ? rawTimeoutMs : Number(rawTimeoutMs);
 
   if (!Number.isFinite(parsed)) {
-    return DEFAULT_TIMEOUT_MS;
+    return fallbackMs;
   }
 
   return Math.min(

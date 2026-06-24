@@ -17,6 +17,7 @@ import {
   DEFAULT_DEBUG_LOGGING,
   DEFAULT_EXTENSION_ENABLED,
   DEFAULT_TIMEOUT_MS,
+  DEFAULT_YOUTUBE_SUBTITLE_TIMEOUT_MS,
   normalizeNativeHostUpdateAutoCheck,
   type StoredOptions
 } from "../shared/options";
@@ -260,6 +261,7 @@ chrome.runtime.onInstalled.addListener(async ({ reason }) => {
       hoverTransPort: {
         enabled: DEFAULT_EXTENSION_ENABLED,
         timeoutMs: DEFAULT_TIMEOUT_MS,
+        youtubeSubtitleTimeoutMs: DEFAULT_YOUTUBE_SUBTITLE_TIMEOUT_MS,
         cacheEnabled: DEFAULT_CACHE_ENABLED,
         debugLogging: DEFAULT_DEBUG_LOGGING
       }
