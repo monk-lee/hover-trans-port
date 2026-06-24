@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use crate::process::ProviderError;
 
@@ -168,35 +169,38 @@ pub fn validate_subtitle_translation_output(
     })?;
 
     let source_ids = source.iter().map(|cue| cue.id.as_str()).collect::<Vec<_>>();
-    let target_outputs = parsed
-        .cues
-        .into_iter()
-        .filter(|cue| source_ids.contains(&cue.id.as_str()))
-        .collect::<Vec<_>>();
+    let mut translated_by_id = HashMap::<String, String>::new();
 
-    if target_outputs.len() != source.len() {
-        return Err(ProviderError::OutputParseFailed {
-            message: "Subtitle output target cue count did not match source cue count."
-                .to_string(),
-        });
+    for cue in parsed.cues {
+        if !source_ids.contains(&cue.id.as_str()) {
+            continue;
+        }
+
+        let translated_text = cue.translated_text.trim().to_string();
+
+        if translated_text.is_empty() || translated_by_id.insert(cue.id, translated_text).is_some()
+        {
+            return Err(ProviderError::OutputParseFailed {
+                message: "Subtitle output target cue ids or text were invalid.".to_string(),
+            });
+        }
     }
 
     source
         .iter()
-        .zip(target_outputs)
-        .map(|(source, translated)| {
-            if translated.id != source.id || translated.translated_text.trim().is_empty() {
-                return Err(ProviderError::OutputParseFailed {
-                    message: "Subtitle output cue ids or text were invalid.".to_string(),
-                });
-            }
-
-            Ok(TranslatedSubtitleCue {
-                id: source.id.clone(),
-                start_ms: source.start_ms,
-                end_ms: source.end_ms,
-                translated_text: translated.translated_text.trim().to_string(),
-            })
+        .map(|source| {
+            translated_by_id
+                .remove(&source.id)
+                .map(|translated_text| TranslatedSubtitleCue {
+                    id: source.id.clone(),
+                    start_ms: source.start_ms,
+                    end_ms: source.end_ms,
+                    translated_text,
+                })
+                .ok_or_else(|| ProviderError::OutputParseFailed {
+                    message: "Subtitle output target cue count did not match source cue count."
+                        .to_string(),
+                })
         })
         .collect()
 }

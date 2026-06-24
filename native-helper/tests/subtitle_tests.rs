@@ -71,7 +71,7 @@ fn prompt_preserves_output_shape_and_target_ids() {
 }
 
 #[test]
-fn validation_rejects_missing_duplicate_or_reordered_cues() {
+fn validation_rejects_missing_duplicate_or_empty_target_cues() {
     let source = vec![
         SubtitleCue {
             id: "a".to_string(),
@@ -101,9 +101,43 @@ fn validation_rejects_missing_duplicate_or_reordered_cues() {
     .is_err());
     assert!(validate_subtitle_translation_output(
         &source,
-        r#"{"cues":[{"id":"b","translatedText":"잘 가"},{"id":"a","translatedText":"안녕"}]}"#
+        r#"{"cues":[{"id":"a","translatedText":"안녕"},{"id":"a","translatedText":"안녕 again"}]}"#
     )
     .is_err());
+    assert!(validate_subtitle_translation_output(
+        &source,
+        r#"{"cues":[{"id":"a","translatedText":"안녕"},{"id":"b","translatedText":"   "}]}"#
+    )
+    .is_err());
+}
+
+#[test]
+fn validation_reorders_target_cues_by_source_order() {
+    let source = vec![
+        SubtitleCue {
+            id: "a".to_string(),
+            start_ms: 0,
+            end_ms: 1000,
+            text: "Hello".to_string(),
+        },
+        SubtitleCue {
+            id: "b".to_string(),
+            start_ms: 1000,
+            end_ms: 2000,
+            text: "Bye".to_string(),
+        },
+    ];
+
+    let translated = validate_subtitle_translation_output(
+        &source,
+        r#"{"cues":[{"id":"b","translatedText":"잘 가"},{"id":"a","translatedText":"안녕"}]}"#,
+    )
+    .unwrap();
+
+    assert_eq!(translated[0].id, "a");
+    assert_eq!(translated[0].translated_text, "안녕");
+    assert_eq!(translated[1].id, "b");
+    assert_eq!(translated[1].translated_text, "잘 가");
 }
 
 #[test]
