@@ -573,6 +573,54 @@ try {
     "same-source refresh should not clear an active translated subtitle"
   );
 
+  let resolveSlowTranslation;
+  global.chrome.runtime.sendMessage = (message) => {
+    if (message.type === "TRANSLATE_SUBTITLE_TRACK") {
+      return new Promise((resolve) => {
+        resolveSlowTranslation = () =>
+          resolve({
+            type: "SUBTITLE_TRANSLATION_RESULT",
+            requestId: message.requestId,
+            ok: true,
+            provider: "codex",
+            cached: false,
+            elapsedMs: 10,
+            cues: [
+              { id: "cue-0", startMs: 0, endMs: 1000, translatedText: "안녕" }
+            ]
+          });
+      });
+    }
+
+    return defaultSendMessage(message);
+  };
+  const loadingSession = new YouTubeSubtitleSession({
+    getPlayerResponse: () => playerResponseFixture,
+    fetchTranscript: async () => [
+      { id: "cue-0", startMs: 0, endMs: 1000, text: "Hello" }
+    ]
+  });
+  await loadingSession.refresh();
+  subtitleButton.setAttribute("aria-pressed", "true");
+  const loadingPromise = loadingSession.acceptTranslation();
+  await flushPromises();
+  assert(
+    document
+      .querySelector('[data-hover-trans-port-youtube-subtitle-prompt="true"]')
+      .getAttribute("data-hover-trans-port-status") === "loading",
+    "accept should show loading while subtitle translation is in flight"
+  );
+  await loadingSession.refresh();
+  assert(
+    document
+      .querySelector('[data-hover-trans-port-youtube-subtitle-prompt="true"]')
+      .getAttribute("data-hover-trans-port-status") === "loading",
+    "refresh during subtitle translation should not replace loading with the prompt"
+  );
+  resolveSlowTranslation();
+  await loadingPromise;
+  global.chrome.runtime.sendMessage = defaultSendMessage;
+
   const previousSentMessageCount = sentMessages.length;
   player.getPlayerResponse = () => playerResponseFixture;
   await new YouTubeSubtitleSession({
@@ -732,7 +780,8 @@ try {
         message.type === "WRITE_DEBUG_LOG_EVENT" &&
         message.event === "youtube.subtitle.translation_start" &&
         message.fields?.cueCount === 1 &&
-        message.fields?.chunkCountEstimate === 1
+        message.fields?.chunkCountEstimate === 1 &&
+        message.fields?.promptVersion === 3
     ),
     "accept should write a debug event before requesting subtitle translation"
   );

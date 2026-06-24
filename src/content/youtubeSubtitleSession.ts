@@ -125,6 +125,7 @@ export class YouTubeSubtitleSession {
   private debugLogWriteQueue: Promise<void> = Promise.resolve();
   private refreshSequence = 0;
   private stopped = false;
+  private translationInFlight = false;
   private readonly handleVideoTimeUpdate = () => {
     if (!this.stopped && this.video) {
       this.overlay.update(this.video.currentTime);
@@ -156,6 +157,10 @@ export class YouTubeSubtitleSession {
     this.overlay.mount(playerRoot);
     this.bindVideo(video);
     this.bindNativeSubtitleButton(nativeSubtitleButton);
+
+    if (this.translationInFlight) {
+      return;
+    }
 
     try {
       const options = (await chrome.storage.local.get(
@@ -280,10 +285,20 @@ export class YouTubeSubtitleSession {
   }
 
   async acceptTranslation(): Promise<void> {
-    if (this.stopped) {
+    if (this.stopped || this.translationInFlight) {
       return;
     }
 
+    this.translationInFlight = true;
+
+    try {
+      await this.runAcceptTranslation();
+    } finally {
+      this.translationInFlight = false;
+    }
+  }
+
+  private async runAcceptTranslation(): Promise<void> {
     const video = this.video ?? document.querySelector("video");
     const wasPlaying = Boolean(video && !video.paused);
     video?.pause();
@@ -396,6 +411,7 @@ export class YouTubeSubtitleSession {
       targetLang: this.current.targetLang,
       provider: this.current.provider,
       model: this.current.model,
+      promptVersion: SUBTITLE_TRANSLATION_PROMPT_VERSION,
       timeoutMs: this.current.timeoutMs,
       cacheEnabled: this.current.cacheEnabled
     });
@@ -673,7 +689,7 @@ export class YouTubeSubtitleSession {
   }
 
   private syncNativeSubtitleButtonState(): void {
-    if (this.stopped) {
+    if (this.stopped || this.translationInFlight) {
       return;
     }
 

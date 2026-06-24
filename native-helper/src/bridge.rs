@@ -508,6 +508,7 @@ fn translate_subtitles_valid(request: TranslateSubtitlesRequest, deps: BridgeDep
             "provider": effective_provider.as_str(),
             "model": model,
             "targetLang": request.target_lang,
+            "promptVersion": request.prompt_version,
             "timeoutMs": timeout_ms,
             "cacheEnabled": cache_enabled,
             "cueCount": request.cues.len()
