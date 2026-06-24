@@ -836,7 +836,7 @@ try {
         message.event === "youtube.subtitle.translation_start" &&
         message.fields?.cueCount === 1 &&
         message.fields?.chunkCountEstimate === 1 &&
-        message.fields?.promptVersion === 3
+        message.fields?.promptVersion === 4
     ),
     "accept should write a debug event before requesting subtitle translation"
   );

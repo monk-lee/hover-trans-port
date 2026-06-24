@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use crate::process::ProviderError;
 
-pub const SUBTITLE_TRANSLATION_PROMPT_VERSION: u64 = 3;
+pub const SUBTITLE_TRANSLATION_PROMPT_VERSION: u64 = 4;
 pub const SUBTITLE_CHUNK_MAX_CUES: usize = 80;
 pub const SUBTITLE_CHUNK_MAX_SOURCE_CHARS: usize = 6000;
 pub const SUBTITLE_CHUNK_CONTEXT_CUES: usize = 8;
@@ -103,9 +103,10 @@ pub fn build_subtitle_translation_prompt(chunk: &SubtitleChunk, target_lang: &st
 
     [
         format!("Translate YouTube subtitle cues into {target_lang}."),
-        format!("Write natural subtitle-style {target_lang}: concise, conversational, and easy to understand while watching video."),
-        "Use surrounding context to resolve pronouns, omitted subjects, terminology, speaker intent, and tone.".to_string(),
-        "When a sentence spans multiple cues, translate each cue fragment so the full sequence reads naturally while preserving cue boundaries.".to_string(),
+        format!("Translate each cue's own text into natural, concise {target_lang} subtitle text."),
+        "Use contextBefore and contextAfter only to choose meaning, terminology, pronouns, speaker intent, and tone.".to_string(),
+        "Do not redistribute a sentence across neighboring cues.".to_string(),
+        "Do not borrow words from context cues or adjacent cues to complete another cue.".to_string(),
         "contextBefore and contextAfter are reference context only; translate cuesToTranslate only.".to_string(),
         "Do not output ids from contextBefore or contextAfter.".to_string(),
         format!(

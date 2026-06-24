@@ -25,7 +25,7 @@ fn chunk_plan_respects_count_and_character_limits() {
 
 #[test]
 fn subtitle_prompt_version_invalidates_older_cache_entries() {
-    assert_eq!(SUBTITLE_TRANSLATION_PROMPT_VERSION, 3);
+    assert_eq!(SUBTITLE_TRANSLATION_PROMPT_VERSION, 4);
 }
 
 #[test]
@@ -51,7 +51,9 @@ fn prompt_uses_surrounding_context_without_requesting_context_output() {
     assert!(prompt.contains("cue-160"));
     assert!(prompt.contains("contextBefore and contextAfter are reference context only"));
     assert!(prompt.contains("Do not output ids from contextBefore or contextAfter."));
-    assert!(prompt.contains("natural subtitle-style Korean"));
+    assert!(prompt.contains("Translate each cue's own text"));
+    assert!(prompt.contains("Do not redistribute a sentence across neighboring cues."));
+    assert!(!prompt.contains("cue fragment"));
     assert!(prompt.contains("Do not merge, split, drop, or reorder cues."));
 }
 

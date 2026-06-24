@@ -307,6 +307,24 @@ try {
   );
 
   fakeTranscriptSegments.length = 0;
+  fakeTranscriptSegments.push(
+    new FakeTranscriptSegment("0:01", "First panel line"),
+    new FakeTranscriptSegment("0:01", "First panel line"),
+    new FakeTranscriptSegment("0:04", "Second panel line"),
+    new FakeTranscriptSegment("0:04", "Second panel line")
+  );
+  const dedupedDomPanelCues = parseYouTubeTranscriptPanelDocument();
+  assert(
+    dedupedDomPanelCues.length === 2,
+    "transcript panel DOM cues should dedupe duplicate rendered segments"
+  );
+  assert(
+    dedupedDomPanelCues[0].startMs === 1000 &&
+      dedupedDomPanelCues[0].endMs === 4000,
+    "deduped transcript panel DOM cue end should use the next unique segment timestamp"
+  );
+
+  fakeTranscriptSegments.length = 0;
   let transcriptButtonClicks = 0;
   let transcriptCloseClicks = 0;
   fakeButtons.push({

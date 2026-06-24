@@ -266,7 +266,8 @@ export function parseYouTubeTranscriptPanelDocument(
   root: Pick<ParentNode, "querySelectorAll"> = document
 ): YouTubeSubtitleCue[] {
   const segments = Array.from(root.querySelectorAll(TRANSCRIPT_SEGMENT_SELECTOR));
-  const parsedSegments = segments
+  const parsedSegments = dedupeTranscriptPanelSegments(
+    segments
     .map((segment) => {
       const startMs = parseTimestampToMilliseconds(
         findTranscriptSegmentTimestamp(segment)
@@ -279,7 +280,8 @@ export function parseYouTubeTranscriptPanelDocument(
     })
     .filter(
       (segment): segment is { startMs: number; text: string } => segment !== null
-    );
+    )
+  );
 
   return normalizeSubtitleCues(
     parsedSegments.map((segment, index) => ({
@@ -292,6 +294,26 @@ export function parseYouTubeTranscriptPanelDocument(
       text: segment.text
     }))
   );
+}
+
+function dedupeTranscriptPanelSegments(
+  segments: Array<{ startMs: number; text: string }>
+): Array<{ startMs: number; text: string }> {
+  const seen = new Set<string>();
+  const deduped: Array<{ startMs: number; text: string }> = [];
+
+  for (const segment of segments) {
+    const key = `${segment.startMs}\n${segment.text}`;
+
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    deduped.push(segment);
+  }
+
+  return deduped;
 }
 
 async function openYouTubeTranscriptPanel(): Promise<TranscriptPanelOpenResult> {
