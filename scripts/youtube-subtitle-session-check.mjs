@@ -351,8 +351,31 @@ player.appendChild(captionContainer);
 document.body.appendChild(player);
 
 const sentMessages = [];
+const runtimeMessageListeners = [];
+function countDebugEvents(eventName) {
+  return sentMessages.filter(
+    (message) =>
+      message.type === "WRITE_DEBUG_LOG_EVENT" && message.event === eventName
+  ).length;
+}
 global.chrome = {
   runtime: {
+    onMessage: {
+      addListener(listener) {
+        runtimeMessageListeners.push(listener);
+      },
+      removeListener(listener) {
+        const index = runtimeMessageListeners.indexOf(listener);
+        if (index >= 0) {
+          runtimeMessageListeners.splice(index, 1);
+        }
+      }
+    },
+    dispatchMessage(message) {
+      for (const listener of runtimeMessageListeners) {
+        listener(message, {}, () => undefined);
+      }
+    },
     sendMessage(message) {
       sentMessages.push(message);
       if (message.type === "GET_SUBTITLE_TRANSLATION_CACHE") {
@@ -393,7 +416,7 @@ global.chrome = {
         return Promise.resolve({
           hoverTransPort: {
             provider: "codex",
-            targetLang: "Korean",
+            targetLang: "Japanese",
             cacheEnabled: true,
             debugLogging: true
           }
@@ -537,7 +560,7 @@ try {
 
   await session.refresh();
   assert(
-    sentMessages[0].type === "GET_SUBTITLE_TRANSLATION_CACHE",
+    sentMessages.some((message) => message.type === "GET_SUBTITLE_TRANSLATION_CACHE"),
     "session should check cache after transcript hash exists"
   );
   assert(
@@ -553,8 +576,8 @@ try {
   assert(
     document
       .querySelector('[data-hover-trans-port-youtube-subtitle-prompt="true"]')
-      .textContent.includes("이 자막을 한국어로 번역할까요?"),
-    "turning on YouTube's native captions button should show the translation prompt"
+      .textContent.includes("この字幕を日本語に翻訳しますか？"),
+    "turning on YouTube's native captions button should ask in the selected target language"
   );
 
   await session.acceptTranslation();
@@ -578,14 +601,23 @@ try {
     captionContainer.textContent.includes("안녕"),
     "successful translation should render in the YouTube caption container"
   );
+  const overlayActivatedCountBeforeRefresh = countDebugEvents(
+    "youtube.subtitle.overlay_activated"
+  );
   await session.refresh();
   assert(
     captionContainer.textContent.includes("안녕"),
     "same-source refresh should not clear an active translated subtitle"
   );
+  assert(
+    countDebugEvents("youtube.subtitle.overlay_activated") ===
+      overlayActivatedCountBeforeRefresh,
+    "same-source refresh should not flood debug logs with duplicate overlay activation events"
+  );
 
   let resolveSlowTranslation;
   global.chrome.runtime.sendMessage = (message) => {
+    sentMessages.push(message);
     if (message.type === "TRANSLATE_SUBTITLE_TRACK") {
       return new Promise((resolve) => {
         resolveSlowTranslation = () =>
@@ -615,11 +647,51 @@ try {
   subtitleButton.setAttribute("aria-pressed", "true");
   const loadingPromise = loadingSession.acceptTranslation();
   await flushPromises();
+  const loadingPrompt = document.querySelector(
+    '[data-hover-trans-port-youtube-subtitle-prompt="true"]'
+  );
   assert(
-    document
-      .querySelector('[data-hover-trans-port-youtube-subtitle-prompt="true"]')
-      .getAttribute("data-hover-trans-port-status") === "loading",
+    loadingPrompt.getAttribute("data-hover-trans-port-status") === "loading",
     "accept should show loading while subtitle translation is in flight"
+  );
+  global.chrome.runtime.dispatchMessage({
+    type: "SUBTITLE_TRANSLATION_PROGRESS",
+    requestId: sentMessages.findLast(
+      (message) => message.type === "TRANSLATE_SUBTITLE_TRACK"
+    ).requestId,
+    currentChunk: 2,
+    totalChunks: 12
+  });
+  assert(
+    loadingPrompt.textContent.includes("번역 중... 2/12"),
+    "subtitle translation progress should update the loading prompt"
+  );
+  global.chrome.runtime.dispatchMessage({
+    type: "SUBTITLE_TRANSLATION_CHUNK_RESULT",
+    requestId: sentMessages.findLast(
+      (message) => message.type === "TRANSLATE_SUBTITLE_TRACK"
+    ).requestId,
+    currentChunk: 1,
+    totalChunks: 12,
+    provider: "codex",
+    cached: false,
+    elapsedMs: 10,
+    cues: [
+      {
+        id: "cue-0",
+        startMs: 0,
+        endMs: 1000,
+        translatedText: "첫 번째 청크"
+      }
+    ]
+  });
+  assert(
+    captionContainer.textContent.includes("첫 번째 청크"),
+    "first completed subtitle chunk should render before the full translation request finishes"
+  );
+  assert(
+    video.paused === false,
+    "first completed subtitle chunk should resume playback when the video was playing before accept"
   );
   await loadingSession.refresh();
   assert(
@@ -632,15 +704,167 @@ try {
   await loadingPromise;
   global.chrome.runtime.sendMessage = defaultSendMessage;
 
+  let partialThenFailedRequestCount = 0;
+  let resolvePartialThenFailedTranslation;
+  global.chrome.runtime.sendMessage = (message) => {
+    sentMessages.push(message);
+    if (message.type === "TRANSLATE_SUBTITLE_TRACK") {
+      partialThenFailedRequestCount += 1;
+      return new Promise((resolve) => {
+        resolvePartialThenFailedTranslation = () =>
+          resolve({
+            type: "SUBTITLE_TRANSLATION_RESULT",
+            requestId: message.requestId,
+            ok: false,
+            provider: "codex",
+            error: "PROVIDER_OUTPUT_PARSE_FAILED",
+            message: "2번째 구간 번역 결과를 읽지 못했습니다.",
+            retryable: true,
+            elapsedMs: 0
+          });
+      });
+    }
+
+    return defaultSendMessage(message);
+  };
+  const partialThenFailedSession = new YouTubeSubtitleSession({
+    getPlayerResponse: () => playerResponseFixture,
+    fetchTranscript: async () => [
+      { id: "cue-0", startMs: 0, endMs: 1000, text: "Hello" }
+    ]
+  });
+  await partialThenFailedSession.refresh();
+  subtitleButton.setAttribute("aria-pressed", "true");
+  const partialThenFailedPromise = partialThenFailedSession.acceptTranslation();
+  await flushPromises();
+  global.chrome.runtime.dispatchMessage({
+    type: "SUBTITLE_TRANSLATION_CHUNK_RESULT",
+    requestId: sentMessages.findLast(
+      (message) => message.type === "TRANSLATE_SUBTITLE_TRACK"
+    ).requestId,
+    currentChunk: 1,
+    totalChunks: 12,
+    provider: "codex",
+    cached: false,
+    elapsedMs: 10,
+    cues: [
+      {
+        id: "cue-0",
+        startMs: 0,
+        endMs: 1000,
+        translatedText: "부분 번역"
+      }
+    ]
+  });
+  resolvePartialThenFailedTranslation();
+  await partialThenFailedPromise;
+  assert(
+    captionContainer.textContent.includes("부분 번역"),
+    "failed final subtitle result should keep already-rendered partial subtitle chunks"
+  );
+  assert(
+    document
+      .querySelector('[data-hover-trans-port-youtube-subtitle-prompt="true"]')
+      .textContent.includes("2번째 구간 번역 결과를 읽지 못했습니다."),
+    "failed final subtitle result should still surface the provider error message"
+  );
+  await partialThenFailedSession.refresh();
+  assert(
+    document
+      .querySelector('[data-hover-trans-port-youtube-subtitle-prompt="true"]')
+      .textContent.includes("2번째 구간 번역 결과를 읽지 못했습니다."),
+    "refresh after a partial failure should keep the provider error message visible"
+  );
+  assert(
+    captionContainer.textContent.includes("부분 번역"),
+    "refresh after a partial failure should keep already-rendered subtitle chunks"
+  );
+  subtitleButton.setAttribute("aria-pressed", "false");
+  subtitleButton.dispatchEvent({ type: "click" });
+  await flushPromises();
+  subtitleButton.setAttribute("aria-pressed", "true");
+  subtitleButton.dispatchEvent({ type: "click" });
+  await flushPromises();
+  assert(
+    document
+      .querySelector('[data-hover-trans-port-youtube-subtitle-prompt="true"]')
+      .textContent.includes("この字幕を日本語に翻訳しますか？"),
+    "turning native captions off and on after a partial subtitle failure should offer a retry without refreshing"
+  );
+  const partialThenFailedRetryPromise =
+    partialThenFailedSession.acceptTranslation();
+  await flushPromises();
+  assert(
+    partialThenFailedRequestCount === 2,
+    "accepting after native caption off/on should retry partial subtitle failures without refreshing"
+  );
+  resolvePartialThenFailedTranslation();
+  await partialThenFailedRetryPromise;
+  global.chrome.runtime.sendMessage = defaultSendMessage;
+
+  global.chrome.runtime.sendMessage = (message) => {
+    sentMessages.push(message);
+    if (message.type === "TRANSLATE_SUBTITLE_TRACK") {
+      return Promise.resolve({
+        type: "SUBTITLE_TRANSLATION_RESULT",
+        requestId: message.requestId,
+        ok: true,
+        provider: "codex",
+        cached: false,
+        elapsedMs: 10,
+        partial: true,
+        failedChunkCount: 1,
+        message:
+          "1개 구간 번역에 실패했습니다. 첫 실패 사유: Codex CLI 번역 시간이 초과되었습니다. 해당 구간은 원문 자막으로 표시됩니다.",
+        cues: [
+          {
+            id: "cue-0",
+            startMs: 0,
+            endMs: 1000,
+            translatedText: "부분 성공"
+          }
+        ]
+      });
+    }
+
+    return defaultSendMessage(message);
+  };
+  const partialSuccessSession = new YouTubeSubtitleSession({
+    getPlayerResponse: () => playerResponseFixture,
+    fetchTranscript: async () => [
+      { id: "cue-0", startMs: 0, endMs: 1000, text: "Hello" }
+    ]
+  });
+  await partialSuccessSession.refresh();
+  subtitleButton.setAttribute("aria-pressed", "true");
+  await partialSuccessSession.acceptTranslation();
+  await flushPromises();
+  assert(
+    sentMessages.some(
+      (message) =>
+        message.type === "WRITE_DEBUG_LOG_EVENT" &&
+        message.event === "youtube.subtitle.translation_result" &&
+        message.fields?.partial === true &&
+        message.fields?.failedChunkCount === 1 &&
+        message.fields?.message ===
+          "1개 구간 번역에 실패했습니다. 첫 실패 사유: Codex CLI 번역 시간이 초과되었습니다. 해당 구간은 원문 자막으로 표시됩니다."
+    ),
+    "partial successful subtitle translation should keep the partial failure message in debug logs"
+  );
+  global.chrome.runtime.sendMessage = defaultSendMessage;
+
+  let failedTranslationRequestCount = 0;
   global.chrome.runtime.sendMessage = (message) => {
     if (message.type === "TRANSLATE_SUBTITLE_TRACK") {
+      failedTranslationRequestCount += 1;
       return Promise.resolve({
         type: "SUBTITLE_TRANSLATION_RESULT",
         requestId: message.requestId,
         ok: false,
         provider: "codex",
         error: "PROVIDER_TIMEOUT",
-        message: "Codex CLI 번역 시간이 초과되었습니다.",
+        message:
+          "1/1 구간 번역 시간이 초과되었습니다. Codex CLI 번역 시간이 초과되었습니다.",
         retryable: true,
         elapsedMs: 60003
       });
@@ -661,12 +885,37 @@ try {
     '[data-hover-trans-port-youtube-subtitle-prompt="true"]'
   );
   assert(
-    failedPrompt.textContent.includes("Codex CLI 번역 시간이 초과되었습니다."),
-    "failed YouTube subtitle translation should show the provider error message"
+    failedPrompt.textContent.includes("1/1 구간 번역 시간이 초과되었습니다."),
+    "failed YouTube subtitle translation should show the failed segment number"
   );
+  assert(failedTranslationRequestCount === 1, "failed translation should run once");
   assert(
     captionContainer.getAttribute("data-hover-trans-port-youtube-subtitles-active") === null,
     "failed YouTube subtitle translation should clear the translated overlay so native captions remain visible"
+  );
+  await failedTranslationSession.refresh();
+  assert(
+    document
+      .querySelector('[data-hover-trans-port-youtube-subtitle-prompt="true"]')
+      .textContent.includes("1/1 구간 번역 시간이 초과되었습니다."),
+    "refresh after a failed subtitle translation should keep the provider error message visible"
+  );
+  subtitleButton.setAttribute("aria-pressed", "false");
+  subtitleButton.dispatchEvent({ type: "click" });
+  await flushPromises();
+  subtitleButton.setAttribute("aria-pressed", "true");
+  subtitleButton.dispatchEvent({ type: "click" });
+  await flushPromises();
+  assert(
+    document
+      .querySelector('[data-hover-trans-port-youtube-subtitle-prompt="true"]')
+      .textContent.includes("この字幕を日本語に翻訳しますか？"),
+    "turning native captions off and on after a failed fallback should offer a retry without refreshing"
+  );
+  await failedTranslationSession.acceptTranslation();
+  assert(
+    failedTranslationRequestCount === 2,
+    "accepting after native caption off/on should retry subtitle translation without refreshing"
   );
   global.chrome.runtime.sendMessage = defaultSendMessage;
 
@@ -722,8 +971,11 @@ try {
     "session should try the next caption track when the preferred track has no text"
   );
   assert(
-    sentMessages.length > previousFallbackSentMessageCount &&
-      sentMessages.at(-1).type === "GET_SUBTITLE_TRANSLATION_CACHE",
+    sentMessages.some(
+      (message, index) =>
+        index >= previousFallbackSentMessageCount &&
+        message.type === "GET_SUBTITLE_TRANSLATION_CACHE"
+    ),
     "session should continue with the first caption track that yields transcript cues"
   );
 
@@ -817,6 +1069,114 @@ try {
     ),
     "accept should write a debug event after loading subtitle cues"
   );
+
+  const previousEmptyPanelFallbackSentMessageCount = sentMessages.length;
+  let emptyPanelFallbackTimedTextFetchCount = 0;
+  const emptyPanelFallbackSession = new YouTubeSubtitleSession({
+    getPlayerResponse: () => playerResponseFixture,
+    fetchTranscript: async () => {
+      emptyPanelFallbackTimedTextFetchCount += 1;
+
+      return emptyPanelFallbackTimedTextFetchCount === 1
+        ? []
+        : [{ id: "cue-0", startMs: 0, endMs: 1000, text: "Hello" }];
+    },
+    fetchTranscriptFromPanelDom: async (options) => {
+      options?.onDebug?.("youtube.subtitle.panel_dom_wait", { cueCount: 0 });
+
+      return [];
+    }
+  });
+  await emptyPanelFallbackSession.refresh();
+  subtitleButton.setAttribute("aria-pressed", "true");
+  await emptyPanelFallbackSession.acceptTranslation();
+  await flushPromises();
+  assert(
+    emptyPanelFallbackTimedTextFetchCount === 2,
+    "accept should retry timedtext candidates when the transcript panel DOM is empty"
+  );
+  assert(
+    sentMessages.some(
+      (message, index) =>
+        index >= previousEmptyPanelFallbackSentMessageCount &&
+        message.type === "WRITE_DEBUG_LOG_EVENT" &&
+        message.event === "youtube.subtitle.timedtext_fetch_result" &&
+        message.fields?.cueCount === 1
+    ),
+    "empty transcript panel fallback should log the successful timedtext retry"
+  );
+  assert(
+    sentMessages.some(
+      (message, index) =>
+        index >= previousEmptyPanelFallbackSentMessageCount &&
+        message.type === "WRITE_DEBUG_LOG_EVENT" &&
+        message.event === "youtube.subtitle.source_loaded" &&
+        message.fields?.cueCount === 1
+    ),
+    "empty transcript panel fallback should still load subtitle cues"
+  );
+
+  const previousPanelApiFallbackSentMessageCount = sentMessages.length;
+  let panelApiFallbackTimedTextFetchCount = 0;
+  let panelApiFallbackDomFetchCount = 0;
+  let panelApiFallbackApiFetchCount = 0;
+  const panelApiFallbackSession = new YouTubeSubtitleSession({
+    getPlayerResponse: () => playerResponseFixture,
+    fetchTranscript: async () => {
+      panelApiFallbackTimedTextFetchCount += 1;
+
+      return [];
+    },
+    fetchTranscriptPanel: async () => {
+      panelApiFallbackApiFetchCount += 1;
+
+      return [
+        { id: "panel-api-0", startMs: 0, endMs: 1000, text: "Hello from API" }
+      ];
+    },
+    fetchTranscriptFromPanelDom: async (options) => {
+      panelApiFallbackDomFetchCount += 1;
+      options?.onDebug?.("youtube.subtitle.panel_dom_wait", { cueCount: 0 });
+
+      return [];
+    }
+  });
+  await panelApiFallbackSession.refresh();
+  subtitleButton.setAttribute("aria-pressed", "true");
+  await panelApiFallbackSession.acceptTranslation();
+  await flushPromises();
+  assert(
+    panelApiFallbackTimedTextFetchCount === 2,
+    "accept should retry timedtext before falling back to the transcript panel API"
+  );
+  assert(
+    panelApiFallbackDomFetchCount === 1,
+    "accept should not wait on the same empty transcript panel DOM twice"
+  );
+  assert(
+    panelApiFallbackApiFetchCount === 1,
+    "accept should try the transcript panel API when panel DOM and timedtext are empty"
+  );
+  assert(
+    sentMessages.some(
+      (message, index) =>
+        index >= previousPanelApiFallbackSentMessageCount &&
+        message.type === "WRITE_DEBUG_LOG_EVENT" &&
+        message.event === "youtube.subtitle.panel_api_result" &&
+        message.fields?.cueCount === 1
+    ),
+    "panel API fallback should log the loaded cue count"
+  );
+  assert(
+    sentMessages.some(
+      (message, index) =>
+        index >= previousPanelApiFallbackSentMessageCount &&
+        message.type === "WRITE_DEBUG_LOG_EVENT" &&
+        message.event === "youtube.subtitle.source_loaded" &&
+        message.fields?.cueCount === 1
+    ),
+    "panel API fallback should still load subtitle cues"
+  );
   assert(
     sentMessages.some(
       (message, index) =>
@@ -836,7 +1196,7 @@ try {
         message.event === "youtube.subtitle.translation_start" &&
         message.fields?.cueCount === 1 &&
         message.fields?.chunkCountEstimate === 1 &&
-        message.fields?.promptVersion === 4
+        message.fields?.promptVersion === 1
     ),
     "accept should write a debug event before requesting subtitle translation"
   );

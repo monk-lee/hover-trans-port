@@ -4,6 +4,7 @@ import type {
 } from "../shared/youtubeSubtitles";
 import {
   createSubtitleTrackIdentity,
+  normalizeYouTubeTimedTextBaseUrl,
   normalizeSubtitleText
 } from "../shared/youtubeSubtitles";
 
@@ -61,7 +62,7 @@ export function extractCaptionTracksFromPlayerResponse(
         kind?: string;
         vssId?: string;
       };
-      const baseUrl = raw.baseUrl?.trim();
+      const baseUrl = normalizeYouTubeTimedTextBaseUrl(raw.baseUrl ?? "");
       const languageCode = raw.languageCode?.trim();
 
       if (!baseUrl || !languageCode) {

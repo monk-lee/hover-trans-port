@@ -74,6 +74,18 @@ try {
             name: { runs: [{ text: "Korean auto" }] },
             kind: "asr",
             vssId: "a.ko"
+          },
+          {
+            baseUrl: "https://evil.example/api/timedtext?v=abc&lang=fr",
+            languageCode: "fr",
+            name: { simpleText: "French" },
+            vssId: ".fr"
+          },
+          {
+            baseUrl: "https://www.youtube.com/redirect?q=https://evil.example",
+            languageCode: "de",
+            name: { simpleText: "German" },
+            vssId: ".de"
           }
         ]
       }

@@ -47,6 +47,28 @@ type NativeHostUpdateStorage = {
 
 let nativeHostUpdateStatusWriteQueue: Promise<void> = Promise.resolve();
 
+function sendSubtitleTranslationRuntimeMessage(
+  sender: chrome.runtime.MessageSender,
+  message: Extract<
+    ExtensionRequest,
+    {
+      type:
+        | "SUBTITLE_TRANSLATION_PROGRESS"
+        | "SUBTITLE_TRANSLATION_CHUNK_RESULT";
+    }
+  >
+): void {
+  const tabId = sender.tab?.id;
+
+  if (typeof tabId !== "number") {
+    return;
+  }
+
+  chrome.tabs.sendMessage(tabId, message, () => {
+    void chrome.runtime.lastError;
+  });
+}
+
 function enqueueNativeHostUpdateStatusWrite(
   write: () => Promise<void>
 ): Promise<void> {
@@ -308,7 +330,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 chrome.runtime.onMessage.addListener(
   (
     message: ExtensionRequest,
-    _sender,
+    sender,
     sendResponse: (response: ExtensionResponse) => void
   ) => {
     if (message.type === "PING") {
@@ -654,7 +676,24 @@ chrome.runtime.onMessage.addListener(
       scheduleNativeHostUpdateStatusRefresh(
         `${message.requestId}:native-host-update`
       );
-      void translateSubtitleTrack(message.requestId, message)
+      void translateSubtitleTrack(
+        message.requestId,
+        message,
+        (progress) => {
+          sendSubtitleTranslationRuntimeMessage(sender, {
+            type: "SUBTITLE_TRANSLATION_PROGRESS",
+            requestId: message.requestId,
+            ...progress
+          });
+        },
+        (chunkResult) => {
+          sendSubtitleTranslationRuntimeMessage(sender, {
+            type: "SUBTITLE_TRANSLATION_CHUNK_RESULT",
+            requestId: message.requestId,
+            ...chunkResult
+          });
+        }
+      )
         .then((result) => {
           sendResponse({
             type: "SUBTITLE_TRANSLATION_RESULT",

@@ -1,6 +1,6 @@
 export type YouTubeSubtitlePromptState =
   | { status: "hidden" }
-  | { status: "prompt" }
+  | { status: "prompt"; targetLang: string }
   | { status: "loading"; message: string }
   | { status: "error"; message: string };
 
@@ -11,6 +11,43 @@ type YouTubeSubtitlePromptHandlers = {
 
 const PROMPT_ATTRIBUTE = "data-hover-trans-port-youtube-subtitle-prompt";
 const STYLE_ID = "hover-trans-port-youtube-subtitle-prompt-style";
+const TARGET_LANGUAGE_LABELS: Record<string, string> = {
+  chinese: "중국어",
+  english: "영어",
+  japanese: "일본어",
+  korean: "한국어",
+  spanish: "스페인어"
+};
+const PROMPT_COPY_BY_TARGET_LANGUAGE: Record<
+  string,
+  { message: string; accept: string; decline: string }
+> = {
+  chinese: {
+    message: "要将这些字幕翻译成中文吗？",
+    accept: "是",
+    decline: "否"
+  },
+  english: {
+    message: "Translate these subtitles to English?",
+    accept: "Yes",
+    decline: "No"
+  },
+  japanese: {
+    message: "この字幕を日本語に翻訳しますか？",
+    accept: "はい",
+    decline: "いいえ"
+  },
+  korean: {
+    message: "이 자막을 한국어로 번역할까요?",
+    accept: "예",
+    decline: "아니오"
+  },
+  spanish: {
+    message: "¿Traducir estos subtítulos al español?",
+    accept: "Sí",
+    decline: "No"
+  }
+};
 
 function ensurePromptStyle(): void {
   if (document.getElementById(STYLE_ID)) {
@@ -31,11 +68,10 @@ function ensurePromptStyle(): void {
       display: flex;
       font: 500 12px/1.4 Arial, sans-serif;
       gap: 8px;
-      left: 50%;
-      max-width: min(520px, calc(100% - 32px));
+      max-width: min(420px, calc(100% - 48px));
       padding: 8px 10px;
       position: absolute;
-      transform: translateX(-50%);
+      right: clamp(16px, 3vw, 36px);
       white-space: normal;
       z-index: 2147483647;
     }
@@ -111,9 +147,11 @@ export class YouTubeSubtitlePrompt {
 
     this.node.setAttribute("data-hover-trans-port-status", state.status);
     this.node.hidden = state.status === "hidden";
+    const promptCopy =
+      state.status === "prompt" ? getPromptCopy(state.targetLang) : null;
     const message =
       state.status === "prompt"
-        ? "이 자막을 한국어로 번역할까요?"
+        ? promptCopy?.message ?? ""
         : state.status === "hidden"
           ? ""
           : state.message;
@@ -140,7 +178,7 @@ export class YouTubeSubtitlePrompt {
     this.node.appendChild(messageNode);
 
     if (state.status === "prompt") {
-      this.node.appendChild(this.createActions());
+      this.node.appendChild(this.createActions(promptCopy));
     }
   }
 
@@ -150,13 +188,13 @@ export class YouTubeSubtitlePrompt {
     this.renderedStateKey = null;
   }
 
-  private createActions(): HTMLElement {
+  private createActions(copy: { accept: string; decline: string } | null): HTMLElement {
     const actions = document.createElement("span");
     actions.className = "hover-trans-port-youtube-subtitle-prompt-actions";
 
     const yes = document.createElement("button");
     yes.type = "button";
-    yes.textContent = "예";
+    yes.textContent = copy?.accept ?? "예";
     yes.onclick = () => {
       this.setState({ status: "hidden" });
       this.handlers.onAccept();
@@ -164,7 +202,7 @@ export class YouTubeSubtitlePrompt {
 
     const no = document.createElement("button");
     no.type = "button";
-    no.textContent = "아니오";
+    no.textContent = copy?.decline ?? "아니오";
     no.onclick = () => {
       this.setState({ status: "hidden" });
       this.handlers.onDecline();
@@ -173,6 +211,26 @@ export class YouTubeSubtitlePrompt {
     actions.append(yes, no);
     return actions;
   }
+}
+
+function getPromptCopy(targetLang: string): {
+  message: string;
+  accept: string;
+  decline: string;
+} {
+  const trimmed = targetLang.trim();
+  const localized = PROMPT_COPY_BY_TARGET_LANGUAGE[trimmed.toLowerCase()];
+
+  if (localized) {
+    return localized;
+  }
+
+  const label = TARGET_LANGUAGE_LABELS[trimmed.toLowerCase()] ?? trimmed;
+  return {
+    message: `Translate these subtitles to ${label}?`,
+    accept: "Yes",
+    decline: "No"
+  };
 }
 
 function createLoadingSpinner(): SVGElement {

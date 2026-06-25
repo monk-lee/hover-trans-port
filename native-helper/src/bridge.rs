@@ -1,4 +1,5 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::time::Instant;
 
 use serde_json::{json, Value};
 
@@ -9,7 +10,7 @@ use crate::debug_log::{
     write_debug_log_event,
 };
 use crate::messages::{
-    BaseRequest, DebugLogContentRequest, DebugLogWriteRequest, NativeHostUpdateRequest,
+    BaseRequest, DebugLogContentRequest, DebugLogWriteRequest, NativeHostUpdateRequest, ProviderId,
     ProviderModelsRequest, ProviderStatusRequest, SubtitleCacheRequest, TranslateRequest,
     TranslateSubtitlesRequest, NATIVE_BRIDGE_VERSION, NATIVE_HOST_PROTOCOL_VERSION,
     NATIVE_HOST_VERSION,
@@ -20,7 +21,11 @@ use crate::providers::{
 };
 use crate::subtitle_cache::{SqliteSubtitleTranslationCache, SubtitleCacheKey};
 use crate::subtitles::{
-    build_subtitle_translation_prompt, plan_subtitle_chunks, validate_subtitle_translation_output,
+    audit_subtitle_translation_quality, build_subtitle_repair_prompt,
+    build_subtitle_translation_prompt, create_subtitle_quality_repair_chunk,
+    parse_subtitle_translation_output_allowing_quality_issues, plan_subtitle_chunks,
+    summarize_subtitle_quality_issues, validate_subtitle_translation_output, SubtitleChunk,
+    SubtitleQualityIssue, TranslatedSubtitleCue,
 };
 use crate::update::{check_update, run_update, UpdateFailure};
 
@@ -534,15 +539,27 @@ fn translate_subtitles_valid(request: TranslateSubtitlesRequest, deps: BridgeDep
     let mut response_provider = effective_provider;
 
     for chunk in plan_subtitle_chunks(&request.cues) {
+        let chunk_started_at = Instant::now();
         let prompt = build_subtitle_translation_prompt(&chunk, &request.target_lang);
-        let provider_result = registry.run_prompt(
-            provider_selection.as_deref(),
-            ProviderPromptRequest {
-                prompt,
-                model: request.model.clone(),
-                timeout_ms,
-            },
-        );
+        let provider_result = subtitle_provider_timeout_budget_ms(
+            &deps,
+            debug_logging,
+            &request.request_id,
+            chunk_started_at,
+            timeout_ms,
+            "chunk",
+            Some(chunk.index),
+        )
+        .and_then(|remaining_timeout_ms| {
+            registry.run_prompt(
+                provider_selection.as_deref(),
+                ProviderPromptRequest {
+                    prompt: prompt.clone(),
+                    model: request.model.clone(),
+                    timeout_ms: remaining_timeout_ms,
+                },
+            )
+        });
 
         let (provider, result) = match provider_result {
             Ok(result) => result,
@@ -555,8 +572,135 @@ fn translate_subtitles_valid(request: TranslateSubtitlesRequest, deps: BridgeDep
         response_provider = provider;
         elapsed_ms = elapsed_ms.saturating_add(result.elapsed_ms);
 
-        match validate_subtitle_translation_output(&chunk.cues, &result.text) {
-            Ok(mut cues) => translated_cues.append(&mut cues),
+        let parsed_cues = match parse_subtitle_translation_output_allowing_quality_issues(
+            &chunk.cues,
+            &result.text,
+        ) {
+            Ok(cues) => Ok(cues),
+            Err(first_error) => {
+                log_debug_event(
+                    &deps.env,
+                    debug_logging,
+                    "subtitle_translation.structural_retry_start",
+                    json!({
+                        "requestId": request.request_id,
+                        "chunkIndex": chunk.index,
+                        "error": first_error.code()
+                    }),
+                );
+
+                let retry_result = subtitle_provider_timeout_budget_ms(
+                    &deps,
+                    debug_logging,
+                    &request.request_id,
+                    chunk_started_at,
+                    timeout_ms,
+                    "chunk_structural_retry",
+                    Some(chunk.index),
+                )
+                .and_then(|remaining_timeout_ms| {
+                    registry.run_prompt(
+                        provider_selection.as_deref(),
+                        ProviderPromptRequest {
+                            prompt,
+                            model: request.model.clone(),
+                            timeout_ms: remaining_timeout_ms,
+                        },
+                    )
+                });
+
+                let (provider, result) = match retry_result {
+                    Ok(result) => result,
+                    Err(error) => {
+                        log_provider_error(&deps.env, debug_logging, &request.request_id, &error);
+                        return subtitle_provider_error_response(request.request_id, error);
+                    }
+                };
+
+                response_provider = provider;
+                elapsed_ms = elapsed_ms.saturating_add(result.elapsed_ms);
+                parse_subtitle_translation_output_allowing_quality_issues(&chunk.cues, &result.text)
+            }
+        };
+
+        match parsed_cues {
+            Ok(mut cues) => {
+                let quality_issues = audit_subtitle_translation_quality(&chunk.cues, &cues);
+
+                if !quality_issues.is_empty() {
+                    match repair_subtitle_quality_issues(
+                        &deps,
+                        debug_logging,
+                        &request.request_id,
+                        &registry,
+                        provider_selection.as_deref(),
+                        &request.model,
+                        &request.target_lang,
+                        timeout_ms,
+                        chunk_started_at,
+                        "chunk",
+                        &chunk,
+                        &mut cues,
+                        quality_issues,
+                    ) {
+                        Ok((provider, repair_elapsed_ms)) => {
+                            if let Some(provider) = provider {
+                                response_provider = provider;
+                            }
+                            elapsed_ms = elapsed_ms.saturating_add(repair_elapsed_ms);
+                        }
+                        Err(error) => {
+                            log_provider_error(
+                                &deps.env,
+                                debug_logging,
+                                &request.request_id,
+                                &error,
+                            );
+                            return subtitle_provider_error_response(request.request_id, error);
+                        }
+                    }
+                }
+
+                translated_cues.append(&mut cues);
+            }
+            Err(error) => {
+                log_provider_error(&deps.env, debug_logging, &request.request_id, &error);
+                return subtitle_provider_error_response(request.request_id, error);
+            }
+        }
+    }
+
+    let timeline_quality_issues =
+        audit_subtitle_translation_quality(&request.cues, &translated_cues);
+    if !timeline_quality_issues.is_empty() {
+        let timeline_repair_started_at = Instant::now();
+        let timeline_chunk = SubtitleChunk {
+            index: usize::MAX,
+            cues: request.cues.clone(),
+            context_before: Vec::new(),
+            context_after: Vec::new(),
+        };
+        match repair_subtitle_quality_issues(
+            &deps,
+            debug_logging,
+            &request.request_id,
+            &registry,
+            provider_selection.as_deref(),
+            &request.model,
+            &request.target_lang,
+            timeout_ms,
+            timeline_repair_started_at,
+            "timeline",
+            &timeline_chunk,
+            &mut translated_cues,
+            timeline_quality_issues,
+        ) {
+            Ok((provider, repair_elapsed_ms)) => {
+                if let Some(provider) = provider {
+                    response_provider = provider;
+                }
+                elapsed_ms = elapsed_ms.saturating_add(repair_elapsed_ms);
+            }
             Err(error) => {
                 log_provider_error(&deps.env, debug_logging, &request.request_id, &error);
                 return subtitle_provider_error_response(request.request_id, error);
@@ -593,6 +737,207 @@ fn translate_subtitles_valid(request: TranslateSubtitlesRequest, deps: BridgeDep
         "cached": false,
         "elapsedMs": elapsed_ms
     })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn repair_subtitle_quality_issues(
+    deps: &BridgeDeps,
+    debug_logging: bool,
+    request_id: &str,
+    registry: &ProviderRegistry,
+    provider_selection: Option<&str>,
+    model: &Option<String>,
+    target_lang: &str,
+    timeout_ms: u64,
+    request_started_at: Instant,
+    scope: &str,
+    chunk: &SubtitleChunk,
+    cues: &mut Vec<TranslatedSubtitleCue>,
+    quality_issues: Vec<SubtitleQualityIssue>,
+) -> Result<(Option<ProviderId>, u64), ProviderError> {
+    let mut remaining_issues = quality_issues;
+    let mut elapsed_ms = 0_u64;
+    let mut response_provider = None;
+
+    for repair_attempt in 0..2 {
+        let Some(targeted_chunk) = create_subtitle_quality_repair_chunk(chunk, &remaining_issues)
+        else {
+            break;
+        };
+
+        log_debug_event(
+            &deps.env,
+            debug_logging,
+            if repair_attempt == 0 {
+                "subtitle_translation.quality_repair_start"
+            } else {
+                "subtitle_translation.quality_repair_retry_start"
+            },
+            json!({
+                "requestId": request_id,
+                "chunkIndex": chunk.index,
+                "scope": scope,
+                "targetCueCount": targeted_chunk.cues.len(),
+                "issueCount": remaining_issues.len(),
+                "issues": summarize_subtitle_quality_issues(&remaining_issues)
+            }),
+        );
+
+        let target_ids = targeted_chunk
+            .cues
+            .iter()
+            .map(|cue| cue.id.as_str())
+            .collect::<HashSet<_>>();
+        let current_targeted_cues = cues
+            .iter()
+            .filter(|cue| target_ids.contains(cue.id.as_str()))
+            .cloned()
+            .collect::<Vec<_>>();
+        let repair_prompt = build_subtitle_repair_prompt(
+            &targeted_chunk,
+            &current_targeted_cues,
+            &remaining_issues,
+            target_lang,
+        );
+        let (provider, result) = registry.run_prompt(
+            provider_selection,
+            ProviderPromptRequest {
+                prompt: repair_prompt.clone(),
+                model: model.clone(),
+                timeout_ms: subtitle_provider_timeout_budget_ms(
+                    deps,
+                    debug_logging,
+                    request_id,
+                    request_started_at,
+                    timeout_ms,
+                    "quality_repair",
+                    Some(chunk.index),
+                )?,
+            },
+        )?;
+
+        response_provider = Some(provider);
+        elapsed_ms = elapsed_ms.saturating_add(result.elapsed_ms);
+
+        let targeted_cues =
+            match validate_subtitle_translation_output(&targeted_chunk.cues, &result.text) {
+                Ok(cues) => cues,
+                Err(first_error) => {
+                    log_debug_event(
+                        &deps.env,
+                        debug_logging,
+                        "subtitle_translation.quality_repair_structural_retry_start",
+                        json!({
+                            "requestId": request_id,
+                            "chunkIndex": chunk.index,
+                            "scope": scope,
+                            "error": first_error.code()
+                        }),
+                    );
+                    let (provider, result) = registry.run_prompt(
+                        provider_selection,
+                        ProviderPromptRequest {
+                            prompt: repair_prompt,
+                            model: model.clone(),
+                            timeout_ms: subtitle_provider_timeout_budget_ms(
+                                deps,
+                                debug_logging,
+                                request_id,
+                                request_started_at,
+                                timeout_ms,
+                                "quality_repair_structural_retry",
+                                Some(chunk.index),
+                            )?,
+                        },
+                    )?;
+                    response_provider = Some(provider);
+                    elapsed_ms = elapsed_ms.saturating_add(result.elapsed_ms);
+                    validate_subtitle_translation_output(&targeted_chunk.cues, &result.text)?
+                }
+            };
+        let targeted_issues =
+            audit_subtitle_translation_quality(&targeted_chunk.cues, &targeted_cues);
+        let mut targeted_by_id = targeted_cues
+            .into_iter()
+            .map(|cue| (cue.id.clone(), cue))
+            .collect::<HashMap<_, _>>();
+
+        for cue in cues.iter_mut() {
+            if let Some(targeted) = targeted_by_id.remove(&cue.id) {
+                *cue = targeted;
+            }
+        }
+
+        remaining_issues = if targeted_issues.is_empty() {
+            audit_subtitle_translation_quality(&chunk.cues, cues)
+        } else {
+            targeted_issues
+        };
+
+        if remaining_issues.is_empty() {
+            break;
+        }
+    }
+
+    if !remaining_issues.is_empty() {
+        return Err(ProviderError::OutputParseFailed {
+            message: format!(
+                "Subtitle quality repair did not resolve cue alignment issues: {}",
+                summarize_subtitle_quality_issues(&remaining_issues)
+            ),
+        });
+    }
+
+    Ok((response_provider, elapsed_ms))
+}
+
+fn remaining_subtitle_request_timeout_ms(
+    request_started_at: Instant,
+    timeout_ms: u64,
+) -> Result<u64, ProviderError> {
+    let elapsed_ms = request_started_at
+        .elapsed()
+        .as_millis()
+        .min(u128::from(u64::MAX)) as u64;
+
+    if elapsed_ms >= timeout_ms {
+        return Err(ProviderError::Timeout { elapsed_ms });
+    }
+
+    Ok((timeout_ms - elapsed_ms).max(1))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn subtitle_provider_timeout_budget_ms(
+    deps: &BridgeDeps,
+    debug_logging: bool,
+    request_id: &str,
+    request_started_at: Instant,
+    timeout_ms: u64,
+    phase: &str,
+    chunk_index: Option<usize>,
+) -> Result<u64, ProviderError> {
+    let remaining_timeout_ms =
+        remaining_subtitle_request_timeout_ms(request_started_at, timeout_ms)?;
+    let mut fields = json!({
+        "requestId": request_id,
+        "phase": phase,
+        "timeoutMs": timeout_ms,
+        "remainingTimeoutMs": remaining_timeout_ms
+    });
+
+    if let Some(chunk_index) = chunk_index.filter(|value| *value != usize::MAX) {
+        fields["chunkIndex"] = json!(chunk_index);
+    }
+
+    log_debug_event(
+        &deps.env,
+        debug_logging,
+        "subtitle_translation.provider_timeout_budget",
+        fields,
+    );
+
+    Ok(remaining_timeout_ms)
 }
 
 fn subtitle_cache_key(

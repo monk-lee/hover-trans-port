@@ -2,6 +2,8 @@ import type {
   DebugLogFields,
   ExtensionRequest,
   ExtensionResponse,
+  SubtitleTranslationChunkResultMessage,
+  SubtitleTranslationProgressMessage,
   SubtitleTrackTranslationRequest,
   SubtitleTranslationCacheRequest,
   SubtitleTranslationCacheResponse,
@@ -127,6 +129,11 @@ export class YouTubeSubtitleSession {
   private refreshSequence = 0;
   private stopped = false;
   private translationInFlight = false;
+  private activeTranslationRequestId: string | null = null;
+  private resumePlaybackAfterFirstSubtitleChunk = false;
+  private resumedPlaybackForActiveRequest = false;
+  private subtitleTranslationErrorMessage: string | null = null;
+  private lastOverlayDebugSignature: string | null = null;
   private readonly handleVideoTimeUpdate = () => {
     if (!this.stopped && this.video) {
       this.overlay.update(this.video.currentTime);
@@ -135,8 +142,20 @@ export class YouTubeSubtitleSession {
   private readonly handleNativeSubtitleButtonClick = () => {
     void Promise.resolve().then(() => this.syncNativeSubtitleButtonState());
   };
+  private readonly handleRuntimeMessage = (message: ExtensionRequest) => {
+    if (message.type === "SUBTITLE_TRANSLATION_PROGRESS") {
+      this.handleTranslationProgress(message);
+      return;
+    }
 
-  constructor(private readonly deps: SessionDeps = {}) {}
+    if (message.type === "SUBTITLE_TRANSLATION_CHUNK_RESULT") {
+      this.handleTranslationChunkResult(message);
+    }
+  };
+
+  constructor(private readonly deps: SessionDeps = {}) {
+    chrome.runtime.onMessage.addListener(this.handleRuntimeMessage);
+  }
 
   async refresh(): Promise<void> {
     if (this.stopped) {
@@ -189,6 +208,7 @@ export class YouTubeSubtitleSession {
         this.current = null;
         this.pending = null;
         this.translatedCues = null;
+        this.lastOverlayDebugSignature = null;
         this.overlay.clear();
         this.prompt.setState(
           this.isNativeSubtitleButtonOn()
@@ -249,6 +269,7 @@ export class YouTubeSubtitleSession {
         }
 
         if (cacheResponse.ok && cacheResponse.cached) {
+          this.subtitleTranslationErrorMessage = null;
           this.translatedCues = cacheResponse.cues;
 
           if (this.isNativeSubtitleButtonOn()) {
@@ -262,7 +283,9 @@ export class YouTubeSubtitleSession {
       }
 
       if (sourceChanged) {
+        this.subtitleTranslationErrorMessage = null;
         this.translatedCues = null;
+        this.lastOverlayDebugSignature = null;
         this.overlay.clear();
       }
 
@@ -305,6 +328,7 @@ export class YouTubeSubtitleSession {
     const video = this.video ?? document.querySelector("video");
     const wasPlaying = Boolean(video && !video.paused);
     video?.pause();
+    this.subtitleTranslationErrorMessage = null;
     this.writeDebugEvent("youtube.subtitle.accept", {
       hasCurrent: this.current !== null,
       hasPending: this.pending !== null,
@@ -329,7 +353,7 @@ export class YouTubeSubtitleSession {
       try {
         this.current = await this.loadCurrentSubtitleSource(this.pending, {
           allowTranscriptPanelDom: true,
-          allowTranscriptPanelApi: false,
+          allowTranscriptPanelApi: true,
           preferTranscriptPanelDom: true
         });
       } catch (error) {
@@ -405,8 +429,11 @@ export class YouTubeSubtitleSession {
       }
     }
 
-    this.prompt.setState({ status: "loading", message: "번역 중..." });
     const chunkCountEstimate = planSubtitleChunks(this.current.cues).length;
+    this.prompt.setState({
+      status: "loading",
+      message: `번역 중... 0/${chunkCountEstimate}`
+    });
     this.writeDebugEvent("youtube.subtitle.translation_start", {
       videoId: this.current.videoId,
       cueCount: this.current.cues.length,
@@ -420,6 +447,9 @@ export class YouTubeSubtitleSession {
     });
 
     const requestId = createRequestId();
+    this.activeTranslationRequestId = requestId;
+    this.resumePlaybackAfterFirstSubtitleChunk = wasPlaying;
+    this.resumedPlaybackForActiveRequest = false;
     let response: SubtitleTranslationResultResponse;
 
     try {
@@ -443,10 +473,13 @@ export class YouTubeSubtitleSession {
       });
     } catch (error) {
       if (isExtensionContextInvalidated(error)) {
+        this.activeTranslationRequestId = null;
         this.stop();
         return;
       }
 
+      this.activeTranslationRequestId = null;
+      this.resumePlaybackAfterFirstSubtitleChunk = false;
       this.writeDebugEvent("youtube.subtitle.translation_error", {
         message: formatDebugError(error)
       });
@@ -457,15 +490,44 @@ export class YouTubeSubtitleSession {
     this.writeDebugEvent("youtube.subtitle.translation_result", {
       ok: response.ok,
       cached: response.ok ? response.cached : false,
+      partial: response.ok ? response.partial ?? false : false,
+      failedChunkCount: response.ok ? response.failedChunkCount ?? 0 : 0,
       provider: response.ok ? response.provider : response.provider ?? null,
       translatedCueCount: response.ok ? response.cues.length : 0,
       error: response.ok ? null : response.error,
-      message: response.ok ? null : response.message,
+      message: response.message ?? null,
       elapsedMs: response.ok ? response.elapsedMs : response.elapsedMs ?? null
     });
+    this.activeTranslationRequestId = null;
+    this.resumePlaybackAfterFirstSubtitleChunk = false;
 
     if (response.type === "SUBTITLE_TRANSLATION_RESULT" && response.ok) {
+      this.subtitleTranslationErrorMessage = null;
       this.activate(response.cues);
+
+      if (response.partial && response.message) {
+        this.subtitleTranslationErrorMessage = response.message;
+        this.prompt.setState({
+          status: "error",
+          message: response.message
+        });
+      }
+
+      if (wasPlaying) {
+        await video?.play().catch(() => undefined);
+      }
+      return;
+    }
+
+    if (this.translatedCues && this.translatedCues.length > 0) {
+      this.subtitleTranslationErrorMessage =
+        response.type === "SUBTITLE_TRANSLATION_RESULT" && !response.ok
+          ? response.message
+          : "일부 자막 번역에 실패했습니다.";
+      this.prompt.setState({
+        status: "error",
+        message: this.subtitleTranslationErrorMessage
+      });
 
       if (wasPlaying) {
         await video?.play().catch(() => undefined);
@@ -522,8 +584,10 @@ export class YouTubeSubtitleSession {
     }
   ): Promise<{ track: YouTubeCaptionTrack; cues: YouTubeSubtitleCue[] } | null> {
     const panelTrack = createTranscriptPanelTrack(videoId, trackCandidates[0]);
+    let triedPreferredTranscriptPanelDom = false;
 
     if (options.preferTranscriptPanelDom) {
+      triedPreferredTranscriptPanelDom = true;
       const fetchFromPanelDom =
         this.deps.fetchTranscriptFromPanelDom ??
         fetchYouTubeTranscriptFromTranscriptPanel;
@@ -536,17 +600,25 @@ export class YouTubeSubtitleSession {
       if (panelDomCues.length > 0) {
         return { track: panelTrack, cues: panelDomCues };
       }
-
-      return null;
     }
 
     let sawEmptyTranscript = false;
     let lastTranscriptError: unknown = null;
     const fetchTranscript = this.deps.fetchTranscript ?? fetchYouTubeTranscript;
 
-    for (const candidate of trackCandidates) {
+    for (const [index, candidate] of trackCandidates.entries()) {
       try {
         const candidateCues = await fetchTranscript(candidate);
+        this.writeDebugEvent("youtube.subtitle.timedtext_fetch_result", {
+          videoId,
+          trackIndex: index,
+          trackCandidateCount: trackCandidates.length,
+          trackIdentity: createSubtitleTrackIdentity(candidate),
+          languageCode: candidate.languageCode,
+          kind: candidate.kind,
+          cueCount: candidateCues.length,
+          error: null
+        });
 
         if (candidateCues.length > 0) {
           return { track: candidate, cues: candidateCues };
@@ -555,22 +627,53 @@ export class YouTubeSubtitleSession {
         sawEmptyTranscript = true;
       } catch (error) {
         lastTranscriptError = error;
+        this.writeDebugEvent("youtube.subtitle.timedtext_fetch_result", {
+          videoId,
+          trackIndex: index,
+          trackCandidateCount: trackCandidates.length,
+          trackIdentity: createSubtitleTrackIdentity(candidate),
+          languageCode: candidate.languageCode,
+          kind: candidate.kind,
+          cueCount: 0,
+          error: formatDebugError(error)
+        });
       }
     }
 
-    const panelCues = options.allowTranscriptPanelApi
-      ? await (this.deps.fetchTranscriptPanel ?? fetchYouTubeTranscriptPanel)()
-      : [];
+    let panelCues: YouTubeSubtitleCue[] = [];
+
+    if (options.allowTranscriptPanelApi) {
+      try {
+        panelCues = await (
+          this.deps.fetchTranscriptPanel ?? fetchYouTubeTranscriptPanel
+        )();
+        this.writeDebugEvent("youtube.subtitle.panel_api_result", {
+          videoId,
+          cueCount: panelCues.length,
+          error: null
+        });
+      } catch (error) {
+        this.writeDebugEvent("youtube.subtitle.panel_api_result", {
+          videoId,
+          cueCount: 0,
+          error: formatDebugError(error)
+        });
+      }
+    }
 
     if (panelCues.length > 0) {
       return { track: panelTrack, cues: panelCues };
     }
 
-    if (options.allowTranscriptPanelDom) {
+    if (options.allowTranscriptPanelDom && !triedPreferredTranscriptPanelDom) {
       const panelDomCues = await (
         this.deps.fetchTranscriptFromPanelDom ??
         fetchYouTubeTranscriptFromTranscriptPanel
-      )();
+      )({
+        onDebug: (event, fields = {}) => {
+          this.writeDebugEvent(event, { ...fields, videoId });
+        }
+      });
 
       if (panelDomCues.length > 0) {
         return { track: panelTrack, cues: panelDomCues };
@@ -627,34 +730,120 @@ export class YouTubeSubtitleSession {
     });
   }
 
-  private activate(cues: TranslatedSubtitleCue[]): void {
+  private activate(
+    cues: TranslatedSubtitleCue[],
+    options: { hidePrompt?: boolean } = {}
+  ): void {
     if (this.stopped) {
       return;
     }
 
     this.translatedCues = cues;
     this.overlay.setCues(cues);
-    this.prompt.setState({ status: "hidden" });
+    if (options.hidePrompt ?? true) {
+      this.prompt.setState({ status: "hidden" });
+    }
     this.handleVideoTimeUpdate();
+    const activeCueId = this.video
+      ? findActiveTranslatedCue(cues, this.video.currentTime)?.id ?? null
+      : null;
+    const debugState = this.overlay.getDebugState();
+    const debugSignature = JSON.stringify({
+      cueCount: cues.length,
+      activeCueId,
+      captionContainerActive: debugState.captionContainerActive,
+      overlayNodeHidden: debugState.overlayNodeHidden,
+      overlayTextLength: debugState.overlayTextLength
+    });
+
+    if (debugSignature === this.lastOverlayDebugSignature) {
+      return;
+    }
+
+    this.lastOverlayDebugSignature = debugSignature;
     this.writeDebugEvent("youtube.subtitle.overlay_activated", {
       cueCount: cues.length,
       currentTimeMs: this.video
         ? Math.round(this.video.currentTime * 1000)
         : null,
-      activeCueId: this.video
-        ? findActiveTranslatedCue(cues, this.video.currentTime)?.id ?? null
-        : null,
-      ...this.overlay.getDebugState()
+      activeCueId,
+      ...debugState
     });
   }
 
+  private applyTranslatedCueChunk(cues: TranslatedSubtitleCue[]): void {
+    if (this.stopped || cues.length === 0) {
+      return;
+    }
+
+    this.translatedCues = mergeTranslatedSubtitleCues(
+      this.translatedCues ?? [],
+      cues
+    );
+    this.overlay.setCues(this.translatedCues);
+    this.handleVideoTimeUpdate();
+  }
+
   private showSubtitleTranslationError(message: string): void {
+    this.subtitleTranslationErrorMessage = message;
     this.translatedCues = null;
+    this.lastOverlayDebugSignature = null;
     this.overlay.clear();
     this.prompt.setState({
       status: "error",
       message
     });
+  }
+
+  private handleTranslationProgress(
+    message: Pick<
+      SubtitleTranslationProgressMessage,
+      "requestId" | "currentChunk" | "totalChunks"
+    >
+  ): void {
+    if (
+      !this.translationInFlight ||
+      message.requestId !== this.activeTranslationRequestId
+    ) {
+      return;
+    }
+
+    const currentChunk = Math.max(1, Math.round(message.currentChunk));
+    const totalChunks = Math.max(currentChunk, Math.round(message.totalChunks));
+    this.prompt.setState({
+      status: "loading",
+      message: `번역 중... ${currentChunk}/${totalChunks}`
+    });
+  }
+
+  private handleTranslationChunkResult(
+    message: SubtitleTranslationChunkResultMessage
+  ): void {
+    if (
+      !this.translationInFlight ||
+      message.requestId !== this.activeTranslationRequestId
+    ) {
+      return;
+    }
+
+    this.applyTranslatedCueChunk(message.cues);
+    this.handleTranslationProgress(message);
+    this.writeDebugEvent("youtube.subtitle.chunk_result", {
+      currentChunk: message.currentChunk,
+      totalChunks: message.totalChunks,
+      cueCount: message.cues.length,
+      provider: message.provider,
+      cached: message.cached,
+      elapsedMs: message.elapsedMs
+    });
+
+    if (
+      this.resumePlaybackAfterFirstSubtitleChunk &&
+      !this.resumedPlaybackForActiveRequest
+    ) {
+      this.resumedPlaybackForActiveRequest = true;
+      void this.video?.play().catch(() => undefined);
+    }
   }
 
   private declineTranslation(): void {
@@ -704,8 +893,25 @@ export class YouTubeSubtitleSession {
     }
 
     if (!this.isNativeSubtitleButtonOn()) {
+      const hadTranslationError = Boolean(this.subtitleTranslationErrorMessage);
+      this.subtitleTranslationErrorMessage = null;
+      this.lastOverlayDebugSignature = null;
       this.overlay.clear();
+      if (hadTranslationError) {
+        this.translatedCues = null;
+      }
       this.prompt.setState({ status: "hidden" });
+      return;
+    }
+
+    if (this.subtitleTranslationErrorMessage) {
+      if (this.translatedCues) {
+        this.activate(this.translatedCues, { hidePrompt: false });
+      }
+      this.prompt.setState({
+        status: "error",
+        message: this.subtitleTranslationErrorMessage
+      });
       return;
     }
 
@@ -715,10 +921,12 @@ export class YouTubeSubtitleSession {
     }
 
     const videoId = this.current?.videoId ?? this.pending?.videoId;
+    const targetLang =
+      this.current?.targetLang ?? this.pending?.targetLang ?? DEFAULT_TARGET_LANG;
 
     this.prompt.setState(
       videoId && !this.declinedVideoIds.has(videoId)
-        ? { status: "prompt" }
+        ? { status: "prompt", targetLang }
         : { status: "hidden" }
     );
   }
@@ -732,9 +940,13 @@ export class YouTubeSubtitleSession {
     this.current = null;
     this.pending = null;
     this.translatedCues = null;
+    this.activeTranslationRequestId = null;
+    this.resumePlaybackAfterFirstSubtitleChunk = false;
+    this.resumedPlaybackForActiveRequest = false;
     this.overlay.clear();
     this.prompt.destroy();
     this.bindNativeSubtitleButton(null);
+    chrome.runtime.onMessage.removeListener?.(this.handleRuntimeMessage);
 
     if (this.video) {
       this.video.removeEventListener("timeupdate", this.handleVideoTimeUpdate);
@@ -909,6 +1121,29 @@ function findActiveTranslatedCue(
   return (
     cues.find((cue) => currentMs >= cue.startMs && currentMs < cue.endMs) ?? null
   );
+}
+
+function mergeTranslatedSubtitleCues(
+  existing: TranslatedSubtitleCue[],
+  incoming: TranslatedSubtitleCue[]
+): TranslatedSubtitleCue[] {
+  const cuesById = new Map<string, TranslatedSubtitleCue>();
+
+  for (const cue of existing) {
+    cuesById.set(cue.id, cue);
+  }
+
+  for (const cue of incoming) {
+    cuesById.set(cue.id, cue);
+  }
+
+  return [...cuesById.values()].sort((left, right) => {
+    if (left.startMs !== right.startMs) {
+      return left.startMs - right.startMs;
+    }
+
+    return left.endMs - right.endMs;
+  });
 }
 
 function normalizeYouTubeSubtitleTimeoutMs(

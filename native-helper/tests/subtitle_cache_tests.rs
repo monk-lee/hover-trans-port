@@ -1,7 +1,5 @@
 use hover_trans_port_helper::messages::ProviderId;
-use hover_trans_port_helper::subtitle_cache::{
-    SqliteSubtitleTranslationCache, SubtitleCacheKey,
-};
+use hover_trans_port_helper::subtitle_cache::{SqliteSubtitleTranslationCache, SubtitleCacheKey};
 use hover_trans_port_helper::subtitles::{SubtitleCue, TranslatedSubtitleCue};
 use rusqlite::Connection;
 use tempfile::tempdir;
@@ -88,8 +86,12 @@ fn subtitle_cache_clear_returns_deleted_row_count() {
         ..cache_key()
     };
 
-    cache.write(&first, &source_cues(), &translated_cues()).unwrap();
-    cache.write(&second, &source_cues(), &translated_cues()).unwrap();
+    cache
+        .write(&first, &source_cues(), &translated_cues())
+        .unwrap();
+    cache
+        .write(&second, &source_cues(), &translated_cues())
+        .unwrap();
 
     assert_eq!(cache.clear().unwrap().deleted_rows, 2);
 }

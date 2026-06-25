@@ -85,6 +85,24 @@ export type SubtitleTrackTranslationRequest = Omit<
   debugLogging?: boolean;
 };
 
+export type SubtitleTranslationProgressMessage = {
+  type: "SUBTITLE_TRANSLATION_PROGRESS";
+  requestId: string;
+  currentChunk: number;
+  totalChunks: number;
+};
+
+export type SubtitleTranslationChunkResultMessage = {
+  type: "SUBTITLE_TRANSLATION_CHUNK_RESULT";
+  requestId: string;
+  currentChunk: number;
+  totalChunks: number;
+  provider: ProviderId;
+  cues: TranslatedSubtitleCue[];
+  cached: boolean;
+  elapsedMs: number;
+};
+
 export type ExtensionRequest =
   | {
       type: "PING";
@@ -143,6 +161,8 @@ export type ExtensionRequest =
     }
   | SubtitleTranslationCacheRequest
   | SubtitleTrackTranslationRequest
+  | SubtitleTranslationProgressMessage
+  | SubtitleTranslationChunkResultMessage
   | {
       type: "TRANSLATE_CURRENT_TARGET";
       requestId: string;
@@ -218,6 +238,9 @@ export type SubtitleTranslationResultResponse =
       cues: TranslatedSubtitleCue[];
       cached: boolean;
       elapsedMs: number;
+      partial?: boolean;
+      failedChunkCount?: number;
+      message?: string;
     }
   | {
       type: "SUBTITLE_TRANSLATION_RESULT";

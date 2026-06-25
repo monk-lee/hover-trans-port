@@ -1,9 +1,14 @@
 import type { ProviderSelection } from "./providers";
 
-export const SUBTITLE_TRANSLATION_PROMPT_VERSION = 4;
-export const SUBTITLE_CHUNK_MAX_CUES = 80;
-export const SUBTITLE_CHUNK_MAX_SOURCE_CHARS = 6000;
-export const SUBTITLE_CHUNK_CONTEXT_CUES = 8;
+export const SUBTITLE_TRANSLATION_PROMPT_VERSION = 1;
+export const SUBTITLE_CHUNK_SEGMENT_DURATION_MS = 60_000;
+export const SUBTITLE_CHUNK_CONTEXT_CUES = 5;
+const YOUTUBE_TIMEDTEXT_HOSTS = new Set([
+  "youtube.com",
+  "www.youtube.com",
+  "m.youtube.com",
+  "music.youtube.com"
+]);
 
 export type YouTubeCaptionTrackKind = "manual" | "asr";
 
@@ -48,6 +53,34 @@ export type SubtitleChunk = {
 
 export function normalizeSubtitleText(text: string): string {
   return text.replace(/\s+/gu, " ").trim();
+}
+
+export function normalizeYouTubeTimedTextBaseUrl(
+  baseUrl: string,
+  baseOrigin = "https://www.youtube.com"
+): string | null {
+  const trimmed = baseUrl.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  let url: URL;
+  try {
+    url = new URL(trimmed, baseOrigin);
+  } catch {
+    return null;
+  }
+
+  if (
+    url.protocol !== "https:" ||
+    !YOUTUBE_TIMEDTEXT_HOSTS.has(url.hostname.toLowerCase()) ||
+    url.pathname !== "/api/timedtext"
+  ) {
+    return null;
+  }
+
+  return url.toString();
 }
 
 export function normalizeSubtitleCues(
@@ -119,25 +152,25 @@ export function planSubtitleChunks(
   const chunks: SubtitleChunk[] = [];
   let currentStart = 0;
   let currentLength = 0;
-  let currentChars = 0;
+  let currentSegmentIndex: number | undefined;
 
   for (let index = 0; index < normalized.length; index += 1) {
     const cue = normalized[index];
-    const cueChars = cue.text.length;
-    const wouldExceedCount = currentLength >= SUBTITLE_CHUNK_MAX_CUES;
-    const wouldExceedChars =
-      currentLength > 0 &&
-      currentChars + cueChars > SUBTITLE_CHUNK_MAX_SOURCE_CHARS;
+    const cueSegmentIndex = Math.floor(
+      cue.startMs / SUBTITLE_CHUNK_SEGMENT_DURATION_MS
+    );
 
-    if (wouldExceedCount || wouldExceedChars) {
+    if (currentLength > 0 && cueSegmentIndex !== currentSegmentIndex) {
       chunks.push(createSubtitleChunk(chunks.length, normalized, currentStart, index));
       currentStart = index;
       currentLength = 0;
-      currentChars = 0;
+    }
+
+    if (currentLength === 0) {
+      currentSegmentIndex = cueSegmentIndex;
     }
 
     currentLength += 1;
-    currentChars += cueChars;
   }
 
   if (currentLength > 0) {

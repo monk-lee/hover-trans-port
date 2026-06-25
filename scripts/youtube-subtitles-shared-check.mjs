@@ -45,7 +45,7 @@ try {
     pathToFileURL(join(tempSharedDir, "youtubeSubtitles.js")).href
   );
   assert(
-    subtitles.SUBTITLE_TRANSLATION_PROMPT_VERSION === 4,
+    subtitles.SUBTITLE_TRANSLATION_PROMPT_VERSION === 1,
     "subtitle prompt version should invalidate older cache entries after prompt changes"
   );
   const cues = subtitles.normalizeSubtitleCues([
@@ -72,24 +72,38 @@ try {
     "timeline hash should change when source text changes"
   );
 
-  const chunks = subtitles.planSubtitleChunks(
+  const denseChunks = subtitles.planSubtitleChunks(
     Array.from({ length: 81 }, (_, index) => ({
       id: `cue-${index}`,
-      startMs: index * 1000,
-      endMs: index * 1000 + 800,
+      startMs: index * 700,
+      endMs: index * 700 + 500,
       text: "short cue"
     }))
   );
-  assert(chunks.length === 2, "81 cues should split at the 80 cue limit");
-  assert(chunks[0].cues.length === 80, "first chunk should hold 80 cues");
-  assert(chunks[1].cues.length === 1, "second chunk should hold remaining cue");
   assert(
-    chunks[0].contextAfter[0].id === "cue-80",
+    denseChunks.length === 1,
+    "81 cues inside one minute should stay in one fixed timeline segment"
+  );
+  assert(denseChunks[0].cues.length === 81, "dense segment should keep all cues");
+
+  const chunks = subtitles.planSubtitleChunks([
+    { id: "cue-0", startMs: 0, endMs: 800, text: "first segment" },
+    { id: "cue-1", startMs: 59000, endMs: 59800, text: "still first" },
+    { id: "cue-2", startMs: 60000, endMs: 60800, text: "second segment" },
+    { id: "cue-3", startMs: 119000, endMs: 119800, text: "still second" },
+    { id: "cue-4", startMs: 120000, endMs: 120800, text: "third segment" }
+  ]);
+  assert(chunks.length === 3, "cues should split on fixed one-minute boundaries");
+  assert(chunks[0].cues.length === 2, "first segment should hold cues before 1:00");
+  assert(chunks[1].cues.length === 2, "second segment should hold cues from 1:00");
+  assert(chunks[2].cues.length === 1, "third segment should hold cues from 2:00");
+  assert(
+    chunks[0].contextAfter[0].id === "cue-2",
     "first chunk should include following cues as context"
   );
   assert(
-    chunks[1].contextBefore.length === 8 &&
-      chunks[1].contextBefore[0].id === "cue-72",
+    chunks[1].contextBefore[0].id === "cue-0" &&
+      chunks[1].contextAfter[0].id === "cue-4",
     "later chunks should include preceding cues as context"
   );
 } finally {

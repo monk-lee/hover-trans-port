@@ -782,6 +782,13 @@ chrome.runtime.onMessage.addListener(
     _sender,
     sendResponse: (response: ExtensionResponse) => void
   ) => {
+    if (
+      message.type === "SUBTITLE_TRANSLATION_PROGRESS" ||
+      message.type === "SUBTITLE_TRANSLATION_CHUNK_RESULT"
+    ) {
+      return;
+    }
+
     if (message.type !== "PING") {
       sendResponse({
         type: "ERROR",

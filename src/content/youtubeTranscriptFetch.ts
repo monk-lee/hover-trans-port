@@ -2,7 +2,10 @@ import type {
   YouTubeCaptionTrack,
   YouTubeSubtitleCue
 } from "../shared/youtubeSubtitles";
-import { normalizeSubtitleCues } from "../shared/youtubeSubtitles";
+import {
+  normalizeSubtitleCues,
+  normalizeYouTubeTimedTextBaseUrl
+} from "../shared/youtubeSubtitles";
 
 type InnertubeContext = {
   client?: {
@@ -54,7 +57,11 @@ type TranscriptPanelCloseResult = {
 };
 
 const TRANSCRIPT_SEGMENT_SELECTOR =
-  "ytd-transcript-segment-renderer, yt-transcript-segment-renderer";
+  [
+    "ytd-transcript-segment-renderer",
+    "yt-transcript-segment-renderer",
+    "transcript-segment-view-model"
+  ].join(", ");
 const TRANSCRIPT_BUTTON_SELECTOR =
   [
     "button",
@@ -75,7 +82,13 @@ const SHOW_MORE_BUTTON_TEXT_PATTERN = /더보기|show more/iu;
 const CLOSE_TRANSCRIPT_PANEL_TEXT_PATTERN = /닫기|close/iu;
 
 export function withJson3Format(baseUrl: string): string {
-  const url = new URL(baseUrl);
+  const normalized = normalizeYouTubeTimedTextBaseUrl(baseUrl);
+
+  if (!normalized) {
+    throw new Error("Unsupported YouTube transcript URL.");
+  }
+
+  const url = new URL(normalized);
   url.searchParams.set("fmt", "json3");
 
   return url.toString();
@@ -251,13 +264,10 @@ export async function fetchYouTubeTranscriptFromTranscriptPanel(
   }
 
   const panelCues = await waitForTranscriptPanelCues(options);
-
-  if (panelCues.length > 0) {
-    options.onDebug?.(
-      "youtube.subtitle.panel_dom_close",
-      closeYouTubeTranscriptPanel()
-    );
-  }
+  options.onDebug?.(
+    "youtube.subtitle.panel_dom_close",
+    closeYouTubeTranscriptPanel()
+  );
 
   return panelCues;
 }
@@ -538,7 +548,9 @@ function countTranscriptPanelElements(): number {
       "ytd-transcript-renderer",
       "ytd-transcript-search-panel-renderer",
       "ytd-transcript-segment-list-renderer",
-      "yt-transcript-renderer"
+      "yt-transcript-renderer",
+      "yt-section-list-renderer",
+      'ytd-engagement-panel-section-list-renderer[visibility="ENGAGEMENT_PANEL_VISIBILITY_EXPANDED"]'
     ].join(", ")
   ).length;
 }
@@ -554,7 +566,7 @@ function lowerTagName(element: Element): string | null {
 function findTranscriptSegmentTimestamp(segment: Element): string {
   return (
     segment.querySelector(
-      ".segment-timestamp, #segment-start-offset, #cue-group-start-offset, [class*='timestamp']"
+      ".segment-timestamp, #segment-start-offset, #cue-group-start-offset, .ytwTranscriptSegmentViewModelTimestamp, [class*='timestamp']"
     )?.textContent ?? ""
   );
 }
@@ -562,7 +574,7 @@ function findTranscriptSegmentTimestamp(segment: Element): string {
 function findTranscriptSegmentText(segment: Element): string {
   return (
     segment.querySelector(
-      ".segment-text, #segment-text, yt-formatted-string, [class*='segment-text']"
+      ".segment-text, #segment-text, span[role='text'], .ytAttributedStringHost, yt-formatted-string, [class*='segment-text']"
     )?.textContent ?? ""
   );
 }

@@ -290,7 +290,7 @@ try {
     onDecline: () => events.push("decline")
   });
   prompt.mount(player);
-  prompt.setState({ status: "prompt" });
+  prompt.setState({ status: "prompt", targetLang: "Japanese" });
   const promptNode = player.querySelector(
     '[data-hover-trans-port-youtube-subtitle-prompt="true"]'
   );
@@ -300,25 +300,34 @@ try {
     "prompt should sit above the YouTube playback controls"
   );
   assert(
+    document.head.textContent.includes("right: clamp(16px, 3vw, 36px)"),
+    "prompt should sit near the right edge without touching it"
+  );
+  assert(
+    !document.head.textContent.includes("left: 50%") &&
+      !document.head.textContent.includes("translateX(-50%)"),
+    "prompt should not be centered over multi-line captions"
+  );
+  assert(
     !document.body.querySelector(
       '[data-hover-trans-port-youtube-subtitle-control="true"]'
     ),
     "prompt should not create a separate YouTube player button"
   );
   assert(
-    promptNode.textContent.includes("이 자막을 한국어로 번역할까요?"),
-    "prompt should ask whether to translate the native YouTube captions"
+    promptNode.textContent.includes("この字幕を日本語に翻訳しますか？"),
+    "prompt should ask in the selected target language"
   );
   const promptButtons = promptNode.querySelectorAll("button");
   assert(
     promptButtons.length === 2 &&
-      promptButtons[0].textContent === "예" &&
-      promptButtons[1].textContent === "아니오",
+      promptButtons[0].textContent === "はい" &&
+      promptButtons[1].textContent === "いいえ",
     "prompt should expose explicit yes/no actions"
   );
   promptButtons[0].onclick();
   assert(events.join(",") === "accept", "prompt yes should accept translation");
-  prompt.setState({ status: "prompt" });
+  prompt.setState({ status: "prompt", targetLang: "Japanese" });
   player
     .querySelector('[data-hover-trans-port-youtube-subtitle-prompt="true"]')
     .querySelectorAll("button")[1]

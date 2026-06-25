@@ -21,6 +21,16 @@ function assert(condition, message) {
   }
 }
 
+async function assertRejects(promise, message) {
+  try {
+    await promise;
+  } catch {
+    return;
+  }
+
+  fail(message);
+}
+
 function transpile(sourcePath) {
   return ts.transpileModule(readFileSync(sourcePath, "utf8"), {
     compilerOptions: {
@@ -93,7 +103,7 @@ class FakeTranscriptSegment {
   }
 
   querySelector(selector) {
-    if (selector.includes("timestamp")) {
+    if (selector.toLowerCase().includes("timestamp")) {
       return { textContent: this.timestamp };
     }
 
@@ -105,8 +115,32 @@ class FakeTranscriptSegment {
   }
 }
 
+class FakeModernTranscriptSegment {
+  constructor(timestamp, text) {
+    this.timestamp = timestamp;
+    this.text = text;
+  }
+
+  querySelector(selector) {
+    if (selector.includes("ytwTranscriptSegmentViewModelTimestamp")) {
+      return { textContent: this.timestamp };
+    }
+
+    if (
+      selector.includes("span[role='text']") ||
+      selector.includes(".ytAttributedStringHost")
+    ) {
+      return { textContent: this.text };
+    }
+
+    return null;
+  }
+}
+
 const fakeScripts = [];
 const fakeTranscriptSegments = [];
+const fakeModernTranscriptSegments = [];
+const fakeTranscriptPanelElements = [];
 const fakeButtons = [];
 global.document = {
   createElement(tagName) {
@@ -121,8 +155,23 @@ global.document = {
       return fakeScripts;
     }
 
-    if (selector.includes("ytd-transcript-segment-renderer")) {
-      return fakeTranscriptSegments;
+    if (
+      selector.includes("ytd-transcript-segment-renderer") ||
+      selector.includes("yt-transcript-segment-renderer") ||
+      selector.includes("transcript-segment-view-model")
+    ) {
+      return [...fakeTranscriptSegments, ...fakeModernTranscriptSegments];
+    }
+
+    if (
+      selector.includes("ytd-transcript-renderer") ||
+      selector.includes("ytd-transcript-search-panel-renderer") ||
+      selector.includes("ytd-transcript-segment-list-renderer") ||
+      selector.includes("yt-transcript-renderer") ||
+      selector.includes("yt-section-list-renderer") ||
+      selector.includes("ytd-engagement-panel-section-list-renderer")
+    ) {
+      return fakeTranscriptPanelElements;
     }
 
     if (selector.includes("button")) {
@@ -225,6 +274,21 @@ try {
     fetchRequest.url.includes("fmt=json3"),
     "YouTube timedtext fetch should request json3 format"
   );
+  fetchRequest = null;
+  await assertRejects(
+    fetchYouTubeTranscript({
+      id: ".fr",
+      languageCode: "fr",
+      displayName: "French",
+      kind: "manual",
+      baseUrl: "https://evil.example/api/timedtext?v=abc&lang=fr"
+    }),
+    "YouTube timedtext fetch should reject non-YouTube transcript URLs"
+  );
+  assert(
+    fetchRequest === null,
+    "invalid YouTube timedtext URLs should be rejected before fetch"
+  );
 
   const innertubeResponse = {
     actions: [
@@ -325,6 +389,27 @@ try {
   );
 
   fakeTranscriptSegments.length = 0;
+  fakeModernTranscriptSegments.push(
+    new FakeModernTranscriptSegment("0:00", "Modern transcript line"),
+    new FakeModernTranscriptSegment("0:07", "Second modern line")
+  );
+  const modernDomPanelCues = parseYouTubeTranscriptPanelDocument();
+  assert(
+    modernDomPanelCues.length === 2,
+    "modern transcript panel DOM cues should parse"
+  );
+  assert(
+    modernDomPanelCues[0].startMs === 0 &&
+      modernDomPanelCues[0].endMs === 7000,
+    "modern transcript panel DOM cue end should use the next segment timestamp"
+  );
+  assert(
+    modernDomPanelCues[0].text === "Modern transcript line",
+    "modern transcript panel DOM cue text should parse"
+  );
+
+  fakeModernTranscriptSegments.length = 0;
+  fakeTranscriptSegments.length = 0;
   let transcriptButtonClicks = 0;
   let transcriptCloseClicks = 0;
   fakeButtons.push({
@@ -391,6 +476,58 @@ try {
     "transcript panel fallback should debug-log whether it closed the rendered transcript panel"
   );
 
+  fakeTranscriptSegments.length = 0;
+  fakeTranscriptPanelElements.length = 0;
+  fakeButtons.length = 0;
+  let emptyTranscriptButtonClicks = 0;
+  let emptyTranscriptCloseClicks = 0;
+  fakeButtons.push({
+    tagName: "BUTTON",
+    textContent: "스크립트 표시",
+    getAttribute: () => null,
+    click() {
+      emptyTranscriptButtonClicks += 1;
+      fakeTranscriptPanelElements.push({});
+    }
+  });
+  fakeButtons.push({
+    tagName: "BUTTON",
+    textContent: "닫기",
+    getAttribute: () => null,
+    click() {
+      emptyTranscriptCloseClicks += 1;
+      fakeTranscriptPanelElements.length = 0;
+    }
+  });
+  const emptyPanelDebugEvents = [];
+  const emptyPanelCues = await fetchYouTubeTranscriptFromTranscriptPanel({
+    timeoutMs: 20,
+    onDebug(event, fields) {
+      emptyPanelDebugEvents.push({ event, fields });
+    }
+  });
+  assert(
+    emptyPanelCues.length === 0,
+    "empty transcript panel fallback should still return no cues"
+  );
+  assert(
+    emptyTranscriptButtonClicks === 1,
+    "empty transcript panel fallback should click YouTube's transcript button"
+  );
+  assert(
+    emptyTranscriptCloseClicks === 1,
+    "empty transcript panel fallback should close an opened but empty transcript panel"
+  );
+  assert(
+    emptyPanelDebugEvents.some(
+      ({ event, fields }) =>
+        event === "youtube.subtitle.panel_dom_close" &&
+        fields.closed === true
+    ),
+    "empty transcript panel fallback should debug-log that the opened empty panel was closed"
+  );
+
+  fakeTranscriptPanelElements.length = 0;
   fakeTranscriptSegments.length = 0;
   fakeButtons.length = 0;
   let wrapperClicks = 0;
