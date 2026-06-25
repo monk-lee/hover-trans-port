@@ -20,6 +20,7 @@ function assertNotIncludes(content, unexpected, label) {
 const optionsHtml = readFileSync("src/options.html", "utf8");
 const providersTs = readFileSync("src/shared/providers.ts", "utf8");
 const optionsMainTs = readFileSync("src/options/main.ts", "utf8");
+const popupMainTs = readFileSync("src/popup/main.ts", "utf8");
 const nativeClientTs = readFileSync("src/background/nativeClient.ts", "utf8");
 
 assertIncludes(
@@ -70,6 +71,21 @@ assertIncludes(providersTs, 'claude: "haiku"', "Claude provider default model");
 assertIncludes(providersTs, 'gemini: ""', "Gemini provider default model");
 assertIncludes(providersTs, 'opencode: ""', "OpenCode provider default model");
 assertIncludes(providersTs, 'antigravity: ""', "Antigravity provider default model");
+assertIncludes(
+  providersTs,
+  "CODEX_NOT_FOUND_GUIDANCE",
+  "Codex unavailable guidance constant"
+);
+assertIncludes(
+  providersTs,
+  "%LOCALAPPDATA%\\\\Programs\\\\OpenAI\\\\Codex\\\\bin\\\\codex.exe",
+  "Codex official Windows installer guidance"
+);
+assertIncludes(
+  providersTs,
+  "%APPDATA%\\\\npm\\\\codex.cmd",
+  "Codex npm global Windows guidance"
+);
 
 assertIncludes(
   optionsMainTs,
@@ -96,10 +112,21 @@ assertIncludes(
   "Claude authentication is verified when translating.",
   "Claude status authentication copy"
 );
+assertIncludes(
+  optionsMainTs,
+  "formatProviderUnavailableMessage(",
+  "Options provider unavailable guidance formatter"
+);
 assertNotIncludes(
   optionsMainTs,
   "getDefaultModelForProvider(modelProvider) || DEFAULT_CODEX_MODEL",
   "Claude model reset avoids Codex fallback"
+);
+
+assertIncludes(
+  popupMainTs,
+  "formatProviderUnavailableMessage(providerId, providerStatus?.error)",
+  "Popup provider unavailable guidance formatter"
 );
 
 assertIncludes(
@@ -111,6 +138,11 @@ assertIncludes(
   nativeClientTs,
   'case "PROVIDER_EXIT_NONZERO":\n      return appendProviderDetail(',
   "provider exit nonzero appends native detail"
+);
+assertIncludes(
+  nativeClientTs,
+  "formatProviderUnavailableMessage(provider, error)",
+  "translation provider not-found guidance formatter"
 );
 
 console.log("provider-options-check: ok");

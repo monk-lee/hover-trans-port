@@ -277,12 +277,12 @@ assertIncludes(releaseChecklist, "install.sh", "docs/open-source-release-checkli
 assertIncludes(releaseChecklist, "install.ps1", "docs/open-source-release-checklist.md");
 assertIncludes(
   releaseChecklist,
-  "hover-trans-port-native-host-linux-0.2.15.tar.gz",
+  "hover-trans-port-native-host-linux-0.2.17.tar.gz",
   "docs/open-source-release-checklist.md"
 );
 assertIncludes(
   releaseChecklist,
-  "hover-trans-port-native-host-windows-0.2.15.zip",
+  "hover-trans-port-native-host-windows-0.2.17.zip",
   "docs/open-source-release-checklist.md"
 );
 assertIncludes(

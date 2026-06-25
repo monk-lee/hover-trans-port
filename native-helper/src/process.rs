@@ -120,22 +120,12 @@ pub fn run_process(request: ProcessRequest) -> Result<ProcessOutput, ProviderErr
         .map_err(|error| ProviderError::SpawnFailed {
             message: error.to_string(),
         })?;
-    let stdout_reader = read_stdout(
-        child
-            .stdout
-            .take()
-            .ok_or_else(|| {
-                ProviderError::Output(output_error("Provider stdout pipe was not available."))
-            })?,
-    );
-    let stderr_reader = read_stderr(
-        child
-            .stderr
-            .take()
-            .ok_or_else(|| {
-                ProviderError::Output(output_error("Provider stderr pipe was not available."))
-            })?,
-    );
+    let stdout_reader = read_stdout(child.stdout.take().ok_or_else(|| {
+        ProviderError::Output(output_error("Provider stdout pipe was not available."))
+    })?);
+    let stderr_reader = read_stderr(child.stderr.take().ok_or_else(|| {
+        ProviderError::Output(output_error("Provider stderr pipe was not available."))
+    })?);
 
     if let Some(mut stdin) = child.stdin.take() {
         stdin

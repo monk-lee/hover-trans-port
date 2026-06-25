@@ -724,8 +724,8 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn run_update_rejects_unsupported_platform_before_invoking_updater() {
-        use std::os::unix::fs::PermissionsExt;
         use std::os::unix::fs::symlink;
+        use std::os::unix::fs::PermissionsExt;
 
         let temp = tempdir().unwrap();
         let install_root = temp.path().join("Hover Trans Port");
@@ -762,7 +762,10 @@ mod tests {
             install_root.to_string_lossy().into_owned(),
         );
         env.insert("HOVER_TRANS_PORT_TEST_OS".to_string(), "linux".to_string());
-        env.insert("HOVER_TRANS_PORT_TEST_ARCH".to_string(), "sparc".to_string());
+        env.insert(
+            "HOVER_TRANS_PORT_TEST_ARCH".to_string(),
+            "sparc".to_string(),
+        );
 
         let error = run_update(&env, "v0.2.4", "0.2.4").unwrap_err();
 

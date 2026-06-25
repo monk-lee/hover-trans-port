@@ -7,7 +7,11 @@ import {
   formatNativeHostUpdateStatusForUser,
   nativeHostUpdateNeedsAttention
 } from "../shared/nativeHostUpdate";
-import { getProviderLabel, resolveProviderForModel } from "../shared/providers";
+import {
+  formatProviderUnavailableMessage,
+  getProviderLabel,
+  resolveProviderForModel
+} from "../shared/providers";
 import {
   DEFAULT_EXTENSION_ENABLED,
   normalizeEnabled,
@@ -138,7 +142,7 @@ async function checkSelectedProviderStatus(options: StoredOptions): Promise<void
   if (!providerStatus?.available) {
     setStatus(
       `${providerLabel} unavailable`,
-      providerStatus?.error ?? `Open Options to check ${providerLabel}.`,
+      formatProviderUnavailableMessage(providerId, providerStatus?.error),
       "warning"
     );
     return;
