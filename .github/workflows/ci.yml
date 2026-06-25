@@ -69,3 +69,151 @@ jobs:
           test -f build/macos-script-installer/hover-trans-port-native-host-macos-0.2.17.tar.gz
           cd build/macos-script-installer
           shasum -a 256 -c checksums.txt
+
+  native-host-installer-smoke:
+    name: Native host installer smoke ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-15
+          - ubuntu-latest
+          - windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Prepare Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Build native host helper
+        run: cargo build --release --manifest-path native-helper/Cargo.toml
+
+      - name: Run native host installer smoke
+        run: node scripts/native-host-installer-smoke.mjs
+
+  native-host-linux-assets:
+    name: Native host release assets Linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install Linux cross compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Prepare Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu
+
+      - name: Build Linux native host release assets
+        run: |
+          rm -rf build/native-host-release-assets/linux
+
+          cargo build --release --manifest-path native-helper/Cargo.toml --target x86_64-unknown-linux-gnu
+          node scripts/build-native-host-release-assets.mjs \
+            --platform linux \
+            --asset hover-trans-port-helper-linux-x64 \
+            --helper native-helper/target/x86_64-unknown-linux-gnu/release/hover-trans-port-helper \
+            --out-dir build/native-host-release-assets/linux
+
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
+            cargo build --release --manifest-path native-helper/Cargo.toml --target aarch64-unknown-linux-gnu
+          node scripts/build-native-host-release-assets.mjs \
+            --platform linux \
+            --asset hover-trans-port-helper-linux-arm64 \
+            --helper native-helper/target/aarch64-unknown-linux-gnu/release/hover-trans-port-helper \
+            --out-dir build/native-host-release-assets/linux
+
+          (
+            cd build/native-host-release-assets/linux
+            shasum -a 256 -c checksums.txt
+            test -f hover-trans-port-native-host-linux-0.2.17.tar.gz
+          )
+
+  native-host-windows-assets:
+    name: Native host release assets Windows
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Prepare Rust
+        shell: pwsh
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add x86_64-pc-windows-msvc aarch64-pc-windows-msvc
+
+      - name: Build Windows x64 native host release asset
+        shell: pwsh
+        run: |
+          Remove-Item -LiteralPath build/native-host-release-assets/windows -Recurse -Force -ErrorAction SilentlyContinue
+
+          cargo build --release --manifest-path native-helper/Cargo.toml --target x86_64-pc-windows-msvc
+          node scripts/build-native-host-release-assets.mjs `
+            --platform windows `
+            --asset hover-trans-port-helper-windows-x64.exe `
+            --helper native-helper/target/x86_64-pc-windows-msvc/release/hover-trans-port-helper.exe `
+            --out-dir build/native-host-release-assets/windows
+
+      - name: Setup Windows ARM64 MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: amd64_arm64
+
+      - name: Build Windows ARM64 native host release asset
+        shell: pwsh
+        run: |
+          cargo build --release --manifest-path native-helper/Cargo.toml --target aarch64-pc-windows-msvc
+          node scripts/build-native-host-release-assets.mjs `
+            --platform windows `
+            --asset hover-trans-port-helper-windows-arm64.exe `
+            --helper native-helper/target/aarch64-pc-windows-msvc/release/hover-trans-port-helper.exe `
+            --out-dir build/native-host-release-assets/windows
+
+      - name: Check Windows native host assets
+        shell: pwsh
+        run: |
+          $nativeDir = "build/native-host-release-assets/windows"
+          Get-Content -LiteralPath (Join-Path $nativeDir "checksums.txt") | ForEach-Object {
+            $parts = $_ -split "\s+", 2
+            $expected = $parts[0].ToLowerInvariant()
+            $fileName = $parts[1].Trim()
+            $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $nativeDir $fileName)).Hash.ToLowerInvariant()
+            if ($actual -ne $expected) {
+              throw "checksum mismatch for $fileName"
+            }
+          }
+
+          if (-not (Test-Path -LiteralPath (Join-Path $nativeDir "hover-trans-port-native-host-windows-0.2.17.zip"))) {
+            throw "missing Windows inspect-first package"
+          }

@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 
 const workflowPath = ".github/workflows/native-host-cross-platform.yml";
+const ciWorkflowPath = ".github/workflows/ci.yml";
 const packageJsonPath = "package.json";
 
 function fail(message) {
@@ -29,10 +30,10 @@ function requireNotIncludes(content, unexpected, description) {
 }
 
 const workflow = readRequiredFile(workflowPath);
+const ciWorkflow = readRequiredFile(ciWorkflowPath);
 const packageJson = JSON.parse(readRequiredFile(packageJsonPath));
 
 for (const [expected, description] of [
-  ["pull_request:", "pull request trigger"],
   ["workflow_dispatch:", "manual trigger"],
   ["contents: read", "least-privilege permissions"],
   ["installer-smoke:", "installer smoke job"],
@@ -62,9 +63,31 @@ for (const [expected, description] of [
   requireIncludes(workflow, expected, description);
 }
 
+for (const [expected, description] of [
+  ["pull_request:", "CI pull request trigger"],
+  ["native-host-installer-smoke:", "CI installer smoke job"],
+  ["Native host installer smoke ${{ matrix.os }}", "CI installer smoke matrix name"],
+  ["macos-15", "CI macOS smoke runner"],
+  ["ubuntu-latest", "CI Linux smoke runner"],
+  ["windows-latest", "CI Windows smoke runner"],
+  ["node scripts/native-host-installer-smoke.mjs", "CI installer smoke script"],
+  ["native-host-linux-assets:", "CI Linux release asset job"],
+  ["native-host-windows-assets:", "CI Windows release asset job"],
+  ["x86_64-unknown-linux-gnu", "CI Linux x64 target"],
+  ["aarch64-unknown-linux-gnu", "CI Linux ARM64 target"],
+  ["x86_64-pc-windows-msvc", "CI Windows x64 target"],
+  ["aarch64-pc-windows-msvc", "CI Windows ARM64 target"],
+  ["ilammy/msvc-dev-cmd@v1", "CI Windows ARM64 MSVC setup"],
+  ["hover-trans-port-native-host-linux-0.2.17.tar.gz", "CI Linux inspect-first package"],
+  ["hover-trans-port-native-host-windows-0.2.17.zip", "CI Windows inspect-first package"]
+]) {
+  requireIncludes(ciWorkflow, expected, description);
+}
+
 requireNotIncludes(workflow, "contents: write", workflowPath);
 requireNotIncludes(workflow, "gh release create", workflowPath);
 requireNotIncludes(workflow, "push:", workflowPath);
+requireNotIncludes(workflow, "pull_request:", workflowPath);
 
 if (!packageJson.scripts?.["native:installer:smoke"]?.includes("native-host-installer-smoke.mjs")) {
   fail("package.json must expose native:installer:smoke");

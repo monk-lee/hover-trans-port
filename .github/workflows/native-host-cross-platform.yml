@@ -1,7 +1,6 @@
 name: Native Host Cross-Platform
 
 on:
-  pull_request:
   workflow_dispatch:
 
 permissions:
