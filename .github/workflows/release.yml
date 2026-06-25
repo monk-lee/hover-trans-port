@@ -79,14 +79,14 @@ jobs:
           - install-macos-native-host.sh: one-line native host installer
           - checksums.txt: SHA-256 checksums for native host assets
           - hover-trans-port-helper-macos-arm64: macOS ARM64 native helper
-          - hover-trans-port-native-host-macos-0.2.15.tar.gz: inspect-first native host package
+          - hover-trans-port-native-host-macos-0.2.16.tar.gz: inspect-first native host package
           - hover-trans-port-extension-${TAG_NAME}.zip: unpacked Chrome extension package built from dist/
 
           Highlights:
-          - Generalizes hover target detection beyond a small tag allowlist.
-          - Detects direct visible UI text such as form labels, buttons, and custom text elements.
-          - Avoids treating form input values as hover translation targets.
-          - Keeps inline sentence text scoped to the readable parent block when appropriate.
+          - Detects Codex CLI on Windows from the official installer, standalone Codex home, npm global shims, and PATH/Path.
+          - Preserves Unix Codex discovery while adding Windows PATHEXT-aware executable lookup.
+          - Gives Windows users actionable Codex setup guidance instead of only PROVIDER_NOT_FOUND.
+          - Updates Vite and esbuild dev dependencies to patched advisory-free versions.
 
           Native host update required:
           - Existing v0.2.4 installs that still report helper version v0.2.3 need one manual install command because their persisted updater copied the old helper.
@@ -111,7 +111,7 @@ jobs:
           test -f "$NATIVE_DIR/install-macos-native-host.sh"
           test -f "$NATIVE_DIR/checksums.txt"
           test -f "$NATIVE_DIR/hover-trans-port-helper-macos-arm64"
-          test -f "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.15.tar.gz"
+          test -f "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.16.tar.gz"
           test -f "$EXTENSION_ZIP"
           test -f build/release/release-notes.md
 
@@ -130,7 +130,7 @@ jobs:
             "$NATIVE_DIR/install-macos-native-host.sh" \
             "$NATIVE_DIR/checksums.txt" \
             "$NATIVE_DIR/hover-trans-port-helper-macos-arm64" \
-            "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.15.tar.gz" \
+            "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.16.tar.gz" \
             "$EXTENSION_ZIP" \
             --verify-tag \
             --latest \

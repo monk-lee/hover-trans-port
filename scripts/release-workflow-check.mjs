@@ -51,11 +51,11 @@ const requiredSnippets = [
   ["install-macos-native-host.sh", "script installer asset"],
   ["checksums.txt", "checksum asset"],
   ["hover-trans-port-helper-macos-arm64", "ARM64 helper asset"],
-  ["hover-trans-port-native-host-macos-0.2.15.tar.gz", "native host tarball asset"],
-  ["Generalizes hover target detection beyond a small tag allowlist", "generalized hover target release note"],
-  ["Detects direct visible UI text such as form labels, buttons, and custom text elements", "direct UI text release note"],
-  ["Avoids treating form input values as hover translation targets", "form input exclusion release note"],
-  ["Keeps inline sentence text scoped to the readable parent block when appropriate", "inline sentence parent release note"],
+  ["hover-trans-port-native-host-macos-0.2.16.tar.gz", "native host tarball asset"],
+  ["Detects Codex CLI on Windows from the official installer", "Windows Codex installer release note"],
+  ["Preserves Unix Codex discovery while adding Windows PATHEXT-aware executable lookup", "cross-platform Codex lookup release note"],
+  ["actionable Codex setup guidance instead of only PROVIDER_NOT_FOUND", "Codex unavailable guidance release note"],
+  ["Updates Vite and esbuild dev dependencies to patched advisory-free versions", "dependency advisory release note"],
   ["Native host update required:", "native host update release note"],
   ["Existing v0.2.4 installs that still report helper version v0.2.3 need one manual install command", "v0.2.4 updater bug release note"],
   ["Existing v0.2.5 and later native hosts can install future releases from Options", "update-capable host release note"],
@@ -80,7 +80,7 @@ const requiredCiSnippets = [
   ],
   ["pnpm macos:script-installer:build", "CI native host release asset build"],
   [
-    "hover-trans-port-native-host-macos-0.2.15.tar.gz",
+    "hover-trans-port-native-host-macos-0.2.16.tar.gz",
     "CI native host tarball asset"
   ],
   ["shasum -a 256 -c checksums.txt", "CI checksum verification"]
