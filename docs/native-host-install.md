@@ -161,14 +161,35 @@ Run `bash install-macos-native-host.sh install` from the release payload, then r
 
 ### Codex cannot be found
 
-Verify Codex CLI is installed and visible in your shell:
+Verify Codex CLI is installed and visible in your shell.
+
+On macOS or Linux:
 
 ```bash
 command -v codex
 codex --version
 ```
 
-Then click `Check Provider` and check the resolved binary path. Chrome on macOS may not inherit your shell `PATH`, so Codex must be available from a standard install path or from the environment used to launch Chrome.
+On Windows PowerShell or Command Prompt:
+
+```powershell
+where codex
+codex --version
+```
+
+HoverTransPort checks the official Windows installer and npm global locations in addition to `PATH`/`Path`:
+
+- `%LOCALAPPDATA%\Programs\OpenAI\Codex\bin\codex.exe`
+- `%CODEX_INSTALL_DIR%\codex.exe`
+- `%CODEX_HOME%\packages\standalone\current\bin\codex.exe`
+- `%USERPROFILE%\.codex\packages\standalone\current\bin\codex.exe`
+- `%APPDATA%\npm\codex.cmd`
+- `%APPDATA%\npm\codex.ps1`
+- `%APPDATA%\npm\codex.exe`
+
+For npm installs, run `npm install -g @openai/codex`, then restart Chrome so the native host receives the updated environment. If Codex is installed somewhere else, set `HOVER_TRANS_PORT_CODEX_PATH` to the full executable path.
+
+Then click `Check Provider` and check the resolved binary path. Chrome may not inherit your shell `PATH`, so Codex must be available from a standard install path or from the environment used to launch Chrome.
 
 ### Codex is not authenticated
 

@@ -49,8 +49,10 @@ Common browser and editing shortcuts such as Ctrl+C or Ctrl+F are blocked from t
 
 | Works today | Not yet |
 | --- | --- |
-| macOS and Google Chrome | Chrome Web Store install |
-| Unpacked extension loaded from `dist/` | Windows/Linux native host guide |
+| macOS native host release package and Google Chrome | Chrome Web Store install |
+| Unpacked extension loaded from `dist/` | Prebuilt Windows/Linux native host release packages |
+| Developer native-host install from source on macOS and Linux | One-line Windows/Linux native host installer |
+| Windows provider/helper compatibility checks | Windows native host install script and guide |
 | Codex, Claude, Gemini, OpenCode, and Antigravity CLI providers | Full-page automatic translation |
 | Hovered readable block and selection translation | PDF, iframe, OCR, or subtitle translation |
 | Inline rendering, local SQLite cache, and Options diagnostics | Hosted translation service |

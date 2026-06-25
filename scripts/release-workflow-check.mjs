@@ -72,6 +72,12 @@ const requiredSnippets = [
 ];
 
 const requiredCiSnippets = [
+  ["runs-on: windows-latest", "CI Windows runner"],
+  ["Codex Windows provider tests", "CI Windows Codex provider test step"],
+  [
+    "cargo test --manifest-path native-helper/Cargo.toml --lib providers::codex::tests",
+    "CI Windows Codex native helper tests"
+  ],
   ["pnpm macos:script-installer:build", "CI native host release asset build"],
   [
     "hover-trans-port-native-host-macos-0.2.15.tar.gz",

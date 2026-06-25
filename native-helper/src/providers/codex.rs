@@ -7,6 +7,9 @@ use tempfile::tempdir;
 use crate::messages::{ProviderId, ProviderStatusEntry};
 use crate::process::{run_process, ProcessRequest, ProviderError};
 use crate::prompt::build_translate_prompt;
+use crate::providers::executable::{
+    build_provider_env, command_candidates, env_value, find_binary,
+};
 use crate::providers::{
     Provider, ProviderModelCatalog, ProviderModelOption, ProviderTranslateRequest,
     ProviderTranslateResult,
@@ -293,71 +296,78 @@ pub fn build_codex_exec_args(model: &str, temp_dir: &Path, output_file: &Path) -
 }
 
 fn find_codex_binary(env: &BTreeMap<String, String>) -> Option<PathBuf> {
-    if let Some(path) = env
-        .get("HOVER_TRANS_PORT_CODEX_PATH")
-        .filter(|value| !value.trim().is_empty())
-    {
-        let candidate = PathBuf::from(path);
-        return is_executable(&candidate).then_some(candidate);
-    }
-
     let mut candidates = Vec::new();
-    if let Some(path) = env.get("PATH") {
-        candidates.extend(
-            path.split(':')
-                .filter(|value| !value.is_empty())
-                .map(|dir| Path::new(dir).join("codex")),
+    if let Some(install_dir) = env_value(env, "CODEX_INSTALL_DIR") {
+        candidates.push(Path::new(install_dir).join("codex.exe"));
+    }
+    if let Some(local_app_data) = env_value(env, "LOCALAPPDATA") {
+        candidates.push(
+            Path::new(local_app_data)
+                .join("Programs")
+                .join("OpenAI")
+                .join("Codex")
+                .join("bin")
+                .join("codex.exe"),
         );
+    }
+    if let Some(codex_home) = env_value(env, "CODEX_HOME") {
+        candidates.push(
+            Path::new(codex_home)
+                .join("packages")
+                .join("standalone")
+                .join("current")
+                .join("bin")
+                .join("codex.exe"),
+        );
+    }
+    if let Some(user_profile) = env_value(env, "USERPROFILE") {
+        candidates.push(
+            Path::new(user_profile)
+                .join(".codex")
+                .join("packages")
+                .join("standalone")
+                .join("current")
+                .join("bin")
+                .join("codex.exe"),
+        );
+    }
+    candidates.extend(command_candidates(env, "codex"));
+    if let Some(app_data) = env_value(env, "APPDATA") {
+        let npm_dir = Path::new(app_data).join("npm");
+        candidates.push(npm_dir.join("codex.cmd"));
+        candidates.push(npm_dir.join("codex.ps1"));
+        candidates.push(npm_dir.join("codex.exe"));
     }
     candidates.push(PathBuf::from("/opt/homebrew/bin/codex"));
     candidates.push(PathBuf::from("/usr/local/bin/codex"));
     candidates.push(PathBuf::from("/usr/bin/codex"));
 
-    candidates
-        .into_iter()
-        .find(|candidate| is_executable(candidate))
-}
-
-fn is_executable(path: &Path) -> bool {
-    path.is_file()
-        && path
-            .metadata()
-            .map(|metadata| {
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt;
-                    metadata.permissions().mode() & 0o111 != 0
-                }
-                #[cfg(not(unix))]
-                {
-                    !metadata.permissions().readonly()
-                }
-            })
-            .unwrap_or(false)
+    find_binary(env, "HOVER_TRANS_PORT_CODEX_PATH", candidates)
 }
 
 fn provider_env(env: &BTreeMap<String, String>, binary: &Path) -> BTreeMap<String, String> {
-    let mut next = BTreeMap::new();
-    for key in ["HOME", "CODEX_HOME", "TMPDIR", "USER", "LANG", "LC_ALL"] {
-        if let Some(value) = env.get(key).filter(|value| !value.is_empty()) {
-            next.insert(key.to_string(), value.clone());
-        }
-    }
-
-    let mut path_parts = Vec::new();
-    if let Some(path) = env.get("PATH").filter(|value| !value.is_empty()) {
-        path_parts.push(path.clone());
-    }
-    if let Some(parent) = binary.parent() {
-        path_parts.push(parent.display().to_string());
-    }
-    if !path_parts.is_empty() {
-        next.insert("PATH".to_string(), path_parts.join(":"));
-    }
-    next.entry("LANG".to_string())
-        .or_insert_with(|| "en_US.UTF-8".to_string());
-
-    next
+    build_provider_env(
+        env,
+        binary,
+        &[
+            "HOME",
+            "CODEX_HOME",
+            "CODEX_INSTALL_DIR",
+            "PATH",
+            "TMPDIR",
+            "USER",
+            "LANG",
+            "LC_ALL",
+            "USERPROFILE",
+            "APPDATA",
+            "LOCALAPPDATA",
+            "SystemRoot",
+            "ComSpec",
+            "PATHEXT",
+            "TEMP",
+            "TMP",
+        ],
+    )
 }
 
 fn compact_version(stdout: &str) -> String {
@@ -412,6 +422,9 @@ fn parse_codex_output(last_message: &str, stdout: &str) -> Result<String, Provid
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+
+    use tempfile::tempdir;
 
     #[test]
     fn resolve_codex_model_maps_unsupported_nano_to_default() {
@@ -421,6 +434,274 @@ mod tests {
             resolve_codex_model(&env, Some("gpt-5.4-nano"), DEFAULT_CODEX_MODEL),
             DEFAULT_CODEX_MODEL
         );
+    }
+
+    #[test]
+    fn find_codex_binary_finds_windows_path_env_with_cmd_extension() {
+        let temp = tempdir().unwrap();
+        let first_bin = temp.path().join("first");
+        let second_bin = temp.path().join("second");
+        fs::create_dir_all(&first_bin).unwrap();
+        fs::create_dir_all(&second_bin).unwrap();
+        let codex = second_bin.join("codex.cmd");
+        write_test_executable(&codex);
+
+        let mut env = BTreeMap::new();
+        env.insert(
+            "Path".to_string(),
+            format!("{};{}", first_bin.display(), second_bin.display()),
+        );
+        env.insert(
+            "PATHEXT".to_string(),
+            ".COM;.EXE;.CMD;.BAT;.PS1".to_string(),
+        );
+
+        assert_eq!(find_codex_binary(&env), Some(codex));
+    }
+
+    #[test]
+    #[cfg(not(windows))]
+    fn find_codex_binary_preserves_unix_path_lookup() {
+        let temp = tempdir().unwrap();
+        let first_bin = temp.path().join("first");
+        let second_bin = temp.path().join("second");
+        fs::create_dir_all(&first_bin).unwrap();
+        fs::create_dir_all(&second_bin).unwrap();
+        let codex = second_bin.join("codex");
+        write_test_executable(&codex);
+
+        let mut env = BTreeMap::new();
+        env.insert(
+            "PATH".to_string(),
+            format!("{}:{}", first_bin.display(), second_bin.display()),
+        );
+
+        assert_eq!(find_codex_binary(&env), Some(codex));
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn codex_status_executes_windows_npm_cmd_shim() {
+        let temp = tempdir().unwrap();
+        let app_data = temp.path().join("AppData").join("Roaming");
+        let codex = app_data.join("npm").join("codex.cmd");
+        fs::create_dir_all(codex.parent().unwrap()).unwrap();
+        fs::write(&codex, "@echo off\r\necho codex cmd-test-version\r\n").unwrap();
+
+        let mut env = BTreeMap::new();
+        env.insert("APPDATA".to_string(), app_data.display().to_string());
+        copy_process_env_if_present(&mut env, "Path");
+        copy_process_env_if_present(&mut env, "PATH");
+        copy_process_env_if_present(&mut env, "PATHEXT");
+        copy_process_env_if_present(&mut env, "SystemRoot");
+        copy_process_env_if_present(&mut env, "ComSpec");
+        copy_process_env_if_present(&mut env, "TEMP");
+        copy_process_env_if_present(&mut env, "TMP");
+        env.entry("Path".to_string())
+            .or_insert_with(|| "C:\\Windows\\System32".to_string());
+        env.entry("PATHEXT".to_string())
+            .or_insert_with(|| ".COM;.EXE;.CMD;.BAT;.PS1".to_string());
+        env.entry("SystemRoot".to_string())
+            .or_insert_with(|| "C:\\Windows".to_string());
+        env.entry("ComSpec".to_string())
+            .or_insert_with(|| "C:\\Windows\\System32\\cmd.exe".to_string());
+
+        let status = CodexProvider::new(env).status();
+
+        assert_eq!(status.available, true, "{status:?}");
+        assert_eq!(status.binary_path, Some(codex.display().to_string()));
+        assert_eq!(status.version, Some("codex cmd-test-version".to_string()));
+    }
+
+    #[test]
+    fn find_codex_binary_prefers_codex_install_dir_before_local_app_data() {
+        let temp = tempdir().unwrap();
+        let install_dir = temp.path().join("CodexInstallDir");
+        let install_codex = install_dir.join("codex.exe");
+        write_test_executable(&install_codex);
+
+        let local_app_data = temp.path().join("LocalAppData");
+        let local_app_codex = local_app_data
+            .join("Programs")
+            .join("OpenAI")
+            .join("Codex")
+            .join("bin")
+            .join("codex.exe");
+        write_test_executable(&local_app_codex);
+
+        let mut env = BTreeMap::new();
+        env.insert(
+            "CODEX_INSTALL_DIR".to_string(),
+            install_dir.display().to_string(),
+        );
+        env.insert(
+            "LOCALAPPDATA".to_string(),
+            local_app_data.display().to_string(),
+        );
+
+        assert_eq!(find_codex_binary(&env), Some(install_codex));
+    }
+
+    #[test]
+    fn find_codex_binary_finds_official_windows_installer_path() {
+        let temp = tempdir().unwrap();
+        let local_app_data = temp.path().join("LocalAppData");
+        let codex = local_app_data
+            .join("Programs")
+            .join("OpenAI")
+            .join("Codex")
+            .join("bin")
+            .join("codex.exe");
+        write_test_executable(&codex);
+
+        let mut env = BTreeMap::new();
+        env.insert(
+            "LOCALAPPDATA".to_string(),
+            local_app_data.display().to_string(),
+        );
+
+        assert_eq!(find_codex_binary(&env), Some(codex));
+    }
+
+    #[test]
+    fn find_codex_binary_prefers_codex_home_before_user_profile_standalone() {
+        let temp = tempdir().unwrap();
+        let codex_home = temp.path().join("custom-codex-home");
+        let codex_home_binary = codex_home
+            .join("packages")
+            .join("standalone")
+            .join("current")
+            .join("bin")
+            .join("codex.exe");
+        write_test_executable(&codex_home_binary);
+
+        let user_profile = temp.path().join("Users").join("lee");
+        let user_profile_binary = user_profile
+            .join(".codex")
+            .join("packages")
+            .join("standalone")
+            .join("current")
+            .join("bin")
+            .join("codex.exe");
+        write_test_executable(&user_profile_binary);
+
+        let mut env = BTreeMap::new();
+        env.insert("CODEX_HOME".to_string(), codex_home.display().to_string());
+        env.insert(
+            "USERPROFILE".to_string(),
+            user_profile.display().to_string(),
+        );
+
+        assert_eq!(find_codex_binary(&env), Some(codex_home_binary));
+    }
+
+    #[test]
+    fn find_codex_binary_finds_windows_npm_global_cmd() {
+        let temp = tempdir().unwrap();
+        let app_data = temp.path().join("AppData").join("Roaming");
+        let codex = app_data.join("npm").join("codex.cmd");
+        write_test_executable(&codex);
+
+        let mut env = BTreeMap::new();
+        env.insert("APPDATA".to_string(), app_data.display().to_string());
+
+        assert_eq!(find_codex_binary(&env), Some(codex));
+    }
+
+    #[test]
+    fn provider_env_keeps_windows_codex_environment_and_path_key() {
+        let temp = tempdir().unwrap();
+        let bin_dir = temp.path().join("codex-bin");
+        let binary = bin_dir.join("codex.exe");
+        write_test_executable(&binary);
+
+        let mut env = BTreeMap::new();
+        env.insert("Path".to_string(), "C:\\Windows\\System32".to_string());
+        env.insert("USERPROFILE".to_string(), "C:\\Users\\lee".to_string());
+        env.insert(
+            "APPDATA".to_string(),
+            "C:\\Users\\lee\\AppData\\Roaming".to_string(),
+        );
+        env.insert(
+            "LOCALAPPDATA".to_string(),
+            "C:\\Users\\lee\\AppData\\Local".to_string(),
+        );
+        env.insert("SystemRoot".to_string(), "C:\\Windows".to_string());
+        env.insert(
+            "ComSpec".to_string(),
+            "C:\\Windows\\System32\\cmd.exe".to_string(),
+        );
+        env.insert(
+            "PATHEXT".to_string(),
+            ".COM;.EXE;.CMD;.BAT;.PS1".to_string(),
+        );
+        env.insert(
+            "TEMP".to_string(),
+            "C:\\Users\\lee\\AppData\\Local\\Temp".to_string(),
+        );
+        env.insert(
+            "TMP".to_string(),
+            "C:\\Users\\lee\\AppData\\Local\\Temp".to_string(),
+        );
+
+        let provider_env = provider_env(&env, &binary);
+
+        assert_eq!(
+            provider_env.get("USERPROFILE").map(String::as_str),
+            Some("C:\\Users\\lee")
+        );
+        assert_eq!(
+            provider_env.get("APPDATA").map(String::as_str),
+            Some("C:\\Users\\lee\\AppData\\Roaming")
+        );
+        assert_eq!(
+            provider_env.get("LOCALAPPDATA").map(String::as_str),
+            Some("C:\\Users\\lee\\AppData\\Local")
+        );
+        assert_eq!(
+            provider_env.get("SystemRoot").map(String::as_str),
+            Some("C:\\Windows")
+        );
+        assert_eq!(
+            provider_env.get("ComSpec").map(String::as_str),
+            Some("C:\\Windows\\System32\\cmd.exe")
+        );
+        assert_eq!(
+            provider_env.get("PATHEXT").map(String::as_str),
+            Some(".COM;.EXE;.CMD;.BAT;.PS1")
+        );
+        assert_eq!(
+            provider_env.get("TEMP").map(String::as_str),
+            Some("C:\\Users\\lee\\AppData\\Local\\Temp")
+        );
+        assert_eq!(
+            provider_env.get("TMP").map(String::as_str),
+            Some("C:\\Users\\lee\\AppData\\Local\\Temp")
+        );
+        let path = provider_env.get("Path").expect("Path should be preserved");
+        assert!(path.contains("C:\\Windows\\System32"));
+        assert!(path.contains(&bin_dir.display().to_string()));
+    }
+
+    fn write_test_executable(path: &Path) {
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, "#!/bin/sh\nexit 0\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = fs::metadata(path).unwrap().permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(path, permissions).unwrap();
+        }
+    }
+
+    #[cfg(windows)]
+    fn copy_process_env_if_present(env: &mut BTreeMap<String, String>, key: &str) {
+        if let Ok(value) = std::env::var(key) {
+            if !value.trim().is_empty() {
+                env.insert(key.to_string(), value);
+            }
+        }
     }
 }
 
