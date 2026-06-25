@@ -21,16 +21,18 @@ Chrome Web Store installation is not currently supported.
 
 The script installers use prebuilt native helpers from GitHub Releases. They do not require Node.js, pnpm, Cargo, Xcode, or Visual Studio on the target machine.
 
-For a one-line install from GitHub Releases on macOS or Linux:
+Download the installer from GitHub Releases, inspect it if needed, then run it on macOS or Linux:
 
 ```bash
-curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.sh | bash
+curl -fLO https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.sh
+bash install.sh install
 ```
 
-For a one-line install from GitHub Releases on Windows, run PowerShell:
+On Windows, run PowerShell:
 
 ```powershell
-irm https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.ps1 | iex
+Invoke-WebRequest https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.ps1 -OutFile install.ps1
+.\install.ps1 install
 ```
 
 The release must include these individual assets so the installer can fetch the right helper for the current platform:
@@ -57,7 +59,7 @@ cd hover-trans-port-native-host-macos-0.2.17
 bash install.sh install
 ```
 
-The safer inspect-first form on macOS or Linux is:
+The latest-release download form on macOS or Linux is:
 
 ```bash
 curl -fLO https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.sh
@@ -77,6 +79,7 @@ The Windows PowerShell download form is:
 
 ```powershell
 Invoke-WebRequest https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.ps1 -OutFile install.ps1
+.\install.ps1 install
 .\install.ps1 status
 .\install.ps1 uninstall
 ```
@@ -107,13 +110,15 @@ The first update-capable native host must be installed manually because older na
 The extension also checks occasionally when it is opened or used. If it detects an older native host that cannot update itself, Popup and Options show the one-time manual update command:
 
 ```bash
-curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.sh | bash
+curl -fLO https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.sh
+bash install.sh install
 ```
 
 On Windows PowerShell, run:
 
 ```powershell
-irm https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.ps1 | iex
+Invoke-WebRequest https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.ps1 -OutFile install.ps1
+.\install.ps1 install
 ```
 
 Updates are user-confirmed. The extension does not silently replace the native helper.

@@ -4,10 +4,10 @@ import type {
 } from "./messages";
 
 export const MANUAL_NATIVE_HOST_UPDATE_COMMAND =
-  "curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.sh | bash";
+  "curl -fLO https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.sh\nbash install.sh install";
 
 export const MANUAL_NATIVE_HOST_UPDATE_WINDOWS_COMMAND =
-  "irm https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.ps1 | iex";
+  "Invoke-WebRequest https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.ps1 -OutFile install.ps1\n.\\install.ps1 install";
 
 export function getManualNativeHostUpdateCommand(platform?: string): string {
   const normalizedPlatform = platform?.toLowerCase();
@@ -125,7 +125,7 @@ export function formatNativeHostUpdateStatusForUser(
   ) {
     return {
       title: "Native Host update required",
-      detail: `${status.message} Run once, then reload the extension: ${getManualNativeHostUpdateCommand(platform)}`,
+      detail: `${status.message} Download the installer, inspect it if needed, then run once and reload the extension:\n${getManualNativeHostUpdateCommand(platform)}`,
       attention: true
     };
   }

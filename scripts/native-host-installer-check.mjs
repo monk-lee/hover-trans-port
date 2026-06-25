@@ -33,6 +33,10 @@ const macosCompatibilityInstaller = join(
 );
 const windowsInstaller = join(repoRoot, "scripts/install-windows-native-host.ps1");
 const installerSmoke = join(repoRoot, "scripts/native-host-installer-smoke.mjs");
+const releaseAssetBuilder = join(
+  repoRoot,
+  "scripts/build-native-host-release-assets.mjs"
+);
 const extensionId = "mmbmjpmhmlkjknhcigafgplahdbicabe";
 const embeddedPayloadMarker = "HOVER_TRANS_PORT_INSTALL_SH_PAYLOAD";
 const powershellInstaller = readFileSync(windowsInstaller, "utf8");
@@ -84,6 +88,28 @@ function runFailure(args, env) {
   }
 
   throw new Error(`expected installer to fail for args: ${args.join(" ")}`);
+}
+
+function runReleaseAssetBuilderFailure(args, env = {}) {
+  try {
+    execFileSync("node", [releaseAssetBuilder, ...args], {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        ...env
+      },
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+  } catch (error) {
+    return {
+      status: error.status,
+      stdout: error.stdout ?? "",
+      stderr: error.stderr ?? ""
+    };
+  }
+
+  throw new Error(`expected release asset builder to fail for args: ${args.join(" ")}`);
 }
 
 function runInstallerJson(installerPath, args, env) {
@@ -352,6 +378,50 @@ assert(
   powershellInstaller.includes('Join-Path $manifestDir "$HostName.json"'),
   "PowerShell installer should write one manifest file per browser target"
 );
+
+withTempRoot("release-asset-traversal", (root) => {
+  const helper = makeFixtureHelper(root, "release-asset");
+  const result = runReleaseAssetBuilderFailure([
+    "--platform",
+    "linux",
+    "--asset",
+    "hover-trans-port-helper-linux-x64/../../evil",
+    "--helper",
+    helper,
+    "--out-dir",
+    join(root, "out")
+  ]);
+
+  assert(result.status !== 0, "release asset builder should reject traversal assets");
+  assert(
+    result.stderr.includes("invalid helper asset name"),
+    "release asset builder should report invalid helper asset names explicitly"
+  );
+  assertNot(
+    existsSync(join(root, "evil")),
+    "release asset builder should not write assets outside the output directory"
+  );
+});
+
+withTempRoot("release-asset-allowlist", (root) => {
+  const helper = makeFixtureHelper(root, "release-asset");
+  const result = runReleaseAssetBuilderFailure([
+    "--platform",
+    "linux",
+    "--asset",
+    "hover-trans-port-helper-linux-s390x",
+    "--helper",
+    helper,
+    "--out-dir",
+    join(root, "out")
+  ]);
+
+  assert(result.status !== 0, "release asset builder should reject unsupported assets");
+  assert(
+    result.stderr.includes("unsupported linux helper asset"),
+    "release asset builder should report unsupported platform assets explicitly"
+  );
+});
 
 for (const target of getNativeHostBrowserTargets("win32", "C:\\Users\\tester")) {
   assert(

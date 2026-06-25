@@ -28,13 +28,15 @@ This project is not affiliated with, endorsed by, or sponsored by OpenAI, Codex,
    macOS/Linux:
 
    ```bash
-   curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.sh | bash
+   curl -fLO https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.sh
+   bash install.sh install
    ```
 
    Windows PowerShell:
 
    ```powershell
-   irm https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.ps1 | iex
+   Invoke-WebRequest https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.ps1 -OutFile install.ps1
+   .\install.ps1 install
    ```
 
 4. Open the extension Options page and run `Check Native Host` and `Check Provider`.
