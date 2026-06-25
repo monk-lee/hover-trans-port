@@ -52,8 +52,8 @@ for (const [expected, description] of [
   ["aarch64-unknown-linux-gnu", "Linux ARM64 target"],
   ["x86_64-pc-windows-msvc", "Windows x64 target"],
   ["aarch64-pc-windows-msvc", "Windows ARM64 target"],
-  ["ilammy/msvc-dev-cmd@v1", "Windows ARM64 MSVC setup"],
-  ["arch: amd64_arm64", "Windows ARM64 toolchain arch"],
+  ["vcvarsall.bat", "Windows ARM64 MSVC setup"],
+  ["amd64_arm64", "Windows ARM64 toolchain arch"],
   ["actions/upload-artifact@v4", "dry-run artifact upload"],
   ["build-native-host-release-assets.mjs", "release asset builder"],
   ["hover-trans-port-native-host-macos-0.2.17.tar.gz", "macOS inspect-first package"],
@@ -77,7 +77,7 @@ for (const [expected, description] of [
   ["aarch64-unknown-linux-gnu", "CI Linux ARM64 target"],
   ["x86_64-pc-windows-msvc", "CI Windows x64 target"],
   ["aarch64-pc-windows-msvc", "CI Windows ARM64 target"],
-  ["ilammy/msvc-dev-cmd@v1", "CI Windows ARM64 MSVC setup"],
+  ["vcvarsall.bat", "CI Windows ARM64 MSVC setup"],
   ["hover-trans-port-native-host-linux-0.2.17.tar.gz", "CI Linux inspect-first package"],
   ["hover-trans-port-native-host-windows-0.2.17.zip", "CI Windows inspect-first package"]
 ]) {
@@ -88,6 +88,8 @@ requireNotIncludes(workflow, "contents: write", workflowPath);
 requireNotIncludes(workflow, "gh release create", workflowPath);
 requireNotIncludes(workflow, "push:", workflowPath);
 requireNotIncludes(workflow, "pull_request:", workflowPath);
+requireNotIncludes(workflow, "ilammy/msvc-dev-cmd", workflowPath);
+requireNotIncludes(ciWorkflow, "ilammy/msvc-dev-cmd", ciWorkflowPath);
 
 if (!packageJson.scripts?.["native:installer:smoke"]?.includes("native-host-installer-smoke.mjs")) {
   fail("package.json must expose native:installer:smoke");

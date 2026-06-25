@@ -248,21 +248,32 @@ jobs:
             --helper native-helper/target/x86_64-pc-windows-msvc/release/hover-trans-port-helper.exe `
             --out-dir build/native-host-release-assets/windows
 
-      - name: Setup Windows ARM64 MSVC
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: amd64_arm64
-
       - name: Build Windows ARM64 native host asset
         shell: pwsh
         run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $installationPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.ARM64 -property installationPath
+          if ([string]::IsNullOrWhiteSpace($installationPath)) {
+            throw "Visual Studio ARM64 C++ tools were not found."
+          }
+          $vcvarsAll = Join-Path $installationPath "VC\Auxiliary\Build\vcvarsall.bat"
+          if (-not (Test-Path -LiteralPath $vcvarsAll)) {
+            throw "vcvarsall.bat was not found: $vcvarsAll"
+          }
+          $cmdPath = Join-Path $env:TEMP "hover-trans-port-build-windows-arm64.cmd"
+          @"
+          @echo off
+          call "$vcvarsAll" amd64_arm64
+          if errorlevel 1 exit /b %errorlevel%
           cargo build --release --manifest-path native-helper/Cargo.toml --target aarch64-pc-windows-msvc
-          $env:HOVER_TRANS_PORT_HELPER_ASSET_NAME = "hover-trans-port-helper-windows-arm64.exe"
-          node scripts/build-native-host-release-assets.mjs `
-            --platform windows `
-            --asset hover-trans-port-helper-windows-arm64.exe `
-            --helper native-helper/target/aarch64-pc-windows-msvc/release/hover-trans-port-helper.exe `
-            --out-dir build/native-host-release-assets/windows
+          if errorlevel 1 exit /b %errorlevel%
+          node scripts/build-native-host-release-assets.mjs --platform windows --asset hover-trans-port-helper-windows-arm64.exe --helper native-helper/target/aarch64-pc-windows-msvc/release/hover-trans-port-helper.exe --out-dir build/native-host-release-assets/windows
+          if errorlevel 1 exit /b %errorlevel%
+          "@ | Set-Content -LiteralPath $cmdPath -Encoding ASCII
+          & cmd.exe /d /s /c "`"$cmdPath`""
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
 
       - name: Check Windows native host assets
         shell: pwsh

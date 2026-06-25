@@ -202,8 +202,8 @@ const requiredSnippets = [
   ["build-native-linux:", "Linux native host build job"],
   ["build-native-windows:", "Windows native host build job"],
   ["needs:", "publish waits for native host artifacts"],
-  ["ilammy/msvc-dev-cmd@v1", "Windows ARM64 MSVC developer command prompt"],
-  ["arch: amd64_arm64", "Windows ARM64 cross compiler architecture"],
+  ["vcvarsall.bat", "Windows ARM64 MSVC developer command prompt"],
+  ["amd64_arm64", "Windows ARM64 cross compiler architecture"],
   ["pnpm install --frozen-lockfile", "frozen pnpm install"],
   ["pnpm verify", "full verification before release"],
   ["pnpm build", "extension build"],
@@ -270,6 +270,7 @@ requireNotIncludes(releaseWorkflow, "--prerelease", "prerelease flag");
 requireNotIncludes(releaseWorkflow, "dev-monk-lee", "old GitHub repository owner");
 requireNotIncludes(releaseWorkflow, "Developer Preview", "developer preview release title");
 requireNotIncludes(releaseWorkflow, "developer preview", "developer preview release wording");
+requireNotIncludes(releaseWorkflow, "ilammy/msvc-dev-cmd", "third-party MSVC setup action");
 
 const publishJob = extractJob(releaseWorkflow, "publish");
 const buildExtensionJob = extractJob(releaseWorkflow, "build-extension");
