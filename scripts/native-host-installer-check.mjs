@@ -403,9 +403,21 @@ assert(
   powershellInstaller.includes("Uninstall-Host $AllTargets"),
   "PowerShell uninstall should unregister every known browser target"
 );
+assert(
+  powershellInstaller.includes("function Remove-RegistryKeyIfPresent"),
+  "PowerShell uninstall should tolerate missing registry keys"
+);
+assert(
+  powershellInstaller.includes("Remove-RegistryKeyIfPresent $registryPath $view"),
+  "PowerShell uninstall should delete registry keys through the tolerant helper"
+);
 assertNot(
   powershellInstaller.includes('"uninstall" { Uninstall-Host $SelectedTargets }'),
   "PowerShell uninstall should not use selected-only targets"
+);
+assertNot(
+  powershellInstaller.includes("& reg.exe delete $registryPath /f $view 2>$null | Out-Null"),
+  "PowerShell uninstall should not call reg.exe delete directly under ErrorActionPreference=Stop"
 );
 assertNot(
   powershellInstaller.includes("$PersistedInstallerPath"),

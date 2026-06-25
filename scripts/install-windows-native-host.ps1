@@ -430,13 +430,34 @@ function Register-Manifests {
   }
 }
 
+function Remove-RegistryKeyIfPresent {
+  param(
+    [string]$RegistryPath,
+    [string]$View
+  )
+
+  $previousErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = "Continue"
+    & reg.exe delete $RegistryPath /f $View 2>$null | Out-Null
+  } catch {
+    # Missing keys are normal for idempotent uninstall and can be surfaced as
+    # NativeCommandError when PowerShell is running with ErrorActionPreference=Stop.
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+    if ($LASTEXITCODE -ne 0) {
+      $global:LASTEXITCODE = 0
+    }
+  }
+}
+
 function Unregister-Manifests {
   param([array]$Targets)
 
   foreach ($target in $Targets) {
     $registryPath = $target["RegistryKey"]
     foreach ($view in @("/reg:32", "/reg:64")) {
-      & reg.exe delete $registryPath /f $view 2>$null | Out-Null
+      Remove-RegistryKeyIfPresent $registryPath $view
     }
   }
 }
