@@ -26,6 +26,12 @@ function assertIncludes(content, expected, label) {
   }
 }
 
+function assertNotIncludes(content, unexpected, label) {
+  if (content.includes(unexpected)) {
+    fail(`${label} must not include ${JSON.stringify(unexpected)}`);
+  }
+}
+
 function assertRequiredFiles(paths) {
   for (const path of paths) {
     read(path);
@@ -273,6 +279,15 @@ assertIncludes(
 );
 
 const releaseChecklist = read("docs/open-source-release-checklist.md");
+for (const [content, label] of [
+  [readme, "README.md"],
+  [read("readmes/README.ko.md"), "readmes/README.ko.md"],
+  [nativeHostInstall, "docs/native-host-install.md"],
+  [releaseChecklist, "docs/open-source-release-checklist.md"]
+]) {
+  assertNotIncludes(content, "| bash", label);
+  assertNotIncludes(content, "| iex", label);
+}
 assertIncludes(releaseChecklist, "install.sh", "docs/open-source-release-checklist.md");
 assertIncludes(releaseChecklist, "install.ps1", "docs/open-source-release-checklist.md");
 assertIncludes(

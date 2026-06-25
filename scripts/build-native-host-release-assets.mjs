@@ -16,6 +16,29 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const supportedPlatforms = new Set(["macos", "linux", "windows"]);
+const supportedHelperAssetsByPlatform = new Map([
+  [
+    "macos",
+    new Set([
+      "hover-trans-port-helper-macos-arm64",
+      "hover-trans-port-helper-macos-x64"
+    ])
+  ],
+  [
+    "linux",
+    new Set([
+      "hover-trans-port-helper-linux-arm64",
+      "hover-trans-port-helper-linux-x64"
+    ])
+  ],
+  [
+    "windows",
+    new Set([
+      "hover-trans-port-helper-windows-arm64.exe",
+      "hover-trans-port-helper-windows-x64.exe"
+    ])
+  ]
+]);
 
 function usage() {
   return [
@@ -123,8 +146,34 @@ function createArchive(platform, outDir, packageName, archiveName) {
   run("tar", ["-czf", archiveName, packageName], { cwd: outDir });
 }
 
-function expectedHelperPrefix(platform) {
-  return `hover-trans-port-helper-${platform}-`;
+function expectedHelperAssets(platform) {
+  return supportedHelperAssetsByPlatform.get(platform) ?? new Set();
+}
+
+function validateHelperAssetName(platform, assetName) {
+  if (
+    assetName !== path.basename(assetName) ||
+    assetName.includes("/") ||
+    assetName.includes("\\") ||
+    assetName.includes("\0") ||
+    assetName.includes("..")
+  ) {
+    fail(`invalid helper asset name: ${assetName}`);
+  }
+
+  if (!expectedHelperAssets(platform).has(assetName)) {
+    fail(`unsupported ${platform} helper asset: ${assetName}`);
+  }
+}
+
+function assertInsideDirectory(parentDir, childPath, description) {
+  const parent = path.resolve(parentDir);
+  const child = path.resolve(childPath);
+  const relative = path.relative(parent, child);
+
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    fail(`${description} must stay inside output directory: ${childPath}`);
+  }
 }
 
 async function main() {
@@ -141,9 +190,7 @@ async function main() {
     fail(`--asset or HOVER_TRANS_PORT_HELPER_ASSET_NAME is required\n${usage()}`);
   }
 
-  if (!assetName.startsWith(expectedHelperPrefix(platform))) {
-    fail(`asset name does not match platform ${platform}: ${assetName}`);
-  }
+  validateHelperAssetName(platform, assetName);
 
   if (!helperPath) {
     fail(`--helper is required\n${usage()}`);
@@ -179,10 +226,11 @@ async function main() {
   }
 
   const helperDestination = path.join(outDir, assetName);
+  assertInsideDirectory(outDir, helperDestination, "helper asset destination");
   await copyReleaseFile(helperPath, helperDestination, 0o755);
 
   const helperAssets = (await readdir(outDir))
-    .filter((entry) => entry.startsWith(expectedHelperPrefix(platform)))
+    .filter((entry) => expectedHelperAssets(platform).has(entry))
     .sort();
   const checksumFiles = [
     "install.sh",

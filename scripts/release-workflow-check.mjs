@@ -227,7 +227,7 @@ const requiredSnippets = [
   ["ubuntu-latest", "linux release runner"],
   ["windows-latest", "windows release runner"],
   ["Adds prebuilt native host release packages for macOS, Linux, and Windows", "cross-platform native host release note"],
-  ["Adds one-line macOS/Linux and Windows PowerShell native host installers", "cross-platform installer release note"],
+  ["Adds macOS/Linux and Windows PowerShell native host installers with download-then-run guidance", "cross-platform installer release note"],
   ["Registers Chrome Native Messaging manifests on Linux and Windows", "platform manifest release note"],
   ["Preserves the v0.2.16 Codex Windows installer", "Codex Windows discovery release note"],
   ["Native host update required:", "native host update release note"],

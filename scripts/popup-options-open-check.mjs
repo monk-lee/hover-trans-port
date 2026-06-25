@@ -232,6 +232,10 @@ const manualUpdateStatus = {
   retryable: false,
   manualUpdateRequired: true
 };
+const expectedUnixManualUpdateCommand =
+  "curl -fLO https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.sh\nbash install.sh install";
+const expectedWindowsManualUpdateCommand =
+  "Invoke-WebRequest https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.ps1 -OutFile install.ps1\n.\\install.ps1 install";
 
 const nativeHostUpdate = await import(
   `${pathToFileURL(join(tempSharedDir, "nativeHostUpdate.js")).href}?shared-format`
@@ -240,24 +244,20 @@ const nativeHostUpdate = await import(
 assertEqual(
   nativeHostUpdate
     .formatNativeHostUpdateStatusForUser(manualUpdateStatus)
-    .detail.includes(
-      "curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.sh | bash"
-    ),
+    .detail.includes(expectedUnixManualUpdateCommand),
   true,
-  "shared formatter defaults to Unix manual update command"
+  "shared formatter defaults to inspectable Unix manual update command"
 );
 assertEqual(
   nativeHostUpdate
     .formatNativeHostUpdateStatusForUser(manualUpdateStatus, "Win32")
-    .detail.includes(
-      "irm https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.ps1 | iex"
-    ),
+    .detail.includes(expectedWindowsManualUpdateCommand),
   true,
-  "shared formatter uses Windows manual update command"
+  "shared formatter uses inspectable Windows manual update command"
 );
 assertEqual(
   nativeHostUpdate.getManualNativeHostUpdateCommand("Win64"),
-  "irm https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.ps1 | iex",
+  expectedWindowsManualUpdateCommand,
   "manual update command normalizes Win64 platform"
 );
 
@@ -303,11 +303,9 @@ try {
   assertEqual(
     manualUpdateElements
       .get("#status-detail")
-      .textContent.includes(
-        "curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.sh | bash"
-      ),
+      .textContent.includes(expectedUnixManualUpdateCommand),
     true,
-    "popup shows manual update command"
+    "popup shows inspectable manual update command"
   );
 
   manualUpdateElements.get("#open-options").dispatch("click");

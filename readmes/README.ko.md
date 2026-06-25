@@ -30,13 +30,15 @@ Chrome Native Messaging으로 로컬 helper를 호출하고, helper는 사용자
    macOS/Linux:
 
    ```bash
-   curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.sh | bash
+   curl -fLO https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.sh
+   bash install.sh install
    ```
 
    Windows PowerShell:
 
    ```powershell
-   irm https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.ps1 | iex
+   Invoke-WebRequest https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.ps1 -OutFile install.ps1
+   .\install.ps1 install
    ```
 
 4. Options 페이지에서 `Check Native Host`와 `Check Provider`를 실행합니다.

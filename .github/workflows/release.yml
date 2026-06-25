@@ -409,7 +409,7 @@ jobs:
 
           Highlights:
           - Adds prebuilt native host release packages for macOS, Linux, and Windows.
-          - Adds one-line macOS/Linux and Windows PowerShell native host installers.
+          - Adds macOS/Linux and Windows PowerShell native host installers with download-then-run guidance.
           - Registers Chrome Native Messaging manifests on Linux and Windows with platform-specific install paths.
           - Preserves the v0.2.16 Codex Windows installer, standalone, npm global, and PATH/Path discovery fixes.
 

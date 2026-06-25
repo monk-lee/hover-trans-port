@@ -10,6 +10,12 @@ function assertIncludes(text, needle, path) {
   }
 }
 
+function assertNotIncludes(text, needle, path) {
+  if (text.includes(needle)) {
+    throw new Error(`${path} must not include ${needle}`);
+  }
+}
+
 function assertMatches(text, pattern, path, message) {
   if (!pattern.test(text)) {
     throw new Error(`${path} must include ${message}`);
@@ -188,6 +194,16 @@ assertIncludes(
   readText("src/shared/nativeHostUpdate.ts"),
   "getManualNativeHostUpdateCommand",
   "manual update command must be platform-aware"
+);
+assertNotIncludes(
+  readText("src/shared/nativeHostUpdate.ts"),
+  "| bash",
+  "manual update command must not pipe remote scripts into bash"
+);
+assertNotIncludes(
+  readText("src/shared/nativeHostUpdate.ts"),
+  "| iex",
+  "manual update command must not pipe remote scripts into PowerShell"
 );
 assertMatches(
   readText("src/shared/nativeHostUpdate.ts"),
