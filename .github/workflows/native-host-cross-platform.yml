@@ -1,77 +1,18 @@
-name: CI
+name: Native Host Cross-Platform
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: native-host-cross-platform-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  codex-windows-provider:
-    name: Codex Windows provider tests
-    runs-on: windows-latest
-    timeout-minutes: 30
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Prepare Rust
-        run: rustup toolchain install stable --profile minimal
-
-      - name: Run Codex provider tests
-        run: cargo test --manifest-path native-helper/Cargo.toml --lib providers::codex::tests -- --nocapture
-
-  verify:
-    name: Verify macOS ARM64
-    runs-on: macos-15
-    timeout-minutes: 30
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Activate pnpm
-        run: corepack prepare pnpm@10.32.1 --activate
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Prepare Rust
-        run: rustup toolchain install stable --profile minimal
-
-      - name: Verify
-        run: pnpm verify
-
-      - name: Build macOS ARM64 installer assets
-        run: pnpm macos:script-installer:build
-
-      - name: Check installer assets
-        run: |
-          test -f build/macos-script-installer/install-macos-native-host.sh
-          test -f build/macos-script-installer/checksums.txt
-          test -f build/macos-script-installer/hover-trans-port-helper-macos-arm64
-          test -f build/macos-script-installer/hover-trans-port-native-host-macos-0.2.17.tar.gz
-          cd build/macos-script-installer
-          shasum -a 256 -c checksums.txt
-
-  native-host-installer-smoke:
-    name: Native host installer smoke ${{ matrix.os }}
+  installer-smoke:
+    name: Installer smoke ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
@@ -102,8 +43,59 @@ jobs:
       - name: Run native host installer smoke
         run: node scripts/native-host-installer-smoke.mjs
 
-  native-host-linux-assets:
-    name: Native host release assets Linux
+  release-assets-macos:
+    name: Release assets dry-run macOS
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Prepare Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Build macOS native host release assets
+        run: |
+          rm -rf build/native-host-release-assets/macos
+
+          cargo build --release --manifest-path native-helper/Cargo.toml --target aarch64-apple-darwin
+          node scripts/build-native-host-release-assets.mjs \
+            --platform macos \
+            --asset hover-trans-port-helper-macos-arm64 \
+            --helper native-helper/target/aarch64-apple-darwin/release/hover-trans-port-helper \
+            --out-dir build/native-host-release-assets/macos
+
+          cargo build --release --manifest-path native-helper/Cargo.toml --target x86_64-apple-darwin
+          node scripts/build-native-host-release-assets.mjs \
+            --platform macos \
+            --asset hover-trans-port-helper-macos-x64 \
+            --helper native-helper/target/x86_64-apple-darwin/release/hover-trans-port-helper \
+            --out-dir build/native-host-release-assets/macos
+
+          (
+            cd build/native-host-release-assets/macos
+            shasum -a 256 -c checksums.txt
+            test -f hover-trans-port-native-host-macos-0.2.17.tar.gz
+          )
+
+      - name: Upload macOS native host assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-host-macos-dry-run
+          if-no-files-found: error
+          path: build/native-host-release-assets/macos
+
+  release-assets-linux:
+    name: Release assets dry-run Linux
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -152,8 +144,15 @@ jobs:
             test -f hover-trans-port-native-host-linux-0.2.17.tar.gz
           )
 
-  native-host-windows-assets:
-    name: Native host release assets Windows
+      - name: Upload Linux native host assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-host-linux-dry-run
+          if-no-files-found: error
+          path: build/native-host-release-assets/linux
+
+  release-assets-windows:
+    name: Release assets dry-run Windows
     runs-on: windows-latest
     timeout-minutes: 45
 
@@ -229,3 +228,10 @@ jobs:
           if (-not (Test-Path -LiteralPath (Join-Path $nativeDir "hover-trans-port-native-host-windows-0.2.17.zip"))) {
             throw "missing Windows inspect-first package"
           }
+
+      - name: Upload Windows native host assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-host-windows-dry-run
+          if-no-files-found: error
+          path: build/native-host-release-assets/windows

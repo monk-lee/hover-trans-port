@@ -42,6 +42,9 @@ export const PROVIDER_DEFAULT_MODELS: Record<ProviderId, string> = {
   antigravity: ""
 };
 
+export const CODEX_NOT_FOUND_GUIDANCE =
+  "Codex CLI was not found. Windows: install Codex with the official OpenAI installer or run npm install -g @openai/codex, then restart Chrome. Expected paths include %LOCALAPPDATA%\\Programs\\OpenAI\\Codex\\bin\\codex.exe and %APPDATA%\\npm\\codex.cmd. You can also set HOVER_TRANS_PORT_CODEX_PATH.";
+
 export const PROVIDER_FALLBACK_MODEL_CATALOGS: Record<
   ProviderId,
   ProviderModelCatalog
@@ -135,6 +138,23 @@ export function getProviderLabel(
 ): string {
   const providerId = resolveProviderForModel(normalizeProvider(provider));
   return PROVIDER_LABELS[providerId];
+}
+
+export function formatProviderUnavailableMessage(
+  provider: ProviderId | ProviderSelection,
+  error: string | undefined
+): string {
+  const providerId = resolveProviderForModel(normalizeProvider(provider));
+
+  if (providerId === "codex" && error === "PROVIDER_NOT_FOUND") {
+    return CODEX_NOT_FOUND_GUIDANCE;
+  }
+
+  if (error === "PROVIDER_NOT_FOUND") {
+    return `${getProviderLabel(providerId)} was not found.`;
+  }
+
+  return error ?? `${getProviderLabel(providerId)} was not found.`;
 }
 
 export function getDefaultModelForProvider(provider: ProviderId): string {

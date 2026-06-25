@@ -1,26 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_SOURCE="${BASH_SOURCE[0]:-$0}"
-SCRIPT_DIR=""
-if [ -n "$SCRIPT_SOURCE" ] && [ -f "$SCRIPT_SOURCE" ]; then
-  SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$SCRIPT_SOURCE")" && pwd)"
-  if [ -x "$SCRIPT_DIR/install.sh" ]; then
-    exec "$SCRIPT_DIR/install.sh" "$@"
-  fi
-fi
-
-tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/hover-trans-port-installer.XXXXXX")"
-cleanup_fallback() {
-  rm -rf "$tmp_dir"
-}
-trap cleanup_fallback EXIT
-
-fallback="$tmp_dir/install.sh"
-cat > "$fallback" <<'HOVER_TRANS_PORT_INSTALL_SH_PAYLOAD'
-#!/usr/bin/env bash
-set -euo pipefail
-
 HOST_NAME="com.monklabs.hover_trans_port"
 DEFAULT_HOST_VERSION="0.2.17"
 DEFAULT_EXTENSION_ID="mmbmjpmhmlkjknhcigafgplahdbicabe"
@@ -471,17 +451,3 @@ case "$COMMAND" in
     exit 2
     ;;
 esac
-HOVER_TRANS_PORT_INSTALL_SH_PAYLOAD
-chmod 755 "$fallback"
-
-if [ -n "$SCRIPT_DIR" ]; then
-  export HOVER_TRANS_PORT_BUNDLED_ASSET_DIR="${HOVER_TRANS_PORT_BUNDLED_ASSET_DIR:-$SCRIPT_DIR}"
-fi
-
-set +e
-"$fallback" "$@"
-status="$?"
-set -e
-trap - EXIT
-cleanup_fallback
-exit "$status"

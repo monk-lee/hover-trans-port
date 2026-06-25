@@ -37,6 +37,7 @@ import type {
   ProviderSelection
 } from "../shared/providers";
 import {
+  formatProviderUnavailableMessage,
   getFallbackModelCatalog,
   getProviderLabel,
   resolveProviderForModel
@@ -352,7 +353,7 @@ function toUserFacingTranslationMessage(
     case "PROVIDER_NOT_FOUND":
       return appendProviderDetail(
         `${providerLabel}를 찾을 수 없습니다.`,
-        fallback
+        provider ? formatProviderUnavailableMessage(provider, error) : fallback
       );
     case "PROVIDER_TIMEOUT":
       return appendProviderDetail(

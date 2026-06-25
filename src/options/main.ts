@@ -8,6 +8,7 @@ import { formatNativeHostUpdateStatusForUser } from "../shared/nativeHostUpdate"
 import {
   getDefaultModelForProvider,
   getFallbackModelCatalog,
+  formatProviderUnavailableMessage,
   getProviderLabel,
   resolveProviderForModel,
   type ProviderId,
@@ -984,7 +985,9 @@ function renderNativeHostUpdateStatus(
   const nextCheck = formatNativeHostUpdateDateTime(status.nextCheckAt);
 
   if (!status.ok) {
-    setNativeHostUpdateStatus(formatNativeHostUpdateStatusForUser(status).detail);
+    setNativeHostUpdateStatus(
+      formatNativeHostUpdateStatusForUser(status, navigator.platform).detail
+    );
     setNativeHostUpdateMeta("Unknown", "Unknown", lastChecked, nextCheck);
     setNativeHostUpdateApplyEnabled(false);
     return;
@@ -998,12 +1001,16 @@ function renderNativeHostUpdateStatus(
   );
 
   if (status.updateAvailable) {
-    setNativeHostUpdateStatus(formatNativeHostUpdateStatusForUser(status).detail);
+    setNativeHostUpdateStatus(
+      formatNativeHostUpdateStatusForUser(status, navigator.platform).detail
+    );
     setNativeHostUpdateApplyEnabled(true);
     return;
   }
 
-  setNativeHostUpdateStatus(formatNativeHostUpdateStatusForUser(status).detail);
+  setNativeHostUpdateStatus(
+    formatNativeHostUpdateStatusForUser(status, navigator.platform).detail
+  );
   setNativeHostUpdateApplyEnabled(false);
 }
 
@@ -1178,7 +1185,10 @@ async function checkProviderStatus() {
 
   if (!selectedStatus.available) {
     setProviderStatus(
-      `Unavailable. ${selectedStatus.error ?? `${providerLabel} was not found.`}`
+      `Unavailable. ${formatProviderUnavailableMessage(
+        providerId,
+        selectedStatus.error
+      )}`
     );
     return;
   }

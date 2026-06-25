@@ -1,4 +1,7 @@
+mod executable;
+
 pub mod antigravity;
+pub mod binary_discovery;
 pub mod claude;
 pub mod codex;
 pub mod gemini;

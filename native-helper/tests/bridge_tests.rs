@@ -428,10 +428,10 @@ fn native_host_update_status_reports_available_release() {
     write_release_fixture(
         &releases_path,
         r#"[{
-          "tag_name": "v0.2.16",
+          "tag_name": "v0.2.18",
           "prerelease": false,
           "draft": false,
-          "html_url": "https://github.com/monk-lee/hover-trans-port/releases/tag/v0.2.16",
+          "html_url": "https://github.com/monk-lee/hover-trans-port/releases/tag/v0.2.18",
           "assets": [
             {"name": "install-macos-native-host.sh"},
             {"name": "checksums.txt"},
@@ -459,9 +459,9 @@ fn native_host_update_status_reports_available_release() {
     assert_eq!(response["type"], "NATIVE_HOST_UPDATE_STATUS_RESULT");
     assert_eq!(response["requestId"], "req-update-status");
     assert_eq!(response["ok"], true);
-    assert_eq!(response["installedVersion"], "0.2.15");
-    assert_eq!(response["latestVersion"], "0.2.16");
-    assert_eq!(response["latestTag"], "v0.2.16");
+    assert_eq!(response["installedVersion"], "0.2.17");
+    assert_eq!(response["latestVersion"], "0.2.18");
+    assert_eq!(response["latestTag"], "v0.2.18");
     assert_eq!(response["updateAvailable"], true);
 }
 
@@ -511,6 +511,66 @@ fn native_host_update_invokes_persisted_updater() {
     assert_eq!(response["ok"], true);
     assert_eq!(response["previousVersion"], "0.2.3");
     assert_eq!(response["installedVersion"], "0.2.4");
+}
+
+#[test]
+fn native_host_update_invokes_windows_updater_with_powershell_args() {
+    let temp = tempdir().unwrap();
+    let install_root = temp.path().join("Hover Trans Port");
+    let current_dir = install_root.join("native-hosts/0.2.3");
+    fs::create_dir_all(&current_dir).unwrap();
+    fs::write(install_root.join("current"), "0.2.3\n").unwrap();
+
+    let args_path = temp.path().join("updater-args");
+    let updater_path = current_dir.join("update-native-host.cmd");
+    fs::write(
+        &updater_path,
+        format!(
+            "#!/bin/sh\nprintf '%s\\n' \"$@\" > '{}'\nif [ \"$#\" -ne 7 ] || [ \"$1\" != \"-Command\" ] || [ \"$2\" != \"update\" ] || [ \"$3\" != \"-ReleaseTag\" ] || [ \"$4\" != \"v0.2.4\" ] || [ \"$5\" != \"-HostVersion\" ] || [ \"$6\" != \"0.2.4\" ] || [ \"$7\" != \"-Json\" ]; then\n  exit 64\nfi\nprintf '%s\\n' '{{\"command\":\"update\",\"ok\":true,\"previousVersion\":\"0.2.3\",\"installedVersion\":\"0.2.4\",\"helperPath\":\"C:\\\\Users\\\\example\\\\Hover Trans Port\\\\native-hosts\\\\0.2.4\\\\hover-trans-port-helper.exe\"}}'\n",
+            args_path.display()
+        ),
+    )
+    .unwrap();
+    make_executable(&updater_path);
+
+    fs::write(
+        current_dir.join("metadata.json"),
+        format!(
+            "{{\"hostVersion\":\"0.2.3\",\"protocolVersion\":1,\"source\":\"powershell-script-installer\",\"updaterPath\":\"{}\"}}",
+            updater_path.display()
+        ),
+    )
+    .unwrap();
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_INSTALL_ROOT".to_string(),
+        install_root.to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "HOVER_TRANS_PORT_TEST_OS".to_string(),
+        "windows".to_string(),
+    );
+
+    let response = handle_request(
+        json!({
+            "type":"NATIVE_HOST_UPDATE",
+            "requestId":"req-update-windows",
+            "targetTag":"v0.2.4",
+            "targetVersion":"0.2.4"
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "NATIVE_HOST_UPDATE_RESULT");
+    assert_eq!(response["requestId"], "req-update-windows");
+    assert_eq!(response["ok"], true);
+    assert_eq!(response["previousVersion"], "0.2.3");
+    assert_eq!(response["installedVersion"], "0.2.4");
+    assert_eq!(
+        fs::read_to_string(args_path).unwrap(),
+        "-Command\nupdate\n-ReleaseTag\nv0.2.4\n-HostVersion\n0.2.4\n-Json\n"
+    );
 }
 
 #[test]

@@ -220,6 +220,47 @@ function onUnhandledRejection(reason) {
 
 process.on("unhandledRejection", onUnhandledRejection);
 
+const manualUpdateStatus = {
+  checkedAt: Date.now(),
+  nextCheckAt: Date.now() + 60 * 60 * 1000,
+  failureCount: 1,
+  lastErrorCode: "NATIVE_HOST_UPDATE_REQUIRED",
+  ok: false,
+  error: "NATIVE_HOST_UPDATE_REQUIRED",
+  message:
+    "One manual native host update is required before in-app updates are available.",
+  retryable: false,
+  manualUpdateRequired: true
+};
+const expectedUnixManualUpdateCommand =
+  "curl -fLO https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.sh\nbash install.sh install";
+const expectedWindowsManualUpdateCommand =
+  "Invoke-WebRequest https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.ps1 -OutFile install.ps1\n.\\install.ps1 install";
+
+const nativeHostUpdate = await import(
+  `${pathToFileURL(join(tempSharedDir, "nativeHostUpdate.js")).href}?shared-format`
+);
+
+assertEqual(
+  nativeHostUpdate
+    .formatNativeHostUpdateStatusForUser(manualUpdateStatus)
+    .detail.includes(expectedUnixManualUpdateCommand),
+  true,
+  "shared formatter defaults to inspectable Unix manual update command"
+);
+assertEqual(
+  nativeHostUpdate
+    .formatNativeHostUpdateStatusForUser(manualUpdateStatus, "Win32")
+    .detail.includes(expectedWindowsManualUpdateCommand),
+  true,
+  "shared formatter uses inspectable Windows manual update command"
+);
+assertEqual(
+  nativeHostUpdate.getManualNativeHostUpdateCommand("Win64"),
+  expectedWindowsManualUpdateCommand,
+  "manual update command normalizes Win64 platform"
+);
+
 async function importPopupWithStatus(status, cacheKey) {
   nativeHostUpdateStatus = status;
   currentElements = createElements();
@@ -262,11 +303,9 @@ try {
   assertEqual(
     manualUpdateElements
       .get("#status-detail")
-      .textContent.includes(
-        "curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh | bash"
-      ),
+      .textContent.includes(expectedUnixManualUpdateCommand),
     true,
-    "popup shows manual update command"
+    "popup shows inspectable manual update command"
   );
 
   manualUpdateElements.get("#open-options").dispatch("click");
@@ -291,17 +330,17 @@ try {
       failureCount: 0,
       ok: true,
       installedVersion: "0.2.5",
-      latestVersion: "0.2.15",
-      latestTag: "v0.2.15",
+      latestVersion: "0.2.17",
+      latestTag: "v0.2.17",
       updateAvailable: true,
-      releaseUrl: "https://github.com/monk-lee/hover-trans-port/releases/tag/v0.2.15"
+      releaseUrl: "https://github.com/monk-lee/hover-trans-port/releases/tag/v0.2.17"
     },
     "update-available"
   );
 
   assertEqual(
     updateAvailableElements.get("#status-detail").textContent,
-    "Native Host 0.2.5 -> 0.2.15. Open Options to update.",
+    "Native Host 0.2.5 -> 0.2.17. Open Options to update.",
     "popup update available detail is compact"
   );
   assertEqual(
