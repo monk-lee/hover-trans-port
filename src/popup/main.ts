@@ -176,7 +176,10 @@ async function refreshPopup(): Promise<void> {
 
   const updateStatus = await getNativeHostUpdateStatus();
   if (nativeHostUpdateNeedsAttention(updateStatus)) {
-    const message = formatNativeHostUpdateStatusForUser(updateStatus);
+    const message = formatNativeHostUpdateStatusForUser(
+      updateStatus,
+      navigator.platform
+    );
     setStatus(message.title, message.detail, "warning");
     return;
   }

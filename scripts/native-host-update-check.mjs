@@ -105,6 +105,53 @@ const checks = [
     ]
   },
   {
+    path: "native-helper/src/update.rs",
+    needles: [
+      "fn required_release_assets",
+      "fn supported_release_assets",
+      "let _ = supported_release_assets(env)?;",
+      '"UPDATE_UNSUPPORTED_PLATFORM"',
+      '("macos", "arm64") | ("macos", "aarch64")',
+      '("linux", "arm64") | ("linux", "aarch64")',
+      '("linux", "x86_64")',
+      '("windows", "arm64") | ("windows", "aarch64")',
+      '("windows", "x86_64")',
+      '"install.sh"',
+      '"install.ps1"',
+      '"install-windows-native-host.ps1"',
+      '"install-macos-native-host.sh"',
+      '"hover-trans-port-helper-linux-arm64"',
+      '"hover-trans-port-helper-linux-x64"',
+      '"hover-trans-port-helper-windows-arm64.exe"',
+      '"hover-trans-port-helper-windows-x64.exe"',
+      "fn default_curl_path",
+      '"SystemRoot"',
+      '"System32"',
+      '"curl.exe"',
+      "fn active_metadata_path",
+      '"native-hosts"',
+      "fn install_root",
+      '"LOCALAPPDATA"',
+      '".local"',
+      '"share"',
+      "fn update_args",
+      '"-Command"',
+      '"-ReleaseTag"',
+      '"-HostVersion"',
+      '"-Json"',
+      '"--release-tag"',
+      '"--host-version"',
+      '"--json"'
+    ]
+  },
+  {
+    path: "native-helper/tests/bridge_tests.rs",
+    needles: [
+      "native_host_update_invokes_windows_updater_with_powershell_args",
+      'fs::write(install_root.join("current"), "0.2.3\\n")'
+    ]
+  },
+  {
     path: "src/background/service-worker.ts",
     needles: [
       "chrome.alarms.create",
@@ -136,6 +183,73 @@ for (const check of checks) {
     assertIncludes(text, needle, check.path);
   }
 }
+
+assertIncludes(
+  readText("src/shared/nativeHostUpdate.ts"),
+  "getManualNativeHostUpdateCommand",
+  "manual update command must be platform-aware"
+);
+assertMatches(
+  readText("src/shared/nativeHostUpdate.ts"),
+  /formatNativeHostUpdateStatusForUser\(\s*status: NativeHostUpdateStoredStatus,\s*platform\?: string[\s\S]*getManualNativeHostUpdateCommand\(platform\)/u,
+  "src/shared/nativeHostUpdate.ts",
+  "manual update formatter routes through platform-aware command"
+);
+assertIncludes(
+  readText("docs/native-host-install.md"),
+  "install.ps1",
+  "docs must include Windows PowerShell install"
+);
+assertIncludes(
+  readText("docs/native-host-install.md"),
+  "install.sh",
+  "docs must include Unix install"
+);
+assertIncludes(
+  readText("docs/native-host-install.md"),
+  "~/.local/share/hover-trans-port",
+  "docs must include actual Linux install root"
+);
+assertIncludes(
+  readText("docs/native-host-install.md"),
+  "$env:LOCALAPPDATA\\Hover Trans Port",
+  "docs must include Windows install root"
+);
+assertIncludes(
+  readText("docs/open-source-release-checklist.md"),
+  "install.sh",
+  "release checklist must include Unix installer"
+);
+assertIncludes(
+  readText("docs/open-source-release-checklist.md"),
+  "install.ps1",
+  "release checklist must include Windows PowerShell installer"
+);
+assertIncludes(
+  readText("docs/open-source-release-checklist.md"),
+  "hover-trans-port-native-host-linux-0.2.17.tar.gz",
+  "release checklist must include Linux inspect-first tarball"
+);
+assertIncludes(
+  readText("docs/open-source-release-checklist.md"),
+  "hover-trans-port-native-host-windows-0.2.17.zip",
+  "release checklist must include Windows inspect-first zip"
+);
+assertIncludes(
+  readText("docs/open-source-release-checklist.md"),
+  "~/Library/Application Support/Hover Trans Port/current",
+  "release checklist must include actual macOS install root"
+);
+assertIncludes(
+  readText("docs/open-source-release-checklist.md"),
+  "~/.local/share/hover-trans-port/current",
+  "release checklist must include actual Linux install root"
+);
+assertIncludes(
+  readText("docs/open-source-release-checklist.md"),
+  "$env:LOCALAPPDATA\\Hover Trans Port\\current",
+  "release checklist must include Windows install root"
+);
 
 const serviceWorkerText = readText("src/background/service-worker.ts");
 const alarmListenerText = extractBlock(
@@ -296,10 +410,11 @@ assertIncludes(
   'id="native-host-update-next-check"',
   "Options update next check metadata"
 );
-assertIncludes(
+assertMatches(
   optionsMain,
-  "formatNativeHostUpdateStatusForUser",
-  "Options formats manual update guidance"
+  /formatNativeHostUpdateStatusForUser\(\s*status,\s*navigator\.platform\s*\)/u,
+  "src/options/main.ts",
+  "Options formats manual update guidance with browser platform"
 );
 assertIncludes(
   optionsMain,
@@ -316,10 +431,11 @@ assertIncludes(
   "formatNativeHostUpdateDateTime",
   "Options formats update timestamps"
 );
-assertIncludes(
+assertMatches(
   popupMain,
-  "formatNativeHostUpdateStatusForUser",
-  "Popup formats manual update guidance"
+  /formatNativeHostUpdateStatusForUser\(\s*updateStatus,\s*navigator\.platform\s*\)/u,
+  "src/popup/main.ts",
+  "Popup formats manual update guidance with browser platform"
 );
 assertIncludes(
   optionsMain,

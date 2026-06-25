@@ -6,12 +6,9 @@ use tempfile::tempdir;
 use crate::messages::{ProviderId, ProviderStatusEntry};
 use crate::process::{run_process, ProcessRequest, ProviderError};
 use crate::prompt::build_translate_prompt;
-use crate::providers::executable::{
-    build_provider_env, command_candidates, env_value, find_binary as find_provider_binary,
-};
 use crate::providers::{
-    Provider, ProviderModelCatalog, ProviderModelOption, ProviderTranslateRequest,
-    ProviderTranslateResult,
+    binary_discovery, Provider, ProviderModelCatalog, ProviderModelOption,
+    ProviderTranslateRequest, ProviderTranslateResult,
 };
 
 const DEFAULT_STATUS_TIMEOUT_MS: u64 = 5_000;
@@ -30,7 +27,11 @@ impl OpencodeProvider {
     }
 
     fn find_binary(&self) -> Option<PathBuf> {
-        find_opencode_binary(&self.env)
+        binary_discovery::find_provider_binary(
+            &self.env,
+            "HOVER_TRANS_PORT_OPENCODE_PATH",
+            "opencode",
+        )
     }
 }
 
@@ -359,31 +360,12 @@ fn extract_content_text(value: &serde_json::Value) -> String {
     extract_text_from_opencode_value(value)
 }
 
-fn find_opencode_binary(env: &BTreeMap<String, String>) -> Option<PathBuf> {
-    let mut candidates = command_candidates(env, "opencode");
-    if let Some(home) = env_value(env, "HOME") {
-        candidates.push(
-            Path::new(home)
-                .join(".opencode")
-                .join("bin")
-                .join("opencode"),
-        );
-        candidates.push(Path::new(home).join(".local").join("bin").join("opencode"));
-    }
-    candidates.push(PathBuf::from("/opt/homebrew/bin/opencode"));
-    candidates.push(PathBuf::from("/usr/local/bin/opencode"));
-    candidates.push(PathBuf::from("/usr/bin/opencode"));
-
-    find_provider_binary(env, "HOVER_TRANS_PORT_OPENCODE_PATH", candidates)
-}
-
 fn provider_env(env: &BTreeMap<String, String>, binary: &Path) -> BTreeMap<String, String> {
-    let mut next = build_provider_env(
+    let mut next = binary_discovery::provider_launch_env(
         env,
         binary,
         &[
             "HOME",
-            "PATH",
             "TMPDIR",
             "USER",
             "LANG",
@@ -396,6 +378,8 @@ fn provider_env(env: &BTreeMap<String, String>, binary: &Path) -> BTreeMap<Strin
             "OPENCODE_SERVER_USERNAME",
         ],
     );
+    next.entry("LANG".to_string())
+        .or_insert_with(|| "en_US.UTF-8".to_string());
     next.insert(
         "OPENCODE_PERMISSION".to_string(),
         OPENCODE_TRANSLATION_PERMISSION.to_string(),

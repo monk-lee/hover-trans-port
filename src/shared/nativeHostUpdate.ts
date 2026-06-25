@@ -4,7 +4,24 @@ import type {
 } from "./messages";
 
 export const MANUAL_NATIVE_HOST_UPDATE_COMMAND =
-  "curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install-macos-native-host.sh | bash";
+  "curl -fsSL https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.sh | bash";
+
+export const MANUAL_NATIVE_HOST_UPDATE_WINDOWS_COMMAND =
+  "irm https://github.com/monk-lee/hover-trans-port/releases/latest/download/install.ps1 | iex";
+
+export function getManualNativeHostUpdateCommand(platform?: string): string {
+  const normalizedPlatform = platform?.toLowerCase();
+
+  if (
+    normalizedPlatform === "windows" ||
+    normalizedPlatform === "win32" ||
+    normalizedPlatform === "win64"
+  ) {
+    return MANUAL_NATIVE_HOST_UPDATE_WINDOWS_COMMAND;
+  }
+
+  return MANUAL_NATIVE_HOST_UPDATE_COMMAND;
+}
 
 export const NATIVE_HOST_UPDATE_NORMAL_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 export const NATIVE_HOST_UPDATE_FIRST_FAILURE_RETRY_MS = 60 * 60 * 1000;
@@ -83,7 +100,8 @@ export function nativeHostUpdateNeedsAttention(
 }
 
 export function formatNativeHostUpdateStatusForUser(
-  status: NativeHostUpdateStoredStatus
+  status: NativeHostUpdateStoredStatus,
+  platform?: string
 ): NativeHostUpdateUserMessage {
   if (status.ok) {
     if (status.updateAvailable) {
@@ -107,7 +125,7 @@ export function formatNativeHostUpdateStatusForUser(
   ) {
     return {
       title: "Native Host update required",
-      detail: `${status.message} Run once, then reload the extension: ${MANUAL_NATIVE_HOST_UPDATE_COMMAND}`,
+      detail: `${status.message} Run once, then reload the extension: ${getManualNativeHostUpdateCommand(platform)}`,
       attention: true
     };
   }

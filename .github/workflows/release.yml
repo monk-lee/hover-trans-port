@@ -6,20 +6,17 @@ on:
       - "v*"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  publish:
-    name: Publish GitHub Release
+  build-extension:
+    name: Build extension
     runs-on: macos-15
     timeout-minutes: 45
-
-    env:
-      GH_TOKEN: ${{ github.token }}
 
     steps:
       - name: Checkout
@@ -48,9 +45,6 @@ jobs:
       - name: Build extension
         run: pnpm build
 
-      - name: Build macOS ARM64 installer assets
-        run: pnpm macos:script-installer:build
-
       - name: Package extension zip
         run: |
           TAG_NAME="${GITHUB_REF_NAME}"
@@ -66,6 +60,327 @@ jobs:
           test -f "$EXTENSION_ZIP"
           unzip -l "$EXTENSION_ZIP"
 
+      - name: Upload extension asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension
+          if-no-files-found: error
+          path: build/release/hover-trans-port-extension-${{ github.ref_name }}.zip
+
+  build-native-macos:
+    name: Build native host macOS
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Prepare Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Build macOS native host assets
+        run: |
+          rm -rf build/native-host-release-assets/macos
+
+          cargo build --release --manifest-path native-helper/Cargo.toml --target aarch64-apple-darwin
+          HOVER_TRANS_PORT_HELPER_ASSET_NAME="hover-trans-port-helper-macos-arm64" \
+            node scripts/build-native-host-release-assets.mjs \
+              --platform macos \
+              --asset hover-trans-port-helper-macos-arm64 \
+              --helper native-helper/target/aarch64-apple-darwin/release/hover-trans-port-helper \
+              --out-dir build/native-host-release-assets/macos
+
+          cargo build --release --manifest-path native-helper/Cargo.toml --target x86_64-apple-darwin
+          HOVER_TRANS_PORT_HELPER_ASSET_NAME="hover-trans-port-helper-macos-x64" \
+            node scripts/build-native-host-release-assets.mjs \
+              --platform macos \
+              --asset hover-trans-port-helper-macos-x64 \
+              --helper native-helper/target/x86_64-apple-darwin/release/hover-trans-port-helper \
+              --out-dir build/native-host-release-assets/macos
+
+      - name: Check macOS native host assets
+        run: |
+          NATIVE_DIR="build/native-host-release-assets/macos"
+
+          test -f "$NATIVE_DIR/install.sh"
+          test -f "$NATIVE_DIR/install.ps1"
+          test -f "$NATIVE_DIR/install-windows-native-host.ps1"
+          test -f "$NATIVE_DIR/install-macos-native-host.sh"
+          test -f "$NATIVE_DIR/checksums.txt"
+          test -f "$NATIVE_DIR/hover-trans-port-helper-macos-arm64"
+          test -f "$NATIVE_DIR/hover-trans-port-helper-macos-x64"
+          test -f "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.17.tar.gz"
+
+          (
+            cd "$NATIVE_DIR"
+            shasum -a 256 -c checksums.txt
+          )
+
+      - name: Upload macOS native host assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-host-macos
+          if-no-files-found: error
+          path: |
+            build/native-host-release-assets/macos/install.sh
+            build/native-host-release-assets/macos/install.ps1
+            build/native-host-release-assets/macos/install-windows-native-host.ps1
+            build/native-host-release-assets/macos/install-macos-native-host.sh
+            build/native-host-release-assets/macos/checksums.txt
+            build/native-host-release-assets/macos/hover-trans-port-helper-macos-arm64
+            build/native-host-release-assets/macos/hover-trans-port-helper-macos-x64
+            build/native-host-release-assets/macos/hover-trans-port-native-host-macos-0.2.17.tar.gz
+
+  build-native-linux:
+    name: Build native host Linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install Linux cross compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Prepare Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu
+
+      - name: Build Linux native host assets
+        run: |
+          rm -rf build/native-host-release-assets/linux
+
+          cargo build --release --manifest-path native-helper/Cargo.toml --target x86_64-unknown-linux-gnu
+          HOVER_TRANS_PORT_HELPER_ASSET_NAME="hover-trans-port-helper-linux-x64" \
+            node scripts/build-native-host-release-assets.mjs \
+              --platform linux \
+              --asset hover-trans-port-helper-linux-x64 \
+              --helper native-helper/target/x86_64-unknown-linux-gnu/release/hover-trans-port-helper \
+              --out-dir build/native-host-release-assets/linux
+
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
+            cargo build --release --manifest-path native-helper/Cargo.toml --target aarch64-unknown-linux-gnu
+          HOVER_TRANS_PORT_HELPER_ASSET_NAME="hover-trans-port-helper-linux-arm64" \
+            node scripts/build-native-host-release-assets.mjs \
+              --platform linux \
+              --asset hover-trans-port-helper-linux-arm64 \
+              --helper native-helper/target/aarch64-unknown-linux-gnu/release/hover-trans-port-helper \
+              --out-dir build/native-host-release-assets/linux
+
+      - name: Check Linux native host assets
+        run: |
+          NATIVE_DIR="build/native-host-release-assets/linux"
+
+          test -f "$NATIVE_DIR/install.sh"
+          test -f "$NATIVE_DIR/install.ps1"
+          test -f "$NATIVE_DIR/install-windows-native-host.ps1"
+          test -f "$NATIVE_DIR/install-macos-native-host.sh"
+          test -f "$NATIVE_DIR/checksums.txt"
+          test -f "$NATIVE_DIR/hover-trans-port-helper-linux-x64"
+          test -f "$NATIVE_DIR/hover-trans-port-helper-linux-arm64"
+          test -f "$NATIVE_DIR/hover-trans-port-native-host-linux-0.2.17.tar.gz"
+
+          (
+            cd "$NATIVE_DIR"
+            shasum -a 256 -c checksums.txt
+          )
+
+      - name: Upload Linux native host assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-host-linux
+          if-no-files-found: error
+          path: |
+            build/native-host-release-assets/linux/checksums.txt
+            build/native-host-release-assets/linux/hover-trans-port-helper-linux-x64
+            build/native-host-release-assets/linux/hover-trans-port-helper-linux-arm64
+            build/native-host-release-assets/linux/hover-trans-port-native-host-linux-0.2.17.tar.gz
+
+  build-native-windows:
+    name: Build native host Windows
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Prepare Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add x86_64-pc-windows-msvc aarch64-pc-windows-msvc
+
+      - name: Build Windows x64 native host asset
+        shell: pwsh
+        run: |
+          Remove-Item -LiteralPath build/native-host-release-assets/windows -Recurse -Force -ErrorAction SilentlyContinue
+
+          cargo build --release --manifest-path native-helper/Cargo.toml --target x86_64-pc-windows-msvc
+          $env:HOVER_TRANS_PORT_HELPER_ASSET_NAME = "hover-trans-port-helper-windows-x64.exe"
+          node scripts/build-native-host-release-assets.mjs `
+            --platform windows `
+            --asset hover-trans-port-helper-windows-x64.exe `
+            --helper native-helper/target/x86_64-pc-windows-msvc/release/hover-trans-port-helper.exe `
+            --out-dir build/native-host-release-assets/windows
+
+      - name: Build Windows ARM64 native host asset
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $installationPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.ARM64 -property installationPath
+          if ([string]::IsNullOrWhiteSpace($installationPath)) {
+            throw "Visual Studio ARM64 C++ tools were not found."
+          }
+          $vcvarsAll = Join-Path $installationPath "VC\Auxiliary\Build\vcvarsall.bat"
+          if (-not (Test-Path -LiteralPath $vcvarsAll)) {
+            throw "vcvarsall.bat was not found: $vcvarsAll"
+          }
+          $cmdPath = Join-Path $env:TEMP "hover-trans-port-build-windows-arm64.cmd"
+          @"
+          @echo off
+          call "$vcvarsAll" amd64_arm64
+          if errorlevel 1 exit /b %errorlevel%
+          cargo build --release --manifest-path native-helper/Cargo.toml --target aarch64-pc-windows-msvc
+          if errorlevel 1 exit /b %errorlevel%
+          node scripts/build-native-host-release-assets.mjs --platform windows --asset hover-trans-port-helper-windows-arm64.exe --helper native-helper/target/aarch64-pc-windows-msvc/release/hover-trans-port-helper.exe --out-dir build/native-host-release-assets/windows
+          if errorlevel 1 exit /b %errorlevel%
+          "@ | Set-Content -LiteralPath $cmdPath -Encoding ASCII
+          & cmd.exe /d /s /c "`"$cmdPath`""
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+      - name: Check Windows native host assets
+        shell: pwsh
+        run: |
+          $nativeDir = "build/native-host-release-assets/windows"
+          @(
+            "install.sh",
+            "install.ps1",
+            "install-windows-native-host.ps1",
+            "install-macos-native-host.sh",
+            "checksums.txt",
+            "hover-trans-port-helper-windows-x64.exe",
+            "hover-trans-port-helper-windows-arm64.exe",
+            "hover-trans-port-native-host-windows-0.2.17.zip"
+          ) | ForEach-Object {
+            $assetPath = Join-Path $nativeDir $_
+            if (-not (Test-Path -LiteralPath $assetPath)) {
+              throw "missing Windows native host asset: $_"
+            }
+          }
+
+          Get-Content -LiteralPath (Join-Path $nativeDir "checksums.txt") | ForEach-Object {
+            $parts = $_ -split "\s+", 2
+            $expected = $parts[0].ToLowerInvariant()
+            $fileName = $parts[1].Trim()
+            $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $nativeDir $fileName)).Hash.ToLowerInvariant()
+            if ($actual -ne $expected) {
+              throw "checksum mismatch for $fileName"
+            }
+          }
+
+      - name: Upload Windows native host assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-host-windows
+          if-no-files-found: error
+          path: |
+            build/native-host-release-assets/windows/checksums.txt
+            build/native-host-release-assets/windows/hover-trans-port-helper-windows-x64.exe
+            build/native-host-release-assets/windows/hover-trans-port-helper-windows-arm64.exe
+            build/native-host-release-assets/windows/hover-trans-port-native-host-windows-0.2.17.zip
+
+  publish:
+    name: Publish GitHub Release
+    needs:
+      - build-extension
+      - build-native-macos
+      - build-native-linux
+      - build-native-windows
+    runs-on: macos-15
+    timeout-minutes: 45
+    permissions:
+      contents: write
+
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: build/native-host-artifacts
+
+      - name: Stage native host release assets
+        run: |
+          TAG_NAME="${GITHUB_REF_NAME}"
+          RELEASE_DIR="build/release"
+          ARTIFACT_DIR="build/native-host-artifacts"
+
+          mkdir -p "$RELEASE_DIR"
+          cp "$ARTIFACT_DIR/native-host-macos/install.sh" "$RELEASE_DIR/install.sh"
+          cp "$ARTIFACT_DIR/native-host-macos/install.ps1" "$RELEASE_DIR/install.ps1"
+          cp "$ARTIFACT_DIR/native-host-macos/install-windows-native-host.ps1" "$RELEASE_DIR/install-windows-native-host.ps1"
+          cp "$ARTIFACT_DIR/native-host-macos/install-macos-native-host.sh" "$RELEASE_DIR/install-macos-native-host.sh"
+          cp "$ARTIFACT_DIR/native-host-macos/hover-trans-port-helper-macos-arm64" "$RELEASE_DIR/hover-trans-port-helper-macos-arm64"
+          cp "$ARTIFACT_DIR/native-host-macos/hover-trans-port-helper-macos-x64" "$RELEASE_DIR/hover-trans-port-helper-macos-x64"
+          cp "$ARTIFACT_DIR/native-host-linux/hover-trans-port-helper-linux-arm64" "$RELEASE_DIR/hover-trans-port-helper-linux-arm64"
+          cp "$ARTIFACT_DIR/native-host-linux/hover-trans-port-helper-linux-x64" "$RELEASE_DIR/hover-trans-port-helper-linux-x64"
+          cp "$ARTIFACT_DIR/native-host-windows/hover-trans-port-helper-windows-arm64.exe" "$RELEASE_DIR/hover-trans-port-helper-windows-arm64.exe"
+          cp "$ARTIFACT_DIR/native-host-windows/hover-trans-port-helper-windows-x64.exe" "$RELEASE_DIR/hover-trans-port-helper-windows-x64.exe"
+          cp "$ARTIFACT_DIR/native-host-macos/hover-trans-port-native-host-macos-0.2.17.tar.gz" "$RELEASE_DIR/hover-trans-port-native-host-macos-0.2.17.tar.gz"
+          cp "$ARTIFACT_DIR/native-host-linux/hover-trans-port-native-host-linux-0.2.17.tar.gz" "$RELEASE_DIR/hover-trans-port-native-host-linux-0.2.17.tar.gz"
+          cp "$ARTIFACT_DIR/native-host-windows/hover-trans-port-native-host-windows-0.2.17.zip" "$RELEASE_DIR/hover-trans-port-native-host-windows-0.2.17.zip"
+          cp "$ARTIFACT_DIR/extension/hover-trans-port-extension-${TAG_NAME}.zip" "$RELEASE_DIR/hover-trans-port-extension-${TAG_NAME}.zip"
+
+          (
+            cd "$RELEASE_DIR"
+            shasum -a 256 \
+              install.sh \
+              install.ps1 \
+              install-windows-native-host.ps1 \
+              install-macos-native-host.sh \
+              hover-trans-port-helper-macos-arm64 \
+              hover-trans-port-helper-macos-x64 \
+              hover-trans-port-helper-linux-arm64 \
+              hover-trans-port-helper-linux-x64 \
+              hover-trans-port-helper-windows-arm64.exe \
+              hover-trans-port-helper-windows-x64.exe \
+              hover-trans-port-native-host-macos-0.2.17.tar.gz \
+              hover-trans-port-native-host-linux-0.2.17.tar.gz \
+              hover-trans-port-native-host-windows-0.2.17.zip \
+              "hover-trans-port-extension-${TAG_NAME}.zip" > checksums.txt
+          )
+
       - name: Write release notes
         run: |
           TAG_NAME="${GITHUB_REF_NAME}"
@@ -73,20 +388,30 @@ jobs:
           cat > build/release/release-notes.md <<EOF
           ${TAG_NAME}
 
-          This release targets macOS, Google Chrome, and local provider CLIs.
+          This release targets macOS, Linux, Windows, Google Chrome, and local provider CLIs.
 
           Assets:
-          - install-macos-native-host.sh: one-line native host installer
-          - checksums.txt: SHA-256 checksums for native host assets
+          - install.sh: macOS/Linux native host installer
+          - install.ps1: Windows native host installer
+          - install-windows-native-host.ps1: canonical Windows native host installer
+          - install-macos-native-host.sh: macOS compatibility installer
+          - checksums.txt: SHA-256 checksums for release assets
           - hover-trans-port-helper-macos-arm64: macOS ARM64 native helper
-          - hover-trans-port-native-host-macos-0.2.16.tar.gz: inspect-first native host package
+          - hover-trans-port-helper-macos-x64: macOS x64 native helper
+          - hover-trans-port-helper-linux-arm64: Linux ARM64 native helper
+          - hover-trans-port-helper-linux-x64: Linux x64 native helper
+          - hover-trans-port-helper-windows-arm64.exe: Windows ARM64 native helper
+          - hover-trans-port-helper-windows-x64.exe: Windows x64 native helper
+          - hover-trans-port-native-host-macos-0.2.17.tar.gz: inspect-first macOS native host package
+          - hover-trans-port-native-host-linux-0.2.17.tar.gz: inspect-first Linux native host package
+          - hover-trans-port-native-host-windows-0.2.17.zip: inspect-first Windows native host package
           - hover-trans-port-extension-${TAG_NAME}.zip: unpacked Chrome extension package built from dist/
 
           Highlights:
-          - Detects Codex CLI on Windows from the official installer, standalone Codex home, npm global shims, and PATH/Path.
-          - Preserves Unix Codex discovery while adding Windows PATHEXT-aware executable lookup.
-          - Gives Windows users actionable Codex setup guidance instead of only PROVIDER_NOT_FOUND.
-          - Updates Vite and esbuild dev dependencies to patched advisory-free versions.
+          - Adds prebuilt native host release packages for macOS, Linux, and Windows.
+          - Adds one-line macOS/Linux and Windows PowerShell native host installers.
+          - Registers Chrome Native Messaging manifests on Linux and Windows with platform-specific install paths.
+          - Preserves the v0.2.16 Codex Windows installer, standalone, npm global, and PATH/Path discovery fixes.
 
           Native host update required:
           - Existing v0.2.4 installs that still report helper version v0.2.3 need one manual install command because their persisted updater copied the old helper.
@@ -105,32 +430,52 @@ jobs:
       - name: Check release assets
         run: |
           TAG_NAME="${GITHUB_REF_NAME}"
-          NATIVE_DIR="build/macos-script-installer"
-          EXTENSION_ZIP="build/release/hover-trans-port-extension-${TAG_NAME}.zip"
+          RELEASE_DIR="build/release"
+          EXTENSION_ZIP="$RELEASE_DIR/hover-trans-port-extension-${TAG_NAME}.zip"
 
-          test -f "$NATIVE_DIR/install-macos-native-host.sh"
-          test -f "$NATIVE_DIR/checksums.txt"
-          test -f "$NATIVE_DIR/hover-trans-port-helper-macos-arm64"
-          test -f "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.16.tar.gz"
+          test -f "$RELEASE_DIR/install.sh"
+          test -f "$RELEASE_DIR/install.ps1"
+          test -f "$RELEASE_DIR/install-windows-native-host.ps1"
+          test -f "$RELEASE_DIR/install-macos-native-host.sh"
+          test -f "$RELEASE_DIR/checksums.txt"
+          test -f "$RELEASE_DIR/hover-trans-port-helper-macos-arm64"
+          test -f "$RELEASE_DIR/hover-trans-port-helper-macos-x64"
+          test -f "$RELEASE_DIR/hover-trans-port-helper-linux-arm64"
+          test -f "$RELEASE_DIR/hover-trans-port-helper-linux-x64"
+          test -f "$RELEASE_DIR/hover-trans-port-helper-windows-arm64.exe"
+          test -f "$RELEASE_DIR/hover-trans-port-helper-windows-x64.exe"
+          test -f "$RELEASE_DIR/hover-trans-port-native-host-macos-0.2.17.tar.gz"
+          test -f "$RELEASE_DIR/hover-trans-port-native-host-linux-0.2.17.tar.gz"
+          test -f "$RELEASE_DIR/hover-trans-port-native-host-windows-0.2.17.zip"
           test -f "$EXTENSION_ZIP"
           test -f build/release/release-notes.md
 
           (
-            cd "$NATIVE_DIR"
+            cd "$RELEASE_DIR"
             shasum -a 256 -c checksums.txt
           )
 
       - name: Publish release
         run: |
           TAG_NAME="${GITHUB_REF_NAME}"
-          NATIVE_DIR="build/macos-script-installer"
-          EXTENSION_ZIP="build/release/hover-trans-port-extension-${TAG_NAME}.zip"
+          RELEASE_DIR="build/release"
+          EXTENSION_ZIP="$RELEASE_DIR/hover-trans-port-extension-${TAG_NAME}.zip"
 
           gh release create "$TAG_NAME" \
-            "$NATIVE_DIR/install-macos-native-host.sh" \
-            "$NATIVE_DIR/checksums.txt" \
-            "$NATIVE_DIR/hover-trans-port-helper-macos-arm64" \
-            "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.16.tar.gz" \
+            "$RELEASE_DIR/install.sh" \
+            "$RELEASE_DIR/install.ps1" \
+            "$RELEASE_DIR/install-windows-native-host.ps1" \
+            "$RELEASE_DIR/install-macos-native-host.sh" \
+            "$RELEASE_DIR/checksums.txt" \
+            "$RELEASE_DIR/hover-trans-port-helper-macos-arm64" \
+            "$RELEASE_DIR/hover-trans-port-helper-macos-x64" \
+            "$RELEASE_DIR/hover-trans-port-helper-linux-arm64" \
+            "$RELEASE_DIR/hover-trans-port-helper-linux-x64" \
+            "$RELEASE_DIR/hover-trans-port-helper-windows-arm64.exe" \
+            "$RELEASE_DIR/hover-trans-port-helper-windows-x64.exe" \
+            "$RELEASE_DIR/hover-trans-port-native-host-macos-0.2.17.tar.gz" \
+            "$RELEASE_DIR/hover-trans-port-native-host-linux-0.2.17.tar.gz" \
+            "$RELEASE_DIR/hover-trans-port-native-host-windows-0.2.17.zip" \
             "$EXTENSION_ZIP" \
             --verify-tag \
             --latest \

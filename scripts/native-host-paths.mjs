@@ -2,9 +2,13 @@ import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  NATIVE_HOST_NAME,
+  getNativeHostBrowserTargets
+} from "./native-host-browser-targets.mjs";
 
-export const NATIVE_HOST_NAME = "com.monklabs.hover_trans_port";
-export const NATIVE_HOST_VERSION = "0.2.16";
+export { NATIVE_HOST_NAME };
+export const NATIVE_HOST_VERSION = "0.2.17";
 export const APP_SUPPORT_DIR_NAME = "Hover Trans Port";
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url));
@@ -40,7 +44,7 @@ export function getNativeHostInstallRoot(
   }
 
   if (platform === "linux") {
-    return resolve(homedir(), ".hover-trans-port/native-host");
+    return resolve(homedir(), ".local/share/hover-trans-port");
   }
 
   throw new Error(`Unsupported native host install platform: ${platform}`);
@@ -69,36 +73,12 @@ export function getActiveNativeHostScriptPath(
 }
 
 export function getChromeNativeHostsDir(platform = process.platform) {
-  if (platform === "darwin") {
-    return resolve(
-      homedir(),
-      "Library/Application Support/Google/Chrome/NativeMessagingHosts"
-    );
-  }
-
-  if (platform === "linux") {
-    return resolve(homedir(), ".config/google-chrome/NativeMessagingHosts");
-  }
-
-  throw new Error(`Unsupported native host install platform: ${platform}`);
+  const target = getBrowserTargets(platform).find(({ id }) => id === "chrome");
+  return resolve(target.manifestDir);
 }
 
 export function getBrowserNativeHostsDirs(platform = process.platform) {
-  if (platform === "darwin") {
-    return [
-      getChromeNativeHostsDir(platform),
-      resolve(
-        homedir(),
-        "Library/Application Support/Naver/Whale/NativeMessagingHosts"
-      ),
-      resolve(
-        homedir(),
-        "Library/Application Support/OpenAI/ChatGPT Atlas/NativeMessagingHosts"
-      )
-    ];
-  }
-
-  return [getChromeNativeHostsDir(platform)];
+  return getBrowserTargets(platform).map((target) => resolve(target.manifestDir));
 }
 
 export function getBrowserNativeHostManifestPaths(platform = process.platform) {
@@ -141,4 +121,12 @@ export function renderNativeHostManifest({ extensionId, hostPath }) {
     type: "stdio",
     allowed_origins: [`chrome-extension://${extensionId}/`]
   };
+}
+
+function getBrowserTargets(platform) {
+  if (platform !== "darwin" && platform !== "linux") {
+    throw new Error(`Unsupported native host install platform: ${platform}`);
+  }
+
+  return getNativeHostBrowserTargets(platform, homedir());
 }

@@ -6,12 +6,9 @@ use tempfile::tempdir;
 use crate::messages::{ProviderId, ProviderStatusEntry};
 use crate::process::{run_process, ProcessRequest, ProviderError};
 use crate::prompt::build_translate_prompt;
-use crate::providers::executable::{
-    build_provider_env, command_candidates, env_value, find_binary as find_provider_binary,
-};
 use crate::providers::{
-    Provider, ProviderModelCatalog, ProviderModelOption, ProviderTranslateRequest,
-    ProviderTranslateResult,
+    binary_discovery, Provider, ProviderModelCatalog, ProviderModelOption,
+    ProviderTranslateRequest, ProviderTranslateResult,
 };
 
 const PROMPT_ARG: &str =
@@ -30,7 +27,7 @@ impl ClaudeProvider {
     }
 
     fn find_binary(&self) -> Option<PathBuf> {
-        find_binary(&self.env, "HOVER_TRANS_PORT_CLAUDE_PATH", "claude")
+        binary_discovery::find_provider_binary(&self.env, "HOVER_TRANS_PORT_CLAUDE_PATH", "claude")
     }
 }
 
@@ -264,26 +261,13 @@ fn parse_claude_error_message(output: &str) -> Option<String> {
     Some(value.to_string())
 }
 
-fn find_binary(
-    env: &BTreeMap<String, String>,
-    override_key: &str,
-    binary_name: &str,
-) -> Option<PathBuf> {
-    let mut candidates = command_candidates(env, binary_name);
-    if let Some(home) = env_value(env, "HOME") {
-        candidates.push(Path::new(home).join(".local").join("bin").join(binary_name));
-    }
-    candidates.push(Path::new("/opt/homebrew/bin").join(binary_name));
-    candidates.push(Path::new("/usr/local/bin").join(binary_name));
-    candidates.push(Path::new("/usr/bin").join(binary_name));
-
-    find_provider_binary(env, override_key, candidates)
-}
-
 fn provider_env(env: &BTreeMap<String, String>, binary: &Path) -> BTreeMap<String, String> {
-    build_provider_env(
+    let mut next = binary_discovery::provider_launch_env(
         env,
         binary,
-        &["HOME", "PATH", "TMPDIR", "USER", "LANG", "LC_ALL"],
-    )
+        &["HOME", "TMPDIR", "USER", "LANG", "LC_ALL"],
+    );
+    next.entry("LANG".to_string())
+        .or_insert_with(|| "en_US.UTF-8".to_string());
+    next
 }

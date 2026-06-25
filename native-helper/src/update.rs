@@ -54,26 +54,14 @@ pub fn check_update(
     env: &BTreeMap<String, String>,
     installed_version: &str,
 ) -> Result<UpdateStatus, UpdateFailure> {
-    if platform_os(env) != "macos" {
-        return Err(UpdateFailure {
-            code: "UPDATE_UNSUPPORTED_PLATFORM",
-            message: "Native host updates are only supported on macOS.".to_string(),
-            retryable: false,
-        });
-    }
+    let required_assets = supported_release_assets(env)?;
 
     let releases = load_releases(env)?;
-
-    let required_helper_asset = required_helper_asset(env).ok_or_else(|| UpdateFailure {
-        code: "UPDATE_UNSUPPORTED_PLATFORM",
-        message: "Native host updates are not supported for this architecture.".to_string(),
-        retryable: false,
-    })?;
 
     let latest = releases
         .iter()
         .filter(|release| !release.prerelease && !release.draft)
-        .filter(|release| has_required_assets(release, required_helper_asset))
+        .filter(|release| has_required_assets(release, required_assets))
         .filter_map(|release| Some((parse_version(&release.tag_name)?, release)))
         .max_by_key(|(version, _)| *version)
         .map(|(_, release)| release)
@@ -124,7 +112,7 @@ fn load_releases(env: &BTreeMap<String, String>) -> Result<Vec<ReleaseEntry>, Up
     let curl = env
         .get("HOVER_TRANS_PORT_CURL_PATH")
         .cloned()
-        .unwrap_or_else(|| "/usr/bin/curl".to_string());
+        .unwrap_or_else(|| default_curl_path(env));
     let args = vec![
         "-fsSL".to_string(),
         "-H".to_string(),
@@ -156,14 +144,31 @@ fn parse_releases(body: &str) -> Result<Vec<ReleaseEntry>, UpdateFailure> {
     })
 }
 
+fn default_curl_path(env: &BTreeMap<String, String>) -> String {
+    if platform_os(env) == "windows" {
+        return env_value(env, "SystemRoot")
+            .map(|system_root| {
+                PathBuf::from(system_root)
+                    .join("System32")
+                    .join("curl.exe")
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .unwrap_or_else(|| r"C:\Windows\System32\curl.exe".to_string());
+    }
+
+    "/usr/bin/curl".to_string()
+}
+
 pub fn run_update(
     env: &BTreeMap<String, String>,
     target_tag: &str,
     target_version: &str,
 ) -> Result<UpdateInstallResult, UpdateFailure> {
+    let _ = supported_release_assets(env)?;
     validate_update_target(target_tag, target_version)?;
 
-    let metadata_path = active_metadata_path(env);
+    let metadata_path = active_metadata_path(env)?;
     let metadata = fs::read_to_string(&metadata_path).map_err(|error| UpdateFailure {
         code: "UPDATE_INSTALL_FAILED",
         message: format!("Native host metadata could not be read: {error}"),
@@ -183,14 +188,7 @@ pub fn run_update(
 
     let output = run_process(ProcessRequest {
         executable: PathBuf::from(updater_path),
-        args: vec![
-            "update".to_string(),
-            "--release-tag".to_string(),
-            target_tag.to_string(),
-            "--host-version".to_string(),
-            target_version.to_string(),
-            "--json".to_string(),
-        ],
+        args: update_args(env, target_tag, target_version),
         cwd: None,
         env: env.clone(),
         stdin: String::new(),
@@ -240,24 +238,91 @@ fn platform_arch(env: &BTreeMap<String, String>) -> String {
         .unwrap_or_else(|| std::env::consts::ARCH.to_string())
 }
 
-fn required_helper_asset(env: &BTreeMap<String, String>) -> Option<&'static str> {
-    match platform_arch(env).as_str() {
-        "arm64" | "aarch64" => Some("hover-trans-port-helper-macos-arm64"),
-        "x86_64" => Some("hover-trans-port-helper-macos-x64"),
+fn required_release_assets(env: &BTreeMap<String, String>) -> Option<(&'static str, &'static str)> {
+    match (platform_os(env).as_str(), platform_arch(env).as_str()) {
+        ("macos", "arm64") | ("macos", "aarch64") => {
+            Some(("install.sh", "hover-trans-port-helper-macos-arm64"))
+        }
+        ("macos", "x86_64") => Some(("install.sh", "hover-trans-port-helper-macos-x64")),
+        ("linux", "arm64") | ("linux", "aarch64") => {
+            Some(("install.sh", "hover-trans-port-helper-linux-arm64"))
+        }
+        ("linux", "x86_64") => Some(("install.sh", "hover-trans-port-helper-linux-x64")),
+        ("windows", "arm64") | ("windows", "aarch64") => Some((
+            "install-windows-native-host.ps1",
+            "hover-trans-port-helper-windows-arm64.exe",
+        )),
+        ("windows", "x86_64") => Some((
+            "install-windows-native-host.ps1",
+            "hover-trans-port-helper-windows-x64.exe",
+        )),
         _ => None,
     }
 }
 
-fn has_required_assets(release: &ReleaseEntry, helper_asset: &str) -> bool {
+fn supported_release_assets(
+    env: &BTreeMap<String, String>,
+) -> Result<(&'static str, &'static str), UpdateFailure> {
+    required_release_assets(env).ok_or_else(|| UpdateFailure {
+        code: "UPDATE_UNSUPPORTED_PLATFORM",
+        message: "Native host updates are not supported for this platform or architecture."
+            .to_string(),
+        retryable: false,
+    })
+}
+
+fn has_required_assets(release: &ReleaseEntry, required_assets: (&str, &str)) -> bool {
+    let (installer_asset, helper_asset) = required_assets;
     let assets = release
         .assets
         .iter()
         .map(|asset| asset.name.as_str())
         .collect::<BTreeSet<_>>();
 
-    assets.contains("install-macos-native-host.sh")
+    has_required_installer_asset(&assets, installer_asset, helper_asset)
         && assets.contains("checksums.txt")
         && assets.contains(helper_asset)
+}
+
+fn has_required_installer_asset(
+    assets: &BTreeSet<&str>,
+    installer_asset: &str,
+    helper_asset: &str,
+) -> bool {
+    assets.contains(installer_asset)
+        || (installer_asset == "install.sh"
+            && helper_asset.starts_with("hover-trans-port-helper-macos-")
+            && assets.contains("install-macos-native-host.sh"))
+        || (installer_asset == "install-windows-native-host.ps1"
+            && helper_asset.starts_with("hover-trans-port-helper-windows-")
+            && assets.contains("install.ps1"))
+}
+
+fn update_args(
+    env: &BTreeMap<String, String>,
+    target_tag: &str,
+    target_version: &str,
+) -> Vec<String> {
+    if platform_os(env) == "windows" {
+        return vec![
+            "-Command".to_string(),
+            "update".to_string(),
+            "-ReleaseTag".to_string(),
+            target_tag.to_string(),
+            "-HostVersion".to_string(),
+            target_version.to_string(),
+            "-Json".to_string(),
+        ];
+    }
+
+    vec![
+        "update".to_string(),
+        "--release-tag".to_string(),
+        target_tag.to_string(),
+        "--host-version".to_string(),
+        target_version.to_string(),
+        "--json".to_string(),
+    ]
 }
 
 fn parse_version(version: &str) -> Option<(u64, u64, u64)> {
@@ -310,8 +375,32 @@ fn is_numeric_version_part(part: &str) -> bool {
     !part.is_empty() && part.chars().all(|character| character.is_ascii_digit())
 }
 
-fn active_metadata_path(env: &BTreeMap<String, String>) -> PathBuf {
-    install_root(env).join("current").join("metadata.json")
+fn active_metadata_path(env: &BTreeMap<String, String>) -> Result<PathBuf, UpdateFailure> {
+    let install_root = install_root(env);
+    if platform_os(env) != "windows" {
+        return Ok(install_root.join("current").join("metadata.json"));
+    }
+
+    let current_path = install_root.join("current");
+    let current_version = fs::read_to_string(&current_path).map_err(|error| UpdateFailure {
+        code: "UPDATE_INSTALL_FAILED",
+        message: format!("Native host current version could not be read: {error}"),
+        retryable: false,
+    })?;
+    let current_version = current_version.trim();
+
+    if !is_strict_three_part_version(current_version) {
+        return Err(UpdateFailure {
+            code: "UPDATE_INSTALL_FAILED",
+            message: format!("Native host current version could not be parsed: {current_version}"),
+            retryable: false,
+        });
+    }
+
+    Ok(install_root
+        .join("native-hosts")
+        .join(current_version)
+        .join("metadata.json"))
 }
 
 fn install_root(env: &BTreeMap<String, String>) -> PathBuf {
@@ -319,11 +408,35 @@ fn install_root(env: &BTreeMap<String, String>) -> PathBuf {
         return PathBuf::from(path);
     }
 
-    dirs::home_dir()
+    match platform_os(env).as_str() {
+        "windows" => env_value(env, "LOCALAPPDATA")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| home_dir(env).join("AppData").join("Local"))
+            .join("Hover Trans Port"),
+        "linux" => home_dir(env)
+            .join(".local")
+            .join("share")
+            .join("hover-trans-port"),
+        _ => home_dir(env)
+            .join("Library")
+            .join("Application Support")
+            .join("Hover Trans Port"),
+    }
+}
+
+fn home_dir(env: &BTreeMap<String, String>) -> PathBuf {
+    env.get("HOME")
+        .map(PathBuf::from)
+        .or_else(dirs::home_dir)
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("Library")
-        .join("Application Support")
-        .join("Hover Trans Port")
+}
+
+fn env_value(env: &BTreeMap<String, String>, key: &str) -> Option<String> {
+    env.get(key).cloned().or_else(|| {
+        env.iter()
+            .find(|(candidate, _)| candidate.eq_ignore_ascii_case(key))
+            .map(|(_, value)| value.clone())
+    })
 }
 
 fn process_update_failure(error: ProviderError) -> UpdateFailure {
@@ -417,5 +530,247 @@ mod tests {
 
         assert_eq!(status.latest_version, "0.2.6");
         assert_eq!(status.release_url, "https://example.invalid/good");
+    }
+
+    #[test]
+    fn check_update_accepts_macos_release_install_sh_asset() {
+        let temp = tempdir().unwrap();
+        let releases_path = temp.path().join("releases.json");
+        fs::write(
+            &releases_path,
+            r#"[{"tag_name":"v0.2.15","prerelease":false,"draft":false,"html_url":"https://example.invalid/macos","assets":[{"name":"install.sh"},{"name":"checksums.txt"},{"name":"hover-trans-port-helper-macos-arm64"}]}]"#,
+        )
+        .unwrap();
+        let mut env = BTreeMap::new();
+        env.insert(
+            "HOVER_TRANS_PORT_RELEASES_JSON_PATH".to_string(),
+            releases_path.to_string_lossy().into_owned(),
+        );
+        env.insert(
+            "HOVER_TRANS_PORT_TEST_ARCH".to_string(),
+            "arm64".to_string(),
+        );
+        env.insert("HOVER_TRANS_PORT_TEST_OS".to_string(), "macos".to_string());
+
+        let status = check_update(&env, "0.2.14").unwrap();
+
+        assert_eq!(status.latest_version, "0.2.15");
+        assert!(status.update_available);
+    }
+
+    #[test]
+    fn check_update_accepts_linux_release_assets() {
+        let temp = tempdir().unwrap();
+        let releases_path = temp.path().join("releases.json");
+        fs::write(
+            &releases_path,
+            r#"[{"tag_name":"v0.2.15","prerelease":false,"draft":false,"html_url":"https://example.invalid/linux","assets":[{"name":"install.sh"},{"name":"checksums.txt"},{"name":"hover-trans-port-helper-linux-x64"}]}]"#,
+        )
+        .unwrap();
+        let mut env = BTreeMap::new();
+        env.insert(
+            "HOVER_TRANS_PORT_RELEASES_JSON_PATH".to_string(),
+            releases_path.to_string_lossy().into_owned(),
+        );
+        env.insert(
+            "HOVER_TRANS_PORT_TEST_ARCH".to_string(),
+            "x86_64".to_string(),
+        );
+        env.insert("HOVER_TRANS_PORT_TEST_OS".to_string(), "linux".to_string());
+
+        let status = check_update(&env, "0.2.14").unwrap();
+
+        assert_eq!(status.latest_version, "0.2.15");
+        assert!(status.update_available);
+    }
+
+    #[test]
+    fn check_update_accepts_windows_release_assets() {
+        let temp = tempdir().unwrap();
+        let releases_path = temp.path().join("releases.json");
+        fs::write(
+            &releases_path,
+            r#"[{"tag_name":"v0.2.15","prerelease":false,"draft":false,"html_url":"https://example.invalid/windows","assets":[{"name":"install-windows-native-host.ps1"},{"name":"checksums.txt"},{"name":"hover-trans-port-helper-windows-x64.exe"}]}]"#,
+        )
+        .unwrap();
+        let mut env = BTreeMap::new();
+        env.insert(
+            "HOVER_TRANS_PORT_RELEASES_JSON_PATH".to_string(),
+            releases_path.to_string_lossy().into_owned(),
+        );
+        env.insert(
+            "HOVER_TRANS_PORT_TEST_ARCH".to_string(),
+            "x86_64".to_string(),
+        );
+        env.insert(
+            "HOVER_TRANS_PORT_TEST_OS".to_string(),
+            "windows".to_string(),
+        );
+
+        let status = check_update(&env, "0.2.14").unwrap();
+
+        assert_eq!(status.latest_version, "0.2.15");
+        assert!(status.update_available);
+    }
+
+    #[test]
+    fn check_update_accepts_windows_arm64_release_assets() {
+        let temp = tempdir().unwrap();
+        let releases_path = temp.path().join("releases.json");
+        fs::write(
+            &releases_path,
+            r#"[{"tag_name":"v0.2.15","prerelease":false,"draft":false,"html_url":"https://example.invalid/windows-arm64","assets":[{"name":"install-windows-native-host.ps1"},{"name":"checksums.txt"},{"name":"hover-trans-port-helper-windows-arm64.exe"}]}]"#,
+        )
+        .unwrap();
+        let mut env = BTreeMap::new();
+        env.insert(
+            "HOVER_TRANS_PORT_RELEASES_JSON_PATH".to_string(),
+            releases_path.to_string_lossy().into_owned(),
+        );
+        env.insert(
+            "HOVER_TRANS_PORT_TEST_ARCH".to_string(),
+            "aarch64".to_string(),
+        );
+        env.insert(
+            "HOVER_TRANS_PORT_TEST_OS".to_string(),
+            "windows".to_string(),
+        );
+
+        let status = check_update(&env, "0.2.14").unwrap();
+
+        assert_eq!(status.latest_version, "0.2.15");
+        assert!(status.update_available);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn check_update_uses_windows_systemroot_curl_default() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = tempdir().unwrap();
+        let system_root = temp.path().join("Windows");
+        let curl_path = system_root.join("System32").join("curl.exe");
+        fs::create_dir_all(curl_path.parent().unwrap()).unwrap();
+        fs::write(
+            &curl_path,
+            "#!/bin/sh\ncat <<'JSON'\n[{\"tag_name\":\"v0.2.15\",\"prerelease\":false,\"draft\":false,\"html_url\":\"https://example.invalid/windows\",\"assets\":[{\"name\":\"install-windows-native-host.ps1\"},{\"name\":\"checksums.txt\"},{\"name\":\"hover-trans-port-helper-windows-x64.exe\"}]}]\nJSON\n",
+        )
+        .unwrap();
+        let mut permissions = fs::metadata(&curl_path).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&curl_path, permissions).unwrap();
+
+        let mut env = BTreeMap::new();
+        env.insert(
+            "HOVER_TRANS_PORT_RELEASES_API_URL".to_string(),
+            "https://example.invalid/releases".to_string(),
+        );
+        env.insert(
+            "HOVER_TRANS_PORT_TEST_ARCH".to_string(),
+            "x86_64".to_string(),
+        );
+        env.insert(
+            "HOVER_TRANS_PORT_TEST_OS".to_string(),
+            "windows".to_string(),
+        );
+        env.insert(
+            "SystemRoot".to_string(),
+            system_root.to_string_lossy().into_owned(),
+        );
+
+        let status = check_update(&env, "0.2.14").unwrap();
+
+        assert_eq!(status.latest_version, "0.2.15");
+        assert!(status.update_available);
+    }
+
+    #[test]
+    fn windows_default_install_root_uses_localappdata() {
+        let mut env = BTreeMap::new();
+        env.insert(
+            "HOVER_TRANS_PORT_TEST_OS".to_string(),
+            "windows".to_string(),
+        );
+        env.insert(
+            "LOCALAPPDATA".to_string(),
+            r"C:\Users\Ada\AppData\Local".to_string(),
+        );
+
+        assert_eq!(
+            install_root(&env),
+            PathBuf::from(r"C:\Users\Ada\AppData\Local").join("Hover Trans Port")
+        );
+    }
+
+    #[test]
+    fn linux_default_install_root_uses_home_local_share() {
+        let temp = tempdir().unwrap();
+        let mut env = BTreeMap::new();
+        env.insert("HOVER_TRANS_PORT_TEST_OS".to_string(), "linux".to_string());
+        env.insert(
+            "HOME".to_string(),
+            temp.path().to_string_lossy().into_owned(),
+        );
+
+        assert_eq!(
+            install_root(&env),
+            temp.path()
+                .join(".local")
+                .join("share")
+                .join("hover-trans-port")
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn run_update_rejects_unsupported_platform_before_invoking_updater() {
+        use std::os::unix::fs::symlink;
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = tempdir().unwrap();
+        let install_root = temp.path().join("Hover Trans Port");
+        let current_dir = install_root.join("native-hosts/0.2.3");
+        fs::create_dir_all(&current_dir).unwrap();
+        symlink(&current_dir, install_root.join("current")).unwrap();
+
+        let marker_path = temp.path().join("updater-invoked");
+        let updater_path = current_dir.join("install.sh");
+        fs::write(
+            &updater_path,
+            format!(
+                "#!/bin/sh\nprintf invoked > '{}'\nprintf '%s\n' '{{\"ok\":true,\"previousVersion\":\"0.2.3\",\"installedVersion\":\"0.2.4\",\"helperPath\":\"/tmp/helper\"}}'\n",
+                marker_path.display()
+            ),
+        )
+        .unwrap();
+        let mut permissions = fs::metadata(&updater_path).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&updater_path, permissions).unwrap();
+
+        fs::write(
+            install_root.join("current").join("metadata.json"),
+            format!(
+                "{{\"hostVersion\":\"0.2.3\",\"protocolVersion\":1,\"source\":\"unix-script-installer\",\"updaterPath\":\"{}\"}}",
+                updater_path.display()
+            ),
+        )
+        .unwrap();
+
+        let mut env = BTreeMap::new();
+        env.insert(
+            "HOVER_TRANS_PORT_INSTALL_ROOT".to_string(),
+            install_root.to_string_lossy().into_owned(),
+        );
+        env.insert("HOVER_TRANS_PORT_TEST_OS".to_string(), "linux".to_string());
+        env.insert(
+            "HOVER_TRANS_PORT_TEST_ARCH".to_string(),
+            "sparc".to_string(),
+        );
+
+        let error = run_update(&env, "v0.2.4", "0.2.4").unwrap_err();
+
+        assert_eq!(error.code, "UPDATE_UNSUPPORTED_PLATFORM");
+        assert!(!error.retryable);
+        assert!(!marker_path.exists());
     }
 }
