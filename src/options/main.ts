@@ -8,6 +8,7 @@ import { formatNativeHostUpdateStatusForUser } from "../shared/nativeHostUpdate"
 import {
   getDefaultModelForProvider,
   getFallbackModelCatalog,
+  formatProviderUnavailableMessage,
   getProviderLabel,
   resolveProviderForModel,
   type ProviderId,
@@ -1151,7 +1152,10 @@ async function checkProviderStatus() {
 
   if (!selectedStatus.available) {
     setProviderStatus(
-      `Unavailable. ${selectedStatus.error ?? `${providerLabel} was not found.`}`
+      `Unavailable. ${formatProviderUnavailableMessage(
+        providerId,
+        selectedStatus.error
+      )}`
     );
     return;
   }

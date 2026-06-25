@@ -51,8 +51,10 @@ Ctrl+C 또는 Ctrl+F 같은 일반 브라우저/편집 단축키는 trigger로 �
 
 | 현재 동작 | 아직 아님 |
 | --- | --- |
-| macOS와 Google Chrome | Chrome Web Store 설치 |
-| `dist/` 폴더를 직접 불러오는 unpacked extension | Windows/Linux Native Host 설치 가이드 |
+| macOS native host 릴리스 패키지와 Google Chrome | Chrome Web Store 설치 |
+| `dist/` 폴더를 직접 불러오는 unpacked extension | 사전 빌드된 Windows/Linux native host 릴리스 패키지 |
+| source에서 macOS와 Linux developer native-host 설치 | Windows/Linux one-line native host installer |
+| Windows provider/helper 호환성 검증 | Windows native host 설치 스크립트와 가이드 |
 | Codex, Claude, Gemini, OpenCode, Antigravity CLI provider | 전체 페이지 자동 번역 |
 | 마우스로 가리킨 읽기 가능한 블록과 선택 영역 번역 | PDF, iframe, OCR, 자막 번역 |
 | 원문 안에 번역 표시, 로컬 SQLite 캐시, Options 진단 | hosted translation service |

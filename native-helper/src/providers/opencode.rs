@@ -6,6 +6,9 @@ use tempfile::tempdir;
 use crate::messages::{ProviderId, ProviderStatusEntry};
 use crate::process::{run_process, ProcessRequest, ProviderError};
 use crate::prompt::build_translate_prompt;
+use crate::providers::executable::{
+    build_provider_env, command_candidates, env_value, find_binary as find_provider_binary,
+};
 use crate::providers::{
     Provider, ProviderModelCatalog, ProviderModelOption, ProviderTranslateRequest,
     ProviderTranslateResult,
@@ -357,23 +360,8 @@ fn extract_content_text(value: &serde_json::Value) -> String {
 }
 
 fn find_opencode_binary(env: &BTreeMap<String, String>) -> Option<PathBuf> {
-    if let Some(path) = env
-        .get("HOVER_TRANS_PORT_OPENCODE_PATH")
-        .filter(|value| !value.trim().is_empty())
-    {
-        let candidate = PathBuf::from(path);
-        return is_executable(&candidate).then_some(candidate);
-    }
-
-    let mut candidates = Vec::new();
-    if let Some(path) = env.get("PATH") {
-        candidates.extend(
-            path.split(':')
-                .filter(|value| !value.is_empty())
-                .map(|dir| Path::new(dir).join("opencode")),
-        );
-    }
-    if let Some(home) = env.get("HOME").filter(|value| !value.trim().is_empty()) {
+    let mut candidates = command_candidates(env, "opencode");
+    if let Some(home) = env_value(env, "HOME") {
         candidates.push(
             Path::new(home)
                 .join(".opencode")
@@ -386,37 +374,28 @@ fn find_opencode_binary(env: &BTreeMap<String, String>) -> Option<PathBuf> {
     candidates.push(PathBuf::from("/usr/local/bin/opencode"));
     candidates.push(PathBuf::from("/usr/bin/opencode"));
 
-    candidates
-        .into_iter()
-        .find(|candidate| is_executable(candidate))
+    find_provider_binary(env, "HOVER_TRANS_PORT_OPENCODE_PATH", candidates)
 }
 
 fn provider_env(env: &BTreeMap<String, String>, binary: &Path) -> BTreeMap<String, String> {
-    let mut next = BTreeMap::new();
-    for key in [
-        "HOME",
-        "PATH",
-        "TMPDIR",
-        "USER",
-        "LANG",
-        "LC_ALL",
-        "XDG_CONFIG_HOME",
-        "XDG_DATA_HOME",
-        "XDG_CACHE_HOME",
-        "OPENCODE_CONFIG",
-        "OPENCODE_SERVER_PASSWORD",
-        "OPENCODE_SERVER_USERNAME",
-    ] {
-        if let Some(value) = env.get(key).filter(|value| !value.is_empty()) {
-            next.insert(key.to_string(), value.clone());
-        }
-    }
-    if let Some(parent) = binary.parent() {
-        let path = next.remove("PATH").unwrap_or_default();
-        next.insert("PATH".to_string(), format!("{path}:{}", parent.display()));
-    }
-    next.entry("LANG".to_string())
-        .or_insert_with(|| "en_US.UTF-8".to_string());
+    let mut next = build_provider_env(
+        env,
+        binary,
+        &[
+            "HOME",
+            "PATH",
+            "TMPDIR",
+            "USER",
+            "LANG",
+            "LC_ALL",
+            "XDG_CONFIG_HOME",
+            "XDG_DATA_HOME",
+            "XDG_CACHE_HOME",
+            "OPENCODE_CONFIG",
+            "OPENCODE_SERVER_PASSWORD",
+            "OPENCODE_SERVER_USERNAME",
+        ],
+    );
     next.insert(
         "OPENCODE_PERMISSION".to_string(),
         OPENCODE_TRANSLATION_PERMISSION.to_string(),
@@ -426,22 +405,4 @@ fn provider_env(env: &BTreeMap<String, String>, binary: &Path) -> BTreeMap<Strin
 
 fn compact_version(stdout: &str) -> String {
     stdout.split_whitespace().collect::<Vec<_>>().join(" ")
-}
-
-fn is_executable(path: &Path) -> bool {
-    path.is_file()
-        && path
-            .metadata()
-            .map(|metadata| {
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt;
-                    metadata.permissions().mode() & 0o111 != 0
-                }
-                #[cfg(not(unix))]
-                {
-                    !metadata.permissions().readonly()
-                }
-            })
-            .unwrap_or(false)
 }
