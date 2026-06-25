@@ -10,7 +10,7 @@ param(
   [string]$HelperSource = "",
   [Alias("--skip-checksum", "-skip-checksum", "skip-checksum")]
   [switch]$SkipChecksum,
-  [Alias("--json", "-json", "json")]
+  [Alias("--json", "-json")]
   [switch]$Json,
   [string]$ExtensionId = "mmbmjpmhmlkjknhcigafgplahdbicabe",
   [string]$Browser = "all",

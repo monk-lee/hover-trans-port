@@ -330,7 +330,8 @@ assert(
     powershellInstaller.includes('[Alias("--release-tag", "-release-tag", "release-tag")]') &&
     powershellInstaller.includes('[Alias("--helper-source", "-helper-source", "helper-source")]') &&
     powershellInstaller.includes('[Alias("--skip-checksum", "-skip-checksum", "skip-checksum")]') &&
-    powershellInstaller.includes('[Alias("--json", "-json", "json")]'),
+    powershellInstaller.includes('[Alias("--json", "-json")]') &&
+    !powershellInstaller.includes('[Alias("--json", "-json", "json")]'),
   "PowerShell installer should expose Unix-style aliases for updater flags"
 );
 assert(
