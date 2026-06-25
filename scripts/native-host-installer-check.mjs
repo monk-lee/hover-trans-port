@@ -32,9 +32,11 @@ const macosCompatibilityInstaller = join(
   "scripts/install-macos-native-host.sh"
 );
 const windowsInstaller = join(repoRoot, "scripts/install-windows-native-host.ps1");
+const installerSmoke = join(repoRoot, "scripts/native-host-installer-smoke.mjs");
 const extensionId = "mmbmjpmhmlkjknhcigafgplahdbicabe";
 const embeddedPayloadMarker = "HOVER_TRANS_PORT_INSTALL_SH_PAYLOAD";
 const powershellInstaller = readFileSync(windowsInstaller, "utf8");
+const installerSmokeScript = readFileSync(installerSmoke, "utf8");
 
 function extractEmbeddedInstallPayload() {
   const wrapper = readFileSync(macosCompatibilityInstaller, "utf8");
@@ -333,6 +335,14 @@ assert(
     powershellInstaller.includes('[Alias("--json", "-json")]') &&
     !powershellInstaller.includes('[Alias("--json", "-json", "json")]'),
   "PowerShell installer should expose Unix-style aliases for updater flags"
+);
+assert(
+  installerSmokeScript.includes('["/d", "/c", "call", launcherPath]'),
+  "Windows installer smoke should run .cmd launchers through cmd.exe call"
+);
+assertNot(
+  installerSmokeScript.includes('["/d", "/s", "/c", `"${launcherPath}"`]'),
+  "Windows installer smoke should not pass a pre-quoted command string to cmd.exe"
 );
 assert(
   powershellInstaller.includes('Join-Path $InstallRoot "NativeMessagingHosts"'),

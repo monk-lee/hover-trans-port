@@ -232,7 +232,7 @@ function parseNativeMessageFrame(output) {
 function runLauncherHostInfo(launcherPath, env) {
   const command = process.platform === "win32" ? "cmd.exe" : launcherPath;
   const args =
-    process.platform === "win32" ? ["/d", "/s", "/c", `"${launcherPath}"`] : [];
+    process.platform === "win32" ? ["/d", "/c", "call", launcherPath] : [];
   const result = spawnSync(command, args, {
     cwd: repoRoot,
     env: {
