@@ -1,5 +1,5 @@
-export const REQUIRED_NATIVE_HOST_PROTOCOL_VERSION = 2;
-export const MAX_SUPPORTED_NATIVE_HOST_PROTOCOL_VERSION = 2;
+export const REQUIRED_NATIVE_HOST_PROTOCOL_VERSION = 3;
+export const MAX_SUPPORTED_NATIVE_HOST_PROTOCOL_VERSION = 3;
 
 export type NativeHostInfoLike = {
   hostVersion?: unknown;

@@ -80,6 +80,7 @@ export type SubtitleTrackTranslationRequest = Omit<
 > & {
   type: "TRANSLATE_SUBTITLE_TRACK";
   cues: YouTubeSubtitleCue[];
+  currentTimeMs?: number;
   timeoutMs?: number;
   cacheEnabled?: boolean;
   debugLogging?: boolean;

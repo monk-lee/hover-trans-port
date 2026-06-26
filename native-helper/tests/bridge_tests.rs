@@ -890,6 +890,236 @@ exit 2
 }
 
 #[test]
+fn subtitle_translation_uses_explicit_request_context_without_translating_context_cues() {
+    let temp = tempdir().unwrap();
+    let cache_path = temp.path().join("cache.sqlite");
+    let codex = temp.path().join("codex-subtitle-explicit-context");
+    fs::write(
+        &codex,
+        r#"#!/bin/sh
+if [ "$1" = "exec" ]; then
+  prompt_file="$0.prompt"
+  /bin/cat > "$prompt_file"
+  /usr/bin/python3 - "$prompt_file" <<'PY'
+import json
+import sys
+
+prompt = open(sys.argv[1], encoding="utf-8").read()
+payload = json.loads(prompt.split("Input JSON:", 1)[1].strip())
+expected = payload["expectedCueIds"]
+before = [cue["id"] for cue in payload["contextBefore"]]
+after = [cue["id"] for cue in payload["contextAfter"]]
+if expected != ["target-1"] or before != ["before-1"] or after != ["after-1"]:
+    raise SystemExit(f"unexpected prompt payload: {payload!r}")
+print(json.dumps({"cues":[{"id":"target-1","translatedText":"문맥을 반영한 번역입니다"}]}, ensure_ascii=False), end="")
+PY
+  exit 0
+fi
+printf 'unexpected explicit-context prompt' >&2
+exit 2
+"#,
+    )
+    .unwrap();
+    make_executable(&codex);
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CODEX_PATH".to_string(),
+        codex.to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "HOVER_TRANS_PORT_CACHE_PATH".to_string(),
+        cache_path.to_string_lossy().into_owned(),
+    );
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+    env.insert("HOME".to_string(), temp.path().display().to_string());
+
+    let response = handle_request(
+        json!({
+            "type": "TRANSLATE_SUBTITLES",
+            "requestId": "req-sub-explicit-context",
+            "provider": "codex",
+            "model": "gpt-5.4-mini",
+            "targetLang": "Korean",
+            "videoId": "abc",
+            "sourceTrackIdentity": "track",
+            "sourceTimelineHash": "hash-explicit-context",
+            "promptVersion": 1,
+            "cacheEnabled": false,
+            "timeoutMs": 5_000,
+            "contextBefore": [
+                {
+                    "id": "before-1",
+                    "startMs": 58_000,
+                    "endMs": 59_000,
+                    "text": "this explains the previous setup"
+                }
+            ],
+            "cues": [
+                {
+                    "id": "target-1",
+                    "startMs": 60_000,
+                    "endMs": 61_000,
+                    "text": "now do it"
+                }
+            ],
+            "contextAfter": [
+                {
+                    "id": "after-1",
+                    "startMs": 61_000,
+                    "endMs": 62_000,
+                    "text": "then verify the result"
+                }
+            ]
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "SUBTITLE_TRANSLATE_RESULT");
+    assert_eq!(response["ok"], true);
+    assert_eq!(response["cues"].as_array().unwrap().len(), 1);
+    assert_eq!(response["cues"][0]["id"], "target-1");
+    assert_eq!(
+        response["cues"][0]["translatedText"],
+        "문맥을 반영한 번역입니다"
+    );
+}
+
+#[test]
+fn subtitle_cache_write_message_populates_full_track_cache() {
+    let temp = tempdir().unwrap();
+    let cache_path = temp.path().join("cache.sqlite");
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CACHE_PATH".to_string(),
+        cache_path.to_string_lossy().into_owned(),
+    );
+    env.insert("HOME".to_string(), temp.path().display().to_string());
+
+    let write_response = handle_request(
+        json!({
+            "type": "WRITE_SUBTITLE_TRANSLATION_CACHE",
+            "requestId": "req-sub-cache-write",
+            "provider": "codex",
+            "model": "gpt-5.4-mini",
+            "targetLang": "Korean",
+            "videoId": "abc",
+            "sourceTrackIdentity": "track",
+            "sourceTimelineHash": "hash-full-track",
+            "promptVersion": 1,
+            "sourceCues": [
+                {
+                    "id": "cue-1",
+                    "startMs": 0,
+                    "endMs": 1_000,
+                    "text": "hello"
+                }
+            ],
+            "translatedCues": [
+                {
+                    "id": "cue-1",
+                    "startMs": 0,
+                    "endMs": 1_000,
+                    "translatedText": "안녕하세요"
+                }
+            ]
+        }),
+        BridgeDeps::with_env(env.clone()),
+    );
+
+    assert_eq!(write_response["type"], "SUBTITLE_CACHE_WRITE_RESULT");
+    assert_eq!(write_response["ok"], true);
+
+    let lookup_response = handle_request(
+        json!({
+            "type": "GET_SUBTITLE_TRANSLATION_CACHE",
+            "requestId": "req-sub-cache-lookup-written",
+            "provider": "codex",
+            "model": "gpt-5.4-mini",
+            "targetLang": "Korean",
+            "videoId": "abc",
+            "sourceTrackIdentity": "track",
+            "sourceTimelineHash": "hash-full-track",
+            "promptVersion": 1
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(lookup_response["type"], "SUBTITLE_CACHE_RESULT");
+    assert_eq!(lookup_response["ok"], true);
+    assert_eq!(lookup_response["cached"], true);
+    assert_eq!(lookup_response["cues"][0]["translatedText"], "안녕하세요");
+}
+
+#[test]
+fn subtitle_cache_write_rejects_mismatched_translated_cues() {
+    let temp = tempdir().unwrap();
+    let cache_path = temp.path().join("cache.sqlite");
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CACHE_PATH".to_string(),
+        cache_path.to_string_lossy().into_owned(),
+    );
+    env.insert("HOME".to_string(), temp.path().display().to_string());
+
+    let write_response = handle_request(
+        json!({
+            "type": "WRITE_SUBTITLE_TRANSLATION_CACHE",
+            "requestId": "req-sub-cache-write-invalid",
+            "provider": "codex",
+            "model": "gpt-5.4-mini",
+            "targetLang": "Korean",
+            "videoId": "abc",
+            "sourceTrackIdentity": "track",
+            "sourceTimelineHash": "hash-invalid-full-track",
+            "promptVersion": 1,
+            "sourceCues": [
+                {
+                    "id": "cue-1",
+                    "startMs": 0,
+                    "endMs": 1_000,
+                    "text": "hello"
+                }
+            ],
+            "translatedCues": [
+                {
+                    "id": "wrong-cue",
+                    "startMs": 0,
+                    "endMs": 1_000,
+                    "translatedText": "안녕하세요"
+                }
+            ]
+        }),
+        BridgeDeps::with_env(env.clone()),
+    );
+
+    assert_eq!(write_response["type"], "SUBTITLE_CACHE_WRITE_RESULT");
+    assert_eq!(write_response["ok"], false);
+    assert_eq!(write_response["error"], "INVALID_MESSAGE");
+
+    let lookup_response = handle_request(
+        json!({
+            "type": "GET_SUBTITLE_TRANSLATION_CACHE",
+            "requestId": "req-sub-cache-lookup-invalid",
+            "provider": "codex",
+            "model": "gpt-5.4-mini",
+            "targetLang": "Korean",
+            "videoId": "abc",
+            "sourceTrackIdentity": "track",
+            "sourceTimelineHash": "hash-invalid-full-track",
+            "promptVersion": 1
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(lookup_response["type"], "SUBTITLE_CACHE_RESULT");
+    assert_eq!(lookup_response["ok"], true);
+    assert_eq!(lookup_response["cached"], false);
+}
+
+#[test]
 fn subtitle_translation_timeout_applies_to_each_subtitle_chunk() {
     let temp = tempdir().unwrap();
     let cache_path = temp.path().join("cache.sqlite");

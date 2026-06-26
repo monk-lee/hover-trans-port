@@ -447,6 +447,9 @@ export class YouTubeSubtitleSession {
     });
 
     const requestId = createRequestId();
+    const currentTimeMs = video
+      ? Math.round(video.currentTime * 1000)
+      : undefined;
     this.activeTranslationRequestId = requestId;
     this.resumePlaybackAfterFirstSubtitleChunk = wasPlaying;
     this.resumedPlaybackForActiveRequest = false;
@@ -467,6 +470,7 @@ export class YouTubeSubtitleSession {
         model: this.current.model,
         promptVersion: SUBTITLE_TRANSLATION_PROMPT_VERSION,
         cues: this.current.cues,
+        currentTimeMs,
         timeoutMs: this.current.timeoutMs,
         cacheEnabled: this.current.cacheEnabled,
         debugLogging: this.current.debugLogging

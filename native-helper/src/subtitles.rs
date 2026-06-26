@@ -289,6 +289,76 @@ pub fn parse_subtitle_translation_output_allowing_quality_issues(
     )
 }
 
+pub fn validate_translated_subtitle_cues(
+    source: &[SubtitleCue],
+    translated: &[TranslatedSubtitleCue],
+) -> Result<Vec<TranslatedSubtitleCue>, ProviderError> {
+    if translated.len() != source.len() {
+        return Err(ProviderError::OutputParseFailed {
+            message: "Subtitle output target cue count did not match source cue count.".to_string(),
+        });
+    }
+
+    let source_by_id = source
+        .iter()
+        .map(|cue| (cue.id.as_str(), cue))
+        .collect::<HashMap<_, _>>();
+    let mut translated_by_id = HashMap::<String, String>::new();
+
+    for cue in translated {
+        let Some(source_cue) = source_by_id.get(cue.id.as_str()) else {
+            return Err(ProviderError::OutputParseFailed {
+                message: "Subtitle output target cue ids or text were invalid.".to_string(),
+            });
+        };
+
+        if cue.start_ms != source_cue.start_ms || cue.end_ms != source_cue.end_ms {
+            return Err(ProviderError::OutputParseFailed {
+                message: "Subtitle output target cue timing was invalid.".to_string(),
+            });
+        }
+
+        let translated_text = cue.translated_text.trim().to_string();
+
+        if translated_text.is_empty()
+            || translated_by_id
+                .insert(cue.id.clone(), translated_text)
+                .is_some()
+        {
+            return Err(ProviderError::OutputParseFailed {
+                message: "Subtitle output target cue ids or text were invalid.".to_string(),
+            });
+        }
+    }
+
+    source
+        .iter()
+        .map(|source| {
+            translated_by_id
+                .remove(&source.id)
+                .map(|translated_text| {
+                    if target_text_is_implausibly_long(source, &translated_text) {
+                        return Err(ProviderError::OutputParseFailed {
+                            message: "Subtitle output target cue text was implausibly long."
+                                .to_string(),
+                        });
+                    }
+
+                    Ok(TranslatedSubtitleCue {
+                        id: source.id.clone(),
+                        start_ms: source.start_ms,
+                        end_ms: source.end_ms,
+                        translated_text,
+                    })
+                })
+                .ok_or_else(|| ProviderError::OutputParseFailed {
+                    message: "Subtitle output target cue count did not match source cue count."
+                        .to_string(),
+                })?
+        })
+        .collect()
+}
+
 fn parse_subtitle_translation_output(
     source: &[SubtitleCue],
     output: &str,

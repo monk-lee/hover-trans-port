@@ -41,6 +41,8 @@ for (const expected of [
 for (const expected of [
   "TRANSLATE_SUBTITLES",
   "SUBTITLE_CACHE_RESULT",
+  "WRITE_SUBTITLE_TRANSLATION_CACHE",
+  "SUBTITLE_CACHE_WRITE_RESULT",
   "SUBTITLE_TRANSLATE_RESULT"
 ]) {
   assertIncludes(nativeProtocolTs, expected, "native subtitle protocol");
@@ -90,6 +92,26 @@ assertIncludes(
   nativeClientTs,
   "sourceTimelineHash: `${input.sourceTimelineHash}:segment:${chunk.index}:${segmentTimelineHash}`",
   "native client should keep segment subtitle cache keys distinct"
+);
+assertIncludes(
+  nativeClientTs,
+  "contextBefore: chunk.contextBefore",
+  "native client should send preceding subtitle context without translating it"
+);
+assertIncludes(
+  nativeClientTs,
+  "contextAfter: chunk.contextAfter",
+  "native client should send following subtitle context without translating it"
+);
+assertIncludes(
+  nativeClientTs,
+  "if (cacheEnabledValue && failedChunks.length === 0) {\n      void writeSubtitleTranslationCache",
+  "native client should write aggregate subtitle cache only after all segments succeed"
+);
+assertNotIncludes(
+  nativeClientTs,
+  "await writeSubtitleTranslationCache",
+  "best-effort aggregate subtitle cache write should not block the final translation response"
 );
 assertIncludes(
   nativeClientTs,
@@ -163,18 +185,18 @@ assertIncludes(
 );
 assertIncludes(
   nativeHostCompatibilityTs,
-  "REQUIRED_NATIVE_HOST_PROTOCOL_VERSION = 2",
-  "subtitle-capable extension should require native host protocol 2"
+  "REQUIRED_NATIVE_HOST_PROTOCOL_VERSION = 3",
+  "aggregate subtitle cache extension should require native host protocol 3"
 );
 assertIncludes(
   nativeProtocolTs,
-  "NATIVE_HOST_PROTOCOL_VERSION = 2",
-  "subtitle-capable native protocol should advertise protocol 2"
+  "NATIVE_HOST_PROTOCOL_VERSION = 3",
+  "aggregate subtitle cache native protocol should advertise protocol 3"
 );
 assertIncludes(
   nativeHelperMessagesRs,
-  "NATIVE_HOST_PROTOCOL_VERSION: u64 = 2",
-  "subtitle-capable native helper should report protocol 2"
+  "NATIVE_HOST_PROTOCOL_VERSION: u64 = 3",
+  "aggregate subtitle cache native helper should report protocol 3"
 );
 assertNotIncludes(
   nativeClientTs,

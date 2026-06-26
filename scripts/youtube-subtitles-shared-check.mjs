@@ -106,6 +106,20 @@ try {
       chunks[1].contextAfter[0].id === "cue-4",
     "later chunks should include preceding cues as context"
   );
+
+  const playbackOrderedChunks = subtitles.orderSubtitleChunksForPlayback(
+    chunks,
+    61_000
+  );
+  assert(
+    playbackOrderedChunks.map((chunk) => chunk.index).join(",") === "1,2,0",
+    "subtitle chunks should start from the current playback segment, then continue forward before older segments"
+  );
+  const gapOrderedChunks = subtitles.orderSubtitleChunksForPlayback(chunks, 59_900);
+  assert(
+    gapOrderedChunks.map((chunk) => chunk.index).join(",") === "1,2,0",
+    "subtitle chunks should start from the next relevant segment when playback is between cue timings"
+  );
 } finally {
   rmSync(tempDir, { recursive: true, force: true });
 }

@@ -612,7 +612,7 @@ withTempRoot("install", (root) => {
   assert((lstatSync(installedHelper).mode & 0o111) !== 0, "installed helper should be executable");
   const metadata = readMetadata(installRoot, "0.2.17");
   assert(metadata.hostVersion === "0.2.17", "metadata should name host version");
-  assert(metadata.protocolVersion === 2, "metadata should name protocol version");
+  assert(metadata.protocolVersion === 3, "metadata should name protocol version");
   assert(metadata.source === "unix-script-installer", "metadata should name installer source");
   assert(metadata.updaterPath === join(versionDir, "install.sh"), "metadata should name updater path");
   assert(existsSync(metadata.updaterPath), "version directory should contain updater script");

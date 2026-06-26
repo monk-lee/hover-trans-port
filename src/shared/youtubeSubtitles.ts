@@ -187,6 +187,35 @@ export function planSubtitleChunks(
   return chunks;
 }
 
+export function orderSubtitleChunksForPlayback(
+  chunks: SubtitleChunk[],
+  currentTimeMs?: number | null
+): SubtitleChunk[] {
+  if (typeof currentTimeMs !== "number" || !Number.isFinite(currentTimeMs)) {
+    return chunks;
+  }
+
+  const normalizedCurrentTimeMs = Math.max(0, Math.round(currentTimeMs));
+  const currentChunkIndex = chunks.findIndex((chunk) => {
+    const lastCue = chunk.cues[chunk.cues.length - 1];
+
+    if (!lastCue) {
+      return false;
+    }
+
+    return normalizedCurrentTimeMs < lastCue.endMs;
+  });
+
+  if (currentChunkIndex < 0) {
+    return chunks;
+  }
+
+  return [
+    ...chunks.slice(currentChunkIndex),
+    ...chunks.slice(0, currentChunkIndex)
+  ];
+}
+
 function createSubtitleChunk(
   index: number,
   cues: YouTubeSubtitleCue[],

@@ -298,7 +298,7 @@ write_metadata() {
   cat > "$metadata_path" <<METADATA
 {
   "hostVersion": "$HOST_VERSION",
-  "protocolVersion": 2,
+  "protocolVersion": 3,
   "source": "unix-script-installer",
   "updaterPath": "$updater_path"
 }

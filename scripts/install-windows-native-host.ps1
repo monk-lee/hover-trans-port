@@ -389,7 +389,7 @@ function Write-Metadata {
 
   $metadata = [ordered]@{
     hostVersion = $HostVersion
-    protocolVersion = 2
+    protocolVersion = 3
     source = "powershell-script-installer"
     updaterPath = $FinalUpdaterPath
   }

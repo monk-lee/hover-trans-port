@@ -11,7 +11,7 @@ import type {
 export const NATIVE_HOST_NAME = "com.monklabs.hover_trans_port";
 export const NATIVE_BRIDGE_VERSION = "0.2.17-rust-helper";
 export const NATIVE_HOST_VERSION = "0.2.17";
-export const NATIVE_HOST_PROTOCOL_VERSION = 2;
+export const NATIVE_HOST_PROTOCOL_VERSION = 3;
 
 export type NativePingRequest = {
   type: "PING";
@@ -57,9 +57,20 @@ export type NativeTranslateSubtitlesRequest = Omit<
 > & {
   type: "TRANSLATE_SUBTITLES";
   cues: YouTubeSubtitleCue[];
+  contextBefore?: YouTubeSubtitleCue[];
+  contextAfter?: YouTubeSubtitleCue[];
   timeoutMs?: number;
   cacheEnabled?: boolean;
   debugLogging?: boolean;
+};
+
+export type NativeSubtitleCacheWriteRequest = Omit<
+  NativeSubtitleCacheRequest,
+  "type"
+> & {
+  type: "WRITE_SUBTITLE_TRANSLATION_CACHE";
+  sourceCues: YouTubeSubtitleCue[];
+  translatedCues: TranslatedSubtitleCue[];
 };
 
 export type NativeProviderStatusRequest = {
@@ -127,6 +138,7 @@ export type NativeRequest =
   | NativeHostInfoRequest
   | NativeTranslateRequest
   | NativeSubtitleCacheRequest
+  | NativeSubtitleCacheWriteRequest
   | NativeTranslateSubtitlesRequest
   | NativeProviderStatusRequest
   | NativeProviderModelsRequest
@@ -258,6 +270,21 @@ export type NativeSubtitleTranslateResponse =
       message: string;
       retryable: boolean;
       elapsedMs?: number;
+    };
+
+export type NativeSubtitleCacheWriteResponse =
+  | {
+      type: "SUBTITLE_CACHE_WRITE_RESULT";
+      requestId: string;
+      ok: true;
+    }
+  | {
+      type: "SUBTITLE_CACHE_WRITE_RESULT";
+      requestId: string;
+      ok: false;
+      error: NativeErrorCode;
+      message: string;
+      retryable: boolean;
     };
 
 export type NativeCacheClearResponse =
@@ -423,6 +450,7 @@ export type NativeResponse =
   | NativeProviderModelsResponse
   | NativeTranslateResultResponse
   | NativeSubtitleCacheResponse
+  | NativeSubtitleCacheWriteResponse
   | NativeSubtitleTranslateResponse
   | NativeCacheClearResponse
   | NativeDebugLogInfoResponse

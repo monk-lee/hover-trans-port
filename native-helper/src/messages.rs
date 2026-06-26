@@ -3,7 +3,7 @@ use serde_json::{Map, Value};
 
 pub const NATIVE_BRIDGE_VERSION: &str = "0.2.17-rust-helper";
 pub const NATIVE_HOST_VERSION: &str = "0.2.17";
-pub const NATIVE_HOST_PROTOCOL_VERSION: u64 = 2;
+pub const NATIVE_HOST_PROTOCOL_VERSION: u64 = 3;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -100,6 +100,10 @@ pub struct TranslateSubtitlesRequest {
     pub prompt_version: u64,
     pub cues: Vec<crate::subtitles::SubtitleCue>,
     #[serde(default)]
+    pub context_before: Option<Vec<crate::subtitles::SubtitleCue>>,
+    #[serde(default)]
+    pub context_after: Option<Vec<crate::subtitles::SubtitleCue>>,
+    #[serde(default)]
     pub provider: Option<String>,
     #[serde(default)]
     pub model: Option<String>,
@@ -109,6 +113,23 @@ pub struct TranslateSubtitlesRequest {
     pub cache_enabled: Option<bool>,
     #[serde(default)]
     pub debug_logging: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubtitleCacheWriteRequest {
+    pub request_id: String,
+    pub target_lang: String,
+    pub video_id: String,
+    pub source_track_identity: String,
+    pub source_timeline_hash: String,
+    pub prompt_version: u64,
+    pub source_cues: Vec<crate::subtitles::SubtitleCue>,
+    pub translated_cues: Vec<crate::subtitles::TranslatedSubtitleCue>,
+    #[serde(default)]
+    pub provider: Option<String>,
+    #[serde(default)]
+    pub model: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

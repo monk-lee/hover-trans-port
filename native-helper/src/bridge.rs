@@ -11,9 +11,9 @@ use crate::debug_log::{
 };
 use crate::messages::{
     BaseRequest, DebugLogContentRequest, DebugLogWriteRequest, NativeHostUpdateRequest, ProviderId,
-    ProviderModelsRequest, ProviderStatusRequest, SubtitleCacheRequest, TranslateRequest,
-    TranslateSubtitlesRequest, NATIVE_BRIDGE_VERSION, NATIVE_HOST_PROTOCOL_VERSION,
-    NATIVE_HOST_VERSION,
+    ProviderModelsRequest, ProviderStatusRequest, SubtitleCacheRequest, SubtitleCacheWriteRequest,
+    TranslateRequest, TranslateSubtitlesRequest, NATIVE_BRIDGE_VERSION,
+    NATIVE_HOST_PROTOCOL_VERSION, NATIVE_HOST_VERSION,
 };
 use crate::process::ProviderError;
 use crate::providers::{
@@ -24,8 +24,8 @@ use crate::subtitles::{
     audit_subtitle_translation_quality, build_subtitle_repair_prompt,
     build_subtitle_translation_prompt, create_subtitle_quality_repair_chunk,
     parse_subtitle_translation_output_allowing_quality_issues, plan_subtitle_chunks,
-    summarize_subtitle_quality_issues, validate_subtitle_translation_output, SubtitleChunk,
-    SubtitleQualityIssue, TranslatedSubtitleCue,
+    summarize_subtitle_quality_issues, validate_subtitle_translation_output,
+    validate_translated_subtitle_cues, SubtitleChunk, SubtitleQualityIssue, TranslatedSubtitleCue,
 };
 use crate::update::{check_update, run_update, UpdateFailure};
 
@@ -75,6 +75,7 @@ pub fn handle_request(value: Value, deps: BridgeDeps) -> Value {
         Some("PROVIDER_MODELS") => provider_models(value, request_id, deps),
         Some("TRANSLATE") => translate(value, request_id, deps),
         Some("GET_SUBTITLE_TRANSLATION_CACHE") => subtitle_cache_lookup(value, request_id, deps),
+        Some("WRITE_SUBTITLE_TRANSLATION_CACHE") => subtitle_cache_write(value, request_id, deps),
         Some("TRANSLATE_SUBTITLES") => translate_subtitles(value, request_id, deps),
         Some("CLEAR_TRANSLATION_CACHE") => cache_clear(request_id, deps),
         Some("GET_DEBUG_LOG_INFO") => debug_log_info(request_id, deps),
@@ -457,6 +458,71 @@ fn subtitle_cache_lookup(value: Value, request_id: Option<String>, deps: BridgeD
     }
 }
 
+fn subtitle_cache_write(value: Value, request_id: Option<String>, deps: BridgeDeps) -> Value {
+    let request = serde_json::from_value::<SubtitleCacheWriteRequest>(value);
+
+    match request {
+        Ok(request)
+            if !request.target_lang.trim().is_empty()
+                && !request.video_id.trim().is_empty()
+                && !request.source_track_identity.trim().is_empty()
+                && !request.source_timeline_hash.trim().is_empty()
+                && !request.source_cues.is_empty()
+                && !request.translated_cues.is_empty() =>
+        {
+            let provider = resolve_provider_id(request.provider.as_deref());
+            let cache = SqliteSubtitleTranslationCache::new(
+                resolve_translation_cache_path_from_env(&deps.env),
+                current_time_millis,
+            );
+            let key = subtitle_cache_key(
+                provider,
+                request.model.as_deref().unwrap_or("default"),
+                &request.target_lang,
+                &request.video_id,
+                &request.source_track_identity,
+                &request.source_timeline_hash,
+                request.prompt_version,
+            );
+
+            let translated_cues = match validate_translated_subtitle_cues(
+                &request.source_cues,
+                &request.translated_cues,
+            ) {
+                Ok(cues) => cues,
+                Err(error) => {
+                    return subtitle_cache_write_error_response(
+                        request.request_id,
+                        "INVALID_MESSAGE",
+                        error.to_string(),
+                        false,
+                    );
+                }
+            };
+
+            match cache.write(&key, &request.source_cues, &translated_cues) {
+                Ok(()) => json!({
+                    "type": "SUBTITLE_CACHE_WRITE_RESULT",
+                    "requestId": request.request_id,
+                    "ok": true
+                }),
+                Err(error) => subtitle_cache_write_error_response(
+                    request.request_id,
+                    "CACHE_ERROR",
+                    error.to_string(),
+                    true,
+                ),
+            }
+        }
+        _ => subtitle_cache_write_error_response(
+            request_id.unwrap_or_default(),
+            "INVALID_MESSAGE",
+            "WRITE_SUBTITLE_TRANSLATION_CACHE message is missing required fields.",
+            false,
+        ),
+    }
+}
+
 fn translate_subtitles(value: Value, request_id: Option<String>, deps: BridgeDeps) -> Value {
     let request = serde_json::from_value::<TranslateSubtitlesRequest>(value);
 
@@ -538,7 +604,8 @@ fn translate_subtitles_valid(request: TranslateSubtitlesRequest, deps: BridgeDep
     let mut elapsed_ms = 0_u64;
     let mut response_provider = effective_provider;
 
-    for chunk in plan_subtitle_chunks(&request.cues) {
+    let uses_explicit_context = request.context_before.is_some() || request.context_after.is_some();
+    for chunk in plan_subtitle_chunks_for_request(&request) {
         let chunk_started_at = Instant::now();
         let prompt = build_subtitle_translation_prompt(&chunk, &request.target_lang);
         let provider_result = subtitle_provider_timeout_budget_ms(
@@ -670,15 +737,18 @@ fn translate_subtitles_valid(request: TranslateSubtitlesRequest, deps: BridgeDep
         }
     }
 
-    let timeline_quality_issues =
-        audit_subtitle_translation_quality(&request.cues, &translated_cues);
+    let timeline_quality_issues = if uses_explicit_context {
+        Vec::new()
+    } else {
+        audit_subtitle_translation_quality(&request.cues, &translated_cues)
+    };
     if !timeline_quality_issues.is_empty() {
         let timeline_repair_started_at = Instant::now();
         let timeline_chunk = SubtitleChunk {
             index: usize::MAX,
             cues: request.cues.clone(),
-            context_before: Vec::new(),
-            context_after: Vec::new(),
+            context_before: request.context_before.clone().unwrap_or_default(),
+            context_after: request.context_after.clone().unwrap_or_default(),
         };
         match repair_subtitle_quality_issues(
             &deps,
@@ -940,6 +1010,19 @@ fn subtitle_provider_timeout_budget_ms(
     Ok(remaining_timeout_ms)
 }
 
+fn plan_subtitle_chunks_for_request(request: &TranslateSubtitlesRequest) -> Vec<SubtitleChunk> {
+    if request.context_before.is_some() || request.context_after.is_some() {
+        return vec![SubtitleChunk {
+            index: 0,
+            cues: request.cues.clone(),
+            context_before: request.context_before.clone().unwrap_or_default(),
+            context_after: request.context_after.clone().unwrap_or_default(),
+        }];
+    }
+
+    plan_subtitle_chunks(&request.cues)
+}
+
 fn subtitle_cache_key(
     provider: crate::messages::ProviderId,
     model: &str,
@@ -1047,6 +1130,22 @@ fn subtitle_cache_error_response(
 ) -> Value {
     json!({
         "type": "SUBTITLE_CACHE_RESULT",
+        "requestId": request_id,
+        "ok": false,
+        "error": error,
+        "message": message.into(),
+        "retryable": retryable
+    })
+}
+
+fn subtitle_cache_write_error_response(
+    request_id: String,
+    error: &str,
+    message: impl Into<String>,
+    retryable: bool,
+) -> Value {
+    json!({
+        "type": "SUBTITLE_CACHE_WRITE_RESULT",
         "requestId": request_id,
         "ok": false,
         "error": error,
