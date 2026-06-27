@@ -444,6 +444,27 @@ const playerResponseFixture = {
   }
 };
 
+const koreanDefaultPlayerResponseFixture = {
+  captions: {
+    playerCaptionsTracklistRenderer: {
+      captionTracks: [
+        {
+          baseUrl: "https://www.youtube.com/api/timedtext?v=abc123&lang=ko",
+          languageCode: "ko",
+          name: { simpleText: "Korean" },
+          vssId: ".ko"
+        },
+        {
+          baseUrl: "https://www.youtube.com/api/timedtext?v=abc123&lang=en",
+          languageCode: "en",
+          name: { simpleText: "English" },
+          vssId: ".en"
+        }
+      ]
+    }
+  }
+};
+
 const fallbackPlayerResponseFixture = {
   captions: {
     playerCaptionsTracklistRenderer: {
@@ -614,6 +635,34 @@ try {
       overlayActivatedCountBeforeRefresh,
     "same-source refresh should not flood debug logs with duplicate overlay activation events"
   );
+
+  global.chrome.storage.local.get = () =>
+    Promise.resolve({
+      hoverTransPort: {
+        provider: "codex",
+        targetLang: "Korean",
+        cacheEnabled: true,
+        debugLogging: true
+      }
+    });
+  const sameLanguageSession = new YouTubeSubtitleSession({
+    getPlayerResponse: () => koreanDefaultPlayerResponseFixture,
+    fetchTranscript: async () => [
+      { id: "cue-0", startMs: 0, endMs: 1000, text: "안녕하세요" }
+    ]
+  });
+  subtitleButton.setAttribute("aria-pressed", "false");
+  await sameLanguageSession.refresh();
+  subtitleButton.setAttribute("aria-pressed", "true");
+  subtitleButton.dispatchEvent({ type: "click" });
+  await flushPromises();
+  assert(
+    document
+      .querySelector('[data-hover-trans-port-youtube-subtitle-prompt="true"]')
+      .getAttribute("data-hover-trans-port-status") === "hidden",
+    "turning on native captions should not ask to translate when caption language already matches the target language"
+  );
+  global.chrome.storage.local.get = defaultStorageGet;
 
   let resolveSlowTranslation;
   global.chrome.runtime.sendMessage = (message) => {

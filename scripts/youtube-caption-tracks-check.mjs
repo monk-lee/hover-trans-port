@@ -52,7 +52,8 @@ writeFileSync(
 try {
   const {
     extractCaptionTracksFromPlayerResponse,
-    selectCaptionTrack
+    selectCaptionTrack,
+    selectCaptionTrackCandidates
   } = await import(
     pathToFileURL(join(tempContentDir, "youtubeCaptionTracks.js")).href
   );
@@ -115,6 +116,15 @@ try {
   assert(
     selectedActive?.languageCode === "ko",
     "active track should win when fetchable"
+  );
+
+  const selectedForKoreanOnly = selectCaptionTrackCandidates({
+    tracks: tracks.filter((track) => track.languageCode === "ko"),
+    targetLang: "Korean"
+  });
+  assert(
+    selectedForKoreanOnly.length === 0,
+    "target-language caption tracks should not be translation candidates"
   );
 } finally {
   rmSync(tempDir, { recursive: true, force: true });

@@ -21,6 +21,7 @@ import {
 } from "../shared/youtubeSubtitles";
 import {
   extractCaptionTracksFromPlayerResponse,
+  isCaptionTrackLanguageTarget,
   selectCaptionTrackCandidates
 } from "./youtubeCaptionTracks";
 import {
@@ -202,6 +203,22 @@ export class YouTubeSubtitleSession {
       const tracks = extractCaptionTracksFromPlayerResponse(
         this.deps.getPlayerResponse?.() ?? readYouTubePlayerResponse()
       );
+      const defaultTrack = tracks[0];
+
+      if (
+        defaultTrack &&
+        isCaptionTrackLanguageTarget(defaultTrack, targetLang)
+      ) {
+        this.current = null;
+        this.pending = null;
+        this.translatedCues = null;
+        this.subtitleTranslationErrorMessage = null;
+        this.lastOverlayDebugSignature = null;
+        this.overlay.clear();
+        this.prompt.setState({ status: "hidden" });
+        return;
+      }
+
       const trackCandidates = selectCaptionTrackCandidates({ tracks, targetLang });
 
       if (trackCandidates.length === 0) {

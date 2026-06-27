@@ -30,6 +30,18 @@ export function targetLangToLanguageCode(targetLang: string): string {
   );
 }
 
+export function isCaptionTrackLanguageTarget(
+  track: YouTubeCaptionTrack,
+  targetLang: string
+): boolean {
+  const trackCode = normalizeLanguagePrimaryCode(track.languageCode);
+  const targetCode = normalizeLanguagePrimaryCode(
+    targetLangToLanguageCode(targetLang)
+  );
+
+  return trackCode.length > 0 && trackCode === targetCode;
+}
+
 function captionName(track: unknown): string {
   const value = track as {
     name?: { simpleText?: string; runs?: Array<{ text?: string }> };
@@ -97,11 +109,14 @@ export function selectCaptionTrackCandidates(
   input: SelectCaptionTrackInput
 ): YouTubeCaptionTrack[] {
   const tracks = input.tracks.filter((track) => track.baseUrl.trim().length > 0);
-  const targetCode = targetLangToLanguageCode(input.targetLang);
   const candidates: YouTubeCaptionTrack[] = [];
   const seen = new Set<string>();
   const add = (track: YouTubeCaptionTrack | undefined): void => {
     if (!track) {
+      return;
+    }
+
+    if (isCaptionTrackLanguageTarget(track, input.targetLang)) {
       return;
     }
 
@@ -126,24 +141,6 @@ export function selectCaptionTrackCandidates(
   );
 
   for (const track of tracks) {
-    if (
-      track.kind === "manual" &&
-      track.languageCode.toLowerCase() !== targetCode
-    ) {
-      add(track);
-    }
-  }
-
-  for (const track of tracks) {
-    if (
-      track.kind === "asr" &&
-      track.languageCode.toLowerCase() !== targetCode
-    ) {
-      add(track);
-    }
-  }
-
-  for (const track of tracks) {
     if (track.kind === "manual") {
       add(track);
     }
@@ -156,4 +153,8 @@ export function selectCaptionTrackCandidates(
   }
 
   return candidates;
+}
+
+function normalizeLanguagePrimaryCode(language: string): string {
+  return language.trim().toLowerCase().replace(/_/gu, "-").split("-")[0] ?? "";
 }
