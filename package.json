@@ -22,7 +22,7 @@
   "homepage": "https://github.com/monk-lee/hover-trans-port#readme",
   "scripts": {
     "dev": "vite build --watch --mode development",
-    "build": "vite build",
+    "build": "vite build && node scripts/build-content-script-bundle.mjs",
     "typecheck": "tsc --noEmit",
     "validate": "node scripts/validate-dist.mjs",
     "native:install": "node scripts/install-native-host.mjs",

@@ -329,6 +329,7 @@ fn find_codex_binary(env: &BTreeMap<String, String>) -> Option<PathBuf> {
         );
     }
     candidates.extend(command_candidates(env, "codex"));
+    candidates.extend(home_codex_candidates(env));
     if let Some(app_data) = env_value(env, "APPDATA") {
         let npm_dir = Path::new(app_data).join("npm");
         candidates.push(npm_dir.join("codex.cmd"));
@@ -337,9 +338,91 @@ fn find_codex_binary(env: &BTreeMap<String, String>) -> Option<PathBuf> {
     }
     candidates.push(PathBuf::from("/opt/homebrew/bin/codex"));
     candidates.push(PathBuf::from("/usr/local/bin/codex"));
+    candidates.push(PathBuf::from("/home/linuxbrew/.linuxbrew/bin/codex"));
     candidates.push(PathBuf::from("/usr/bin/codex"));
 
     find_binary(env, "HOVER_TRANS_PORT_CODEX_PATH", candidates)
+}
+
+fn home_codex_candidates(env: &BTreeMap<String, String>) -> Vec<PathBuf> {
+    let Some(home) = env_value(env, "HOME")
+        .map(PathBuf::from)
+        .filter(|path| path.is_absolute())
+    else {
+        return Vec::new();
+    };
+
+    let mut candidates = vec![
+        home.join(".local").join("bin").join("codex"),
+        home.join(".local")
+            .join("share")
+            .join("mise")
+            .join("shims")
+            .join("codex"),
+        home.join(".asdf").join("shims").join("codex"),
+        home.join(".bun").join("bin").join("codex"),
+        home.join(".npm-global").join("bin").join("codex"),
+        home.join(".volta").join("bin").join("codex"),
+        home.join(".nvm").join("current").join("bin").join("codex"),
+    ];
+
+    if let Some(nvm_default_bin) = nvm_default_bin_path(&home) {
+        candidates.push(nvm_default_bin.join("codex"));
+    }
+
+    candidates
+}
+
+fn nvm_default_bin_path(home: &Path) -> Option<PathBuf> {
+    let alias_dir = home.join(".nvm").join("alias");
+    let version = resolve_nvm_alias(&alias_dir, "default", 0)?;
+    Some(
+        home.join(".nvm")
+            .join("versions")
+            .join("node")
+            .join(nvm_version_dir(&version))
+            .join("bin"),
+    )
+}
+
+fn resolve_nvm_alias(alias_dir: &Path, name: &str, depth: usize) -> Option<String> {
+    let value = read_first_word(&alias_dir.join(name))?;
+    if is_nvm_version(&value) {
+        return Some(value);
+    }
+    if depth >= 1 || !is_safe_nvm_alias_name(&value) {
+        return None;
+    }
+    resolve_nvm_alias(alias_dir, &value, depth + 1)
+}
+
+fn read_first_word(path: &Path) -> Option<String> {
+    fs::read_to_string(path)
+        .ok()
+        .and_then(|content| content.split_whitespace().next().map(str::to_string))
+        .filter(|value| !value.is_empty())
+}
+
+fn is_nvm_version(value: &str) -> bool {
+    let Some(first) = value.chars().next() else {
+        return false;
+    };
+    first == 'v' || first.is_ascii_digit()
+}
+
+fn is_safe_nvm_alias_name(value: &str) -> bool {
+    !value.is_empty()
+        && value
+            .chars()
+            .all(|char| char.is_ascii_alphanumeric() || matches!(char, '.' | '_' | '-'))
+}
+
+fn nvm_version_dir(value: &str) -> String {
+    if value.starts_with('v') {
+        value.to_string()
+    } else {
+        format!("v{value}")
+    }
 }
 
 fn provider_env(env: &BTreeMap<String, String>, binary: &Path) -> BTreeMap<String, String> {
@@ -601,6 +684,81 @@ mod tests {
 
         let mut env = BTreeMap::new();
         env.insert("APPDATA".to_string(), app_data.display().to_string());
+
+        assert_eq!(find_codex_binary(&env), Some(codex));
+    }
+
+    #[test]
+    fn find_codex_binary_finds_home_local_bin() {
+        let temp = tempdir().unwrap();
+        let codex = temp.path().join(".local").join("bin").join("codex");
+        write_test_executable(&codex);
+
+        let mut env = BTreeMap::new();
+        env.insert("HOME".to_string(), temp.path().display().to_string());
+
+        assert_eq!(find_codex_binary(&env), Some(codex));
+    }
+
+    #[test]
+    fn find_codex_binary_finds_home_version_manager_bins() {
+        let temp = tempdir().unwrap();
+        let codex = temp
+            .path()
+            .join(".local")
+            .join("share")
+            .join("mise")
+            .join("shims")
+            .join("codex");
+        write_test_executable(&codex);
+
+        let mut env = BTreeMap::new();
+        env.insert("HOME".to_string(), temp.path().display().to_string());
+
+        assert_eq!(find_codex_binary(&env), Some(codex));
+    }
+
+    #[test]
+    fn find_codex_binary_resolves_nvm_default_alias() {
+        let temp = tempdir().unwrap();
+        let alias_dir = temp.path().join(".nvm").join("alias");
+        fs::create_dir_all(&alias_dir).unwrap();
+        fs::write(alias_dir.join("default"), "22.16.0\n").unwrap();
+        let codex = temp
+            .path()
+            .join(".nvm")
+            .join("versions")
+            .join("node")
+            .join("v22.16.0")
+            .join("bin")
+            .join("codex");
+        write_test_executable(&codex);
+
+        let mut env = BTreeMap::new();
+        env.insert("HOME".to_string(), temp.path().display().to_string());
+
+        assert_eq!(find_codex_binary(&env), Some(codex));
+    }
+
+    #[test]
+    fn find_codex_binary_resolves_one_nested_nvm_default_alias() {
+        let temp = tempdir().unwrap();
+        let alias_dir = temp.path().join(".nvm").join("alias");
+        fs::create_dir_all(&alias_dir).unwrap();
+        fs::write(alias_dir.join("default"), "stable\n").unwrap();
+        fs::write(alias_dir.join("stable"), "v20.11.1\n").unwrap();
+        let codex = temp
+            .path()
+            .join(".nvm")
+            .join("versions")
+            .join("node")
+            .join("v20.11.1")
+            .join("bin")
+            .join("codex");
+        write_test_executable(&codex);
+
+        let mut env = BTreeMap::new();
+        env.insert("HOME".to_string(), temp.path().display().to_string());
 
         assert_eq!(find_codex_binary(&env), Some(codex));
     }

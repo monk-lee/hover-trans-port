@@ -43,7 +43,7 @@ export const PROVIDER_DEFAULT_MODELS: Record<ProviderId, string> = {
 };
 
 export const CODEX_NOT_FOUND_GUIDANCE =
-  "Codex CLI was not found. Windows: install Codex with the official OpenAI installer or run npm install -g @openai/codex, then restart Chrome. Expected paths include %LOCALAPPDATA%\\Programs\\OpenAI\\Codex\\bin\\codex.exe and %APPDATA%\\npm\\codex.cmd. You can also set HOVER_TRANS_PORT_CODEX_PATH.";
+  "Codex CLI was not found. macOS/Linux: expected paths include ~/.local/bin/codex, ~/.local/share/mise/shims/codex, ~/.nvm/current/bin/codex, ~/.volta/bin/codex, /opt/homebrew/bin/codex, and /usr/local/bin/codex. Windows: install Codex with the official OpenAI installer or run npm install -g @openai/codex, then restart Chrome. Windows expected paths include %LOCALAPPDATA%\\Programs\\OpenAI\\Codex\\bin\\codex.exe and %APPDATA%\\npm\\codex.cmd. You can also set HOVER_TRANS_PORT_CODEX_PATH.";
 
 export const PROVIDER_FALLBACK_MODEL_CATALOGS: Record<
   ProviderId,

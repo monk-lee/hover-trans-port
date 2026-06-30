@@ -96,6 +96,26 @@ assertIncludes(
   "%APPDATA%\\\\npm\\\\codex.cmd",
   "Codex npm global Windows guidance"
 );
+assertIncludes(
+  providersTs,
+  "~/.local/bin/codex",
+  "Codex macOS and Linux local bin guidance"
+);
+assertIncludes(
+  providersTs,
+  "~/.local/share/mise/shims/codex",
+  "Codex mise shim guidance"
+);
+assertIncludes(
+  providersTs,
+  "~/.nvm/current/bin/codex",
+  "Codex nvm current guidance"
+);
+assertIncludes(
+  providersTs,
+  "~/.volta/bin/codex",
+  "Codex Volta guidance"
+);
 
 assertIncludes(
   optionsMainTs,

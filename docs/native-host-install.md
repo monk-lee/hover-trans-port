@@ -160,7 +160,8 @@ Expected results: `Check Provider` shows the selected provider CLI as available,
 Common settings:
 
 - `Target language`: translation output language. Choose `Korean` for Korean output.
-- `Timeout seconds`: per-request provider CLI timeout. The default is 30 seconds. Values are clamped to 5-120.
+- `Timeout seconds`: per-request provider CLI timeout for inline hover/selection translation. The default is 30 seconds. Values are clamped to 5-120.
+- `YouTube subtitle timeout seconds`: per-subtitle-chunk provider CLI timeout for YouTube caption translation. The default is 60 seconds. Values are clamped to 5-120.
 - `Provider`: executable CLI used for translation. Codex is the default provider; Claude, Gemini, OpenCode, and Antigravity are optional and CLI-only.
 - `Use cache`: when disabled, Local Bridge skips both cache lookup and cache write.
 - `Model`: provider model alias passed as `--model <model>`. The Options page asks the native host for a provider model catalog. Providers with a stable machine-readable list, such as Codex through `codex debug models`, can show CLI-provided models. Providers without a stable list command use built-in fallback aliases and still allow custom model values when the CLI accepts a model flag. Selecting `Default (Claude CLI)`, `Default (Gemini CLI)`, or `Default (OpenCode CLI)` omits `--model` so that CLI chooses its configured default. OpenCode expects explicit custom models in `provider/model` form. Antigravity exposes only `Default (Antigravity CLI)` because `agy --print` uses the CLI-configured default model and does not accept a model flag. Codex reset restores `gpt-5.3-codex-spark`; Claude reset restores `haiku`; Gemini, OpenCode, and Antigravity reset restore the CLI default.
@@ -180,6 +181,20 @@ When cache is enabled, the native helper stores successful translations in a loc
 Cached entries include provider, selected model, target language, normalized source text, and translated text. The Options page Cache section can clear cached translations through the Native Host.
 
 YouTube subtitle translation uses the same local SQLite database and cache clear control. Subtitle cache entries store the video id, source caption track identity, source timeline hash, prompt version, source timed cues, and translated timed cues.
+
+## YouTube Subtitle Translation
+
+HoverTransPort supports YouTube videos that already expose YouTube-provided captions or automatic captions. It does not transcribe audio, run OCR, or create captions for videos without an available YouTube caption track.
+
+On a supported YouTube watch page:
+
+1. HoverTransPort adds a compact subtitle translation control to the YouTube player controls.
+2. If the video's active/default caption language already matches the configured target language, no translation prompt is shown.
+3. If translation is useful, the control asks whether to translate the available captions into the configured target language.
+4. Accepted translations run through the selected local CLI provider in timed chunks. The first completed chunk can be displayed while later chunks continue in the background.
+5. Translated subtitles render in a HoverTransPort overlay synced to the video timeline.
+
+Successful subtitle translations are cached locally by video id, source caption track, source timeline hash, target language, provider, model, and prompt version. Clearing the translation cache from Options clears both inline text translations and YouTube subtitle translations.
 
 For isolated cache tests, set `HOVER_TRANS_PORT_CACHE_PATH=/tmp/hover-trans-port-cache.sqlite`.
 
@@ -242,6 +257,21 @@ HoverTransPort checks the official Windows installer and npm global locations in
 - `%APPDATA%\npm\codex.cmd`
 - `%APPDATA%\npm\codex.ps1`
 - `%APPDATA%\npm\codex.exe`
+
+On macOS/Linux, HoverTransPort also checks these standard locations in addition to `PATH`:
+
+- `~/.local/bin/codex`
+- `~/.local/share/mise/shims/codex`
+- `~/.asdf/shims/codex`
+- `~/.bun/bin/codex`
+- `~/.npm-global/bin/codex`
+- `~/.volta/bin/codex`
+- `~/.nvm/current/bin/codex`
+- `~/.nvm/versions/node/<default>/bin/codex`, resolved from `~/.nvm/alias/default`
+- `/opt/homebrew/bin/codex`
+- `/usr/local/bin/codex`
+- `/home/linuxbrew/.linuxbrew/bin/codex`
+- `/usr/bin/codex`
 
 For npm installs, run `npm install -g @openai/codex`, then restart Chrome so the native host receives the updated environment. If Codex is installed somewhere else, set `HOVER_TRANS_PORT_CODEX_PATH` to the full executable path.
 
@@ -319,9 +349,13 @@ Run OpenCode directly and complete its authentication flow. Configure a default 
 
 HoverTransPort runs OpenCode with `--pure`, OpenCode's built-in `build` agent, stdin prompt input, and an explicit deny permission policy for tool actions. OpenCode's own permission model still governs the provider process.
 
-### Translation times out
+### Inline translation times out
 
 Increase Options `Timeout seconds`. The UI clamps this setting to 5-120 seconds.
+
+### YouTube subtitle translation times out
+
+Increase Options `YouTube subtitle timeout seconds`. This timeout is applied to each subtitle chunk, not to the whole video. A chunk timeout stops the current subtitle translation attempt and falls back to the original YouTube captions.
 
 ### Trigger hotkey does not run
 

@@ -17,6 +17,7 @@ This project is not affiliated with, endorsed by, or sponsored by OpenAI, Codex,
 | Hover a readable paragraph, list item, or heading | Translate the hovered block inline |
 | Select specific text | Translate the selection first |
 | Press a configured hotkey | Run translation only when requested |
+| Open a YouTube video with provided captions | Pre-translate the caption track and show translated subtitles in sync |
 | Use a local AI CLI provider | Keep provider auth outside the extension bundle |
 
 ## Quick Start
@@ -46,7 +47,7 @@ Each provider CLI is a separate prerequisite. Install and authenticate Codex CLI
 
 For update, uninstall, inspect-first install, diagnostics, and troubleshooting details, see [Native Host Install](docs/native-host-install.md).
 
-## Use
+## Use Web Text
 
 1. Open a normal page with readable text.
 2. Select text, or hover a paragraph, list item, or heading.
@@ -55,6 +56,16 @@ For update, uninstall, inspect-first install, diagnostics, and troubleshooting d
 
 Common browser and editing shortcuts such as Ctrl+C or Ctrl+F are blocked from trigger recording.
 
+## Use YouTube Subtitles
+
+1. Open a YouTube watch page whose video already has YouTube-provided captions or automatic captions.
+2. Click the HoverTransPort subtitle control in the YouTube player controls.
+3. Confirm the prompt to translate the video's captions into your configured target language.
+4. Wait while subtitle chunks are translated. The first translated chunk can start playback while later chunks continue in the background.
+5. Toggle the translated subtitle overlay from the same player control.
+
+HoverTransPort does not transcribe audio, run OCR, or generate captions for videos that have no YouTube caption track. If the video's active/default caption language already matches your target language, the extension does not ask to translate it.
+
 ## Current Scope
 
 | Works today | Not yet |
@@ -62,15 +73,15 @@ Common browser and editing shortcuts such as Ctrl+C or Ctrl+F are blocked from t
 | macOS, Linux, Windows, and Google Chrome | Chrome Web Store install |
 | Unpacked extension loaded from `dist/` | Packaged browser-store distribution |
 | Codex, Claude, Gemini, OpenCode, and Antigravity CLI providers | Full-page automatic translation |
-| Hovered readable block and selection translation | PDF, iframe, OCR, or audio transcription |
-| YouTube provided-caption pre-translation and local subtitle cache | Firefox/Safari extension builds |
+| Hovered readable block and selection translation | PDF, iframe, OCR, speech recognition, or audio transcription |
+| YouTube provided-caption pre-translation, synced overlay, and local subtitle cache | Firefox/Safari extension builds |
 | Inline rendering, local SQLite cache, and Options diagnostics | Hosted translation service |
 
 ## Privacy At A Glance
 
 HoverTransPort is local-first, but not offline-only. Requested text is passed to the local helper, which invokes the configured provider CLI. That provider CLI may send requested text upstream according to your account, authentication, environment, and provider policies.
 
-The extension and helper do not store API keys, OAuth tokens, browser cookies, or service session tokens. If cache is enabled, normalized source text and translated text can be stored in local plaintext SQLite.
+The extension and helper do not store API keys, OAuth tokens, browser cookies, or service session tokens. If cache is enabled, normalized source text and translated text can be stored in local plaintext SQLite. YouTube subtitle cache entries can include a video's timed source captions and timed translated captions.
 
 Read [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md) before using HoverTransPort on sensitive content.
 

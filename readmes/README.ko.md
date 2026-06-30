@@ -19,6 +19,7 @@ Chrome Native Messaging으로 로컬 helper를 호출하고, helper는 사용자
 | 문단, 목록, 제목 위에 마우스를 올림 | 가리킨 블록을 페이지 안에 번역 |
 | 특정 텍스트를 선택 | 선택 영역을 우선 번역 |
 | 설정한 hotkey를 누름 | 요청한 순간에만 번역 실행 |
+| YouTube 제공 자막이 있는 영상을 열기 | 자막 트랙을 미리 번역하고 영상 재생 시간에 맞춰 표시 |
 | 로컬 AI CLI provider 사용 | extension bundle 안에 provider 인증 정보를 넣지 않음 |
 
 ## 빠른 시작
@@ -48,7 +49,7 @@ Chrome Native Messaging으로 로컬 helper를 호출하고, helper는 사용자
 
 업데이트, 삭제, 스크립트 확인 후 설치, 진단, 문제 해결은 [Native Host Install](../docs/native-host-install.md)을 참고하세요.
 
-## 사용
+## 웹 텍스트 사용
 
 1. 읽기 가능한 텍스트가 있는 일반 웹페이지를 엽니다.
 2. 텍스트를 선택하거나 문단, 목록, 제목 위에 마우스를 올립니다.
@@ -57,6 +58,16 @@ Chrome Native Messaging으로 로컬 helper를 호출하고, helper는 사용자
 
 Ctrl+C 또는 Ctrl+F 같은 일반 브라우저/편집 단축키는 trigger로 저장되지 않습니다.
 
+## YouTube 자막 사용
+
+1. YouTube 제공 자막 또는 자동자막이 있는 YouTube watch 페이지를 엽니다.
+2. YouTube 플레이어 컨트롤에 있는 HoverTransPort 자막 버튼을 누릅니다.
+3. 설정한 target language로 자막을 번역할지 묻는 메시지를 확인합니다.
+4. 자막 구간 번역이 진행되는 동안 기다립니다. 첫 구간이 준비되면 영상은 먼저 재생되고, 이후 구간은 백그라운드에서 계속 번역됩니다.
+5. 같은 플레이어 버튼에서 번역 자막 오버레이를 켜거나 끕니다.
+
+HoverTransPort는 오디오 전사, OCR, 또는 자막이 없는 영상의 새 자막 생성을 하지 않습니다. 영상의 활성/기본 자막 언어가 설정한 target language와 같으면 번역 여부를 묻지 않습니다.
+
 ## 현재 범위
 
 | 현재 동작 | 아직 아님 |
@@ -64,15 +75,15 @@ Ctrl+C 또는 Ctrl+F 같은 일반 브라우저/편집 단축키는 trigger로 �
 | macOS, Linux, Windows와 Google Chrome | Chrome Web Store 설치 |
 | `dist/` 폴더를 직접 불러오는 unpacked extension | browser store 배포 패키지 |
 | Codex, Claude, Gemini, OpenCode, Antigravity CLI provider | 전체 페이지 자동 번역 |
-| 마우스로 가리킨 읽기 가능한 블록과 선택 영역 번역 | PDF, iframe, OCR, 오디오 전사 |
-| YouTube 제공 자막 사전 번역과 로컬 자막 캐시 | Firefox/Safari extension 빌드 |
+| 마우스로 가리킨 읽기 가능한 블록과 선택 영역 번역 | PDF, iframe, OCR, 음성 인식, 오디오 전사 |
+| YouTube 제공 자막 사전 번역, 동기화 오버레이, 로컬 자막 캐시 | Firefox/Safari extension 빌드 |
 | 원문 안에 번역 표시, 로컬 SQLite 캐시, Options 진단 | hosted translation service |
 
 ## 개인정보와 보안 요약
 
 HoverTransPort는 로컬 중심으로 동작하지만 완전한 오프라인 번역기는 아닙니다. 번역 요청 텍스트는 로컬 helper를 거쳐 설정된 provider CLI로 전달되며, 사용자의 CLI 계정, 로그인 상태, 실행 환경, 제공자 정책에 따라 외부 AI 서비스로 전송될 수 있습니다.
 
-확장 프로그램과 helper는 API 키, OAuth 토큰, 브라우저 쿠키, 서비스 세션 토큰을 저장하지 않습니다. 캐시가 활성화되어 있으면 정규화된 원문과 번역문이 암호화되지 않은 로컬 SQLite에 저장될 수 있습니다.
+확장 프로그램과 helper는 API 키, OAuth 토큰, 브라우저 쿠키, 서비스 세션 토큰을 저장하지 않습니다. 캐시가 활성화되어 있으면 정규화된 원문과 번역문이 암호화되지 않은 로컬 SQLite에 저장될 수 있습니다. YouTube 자막 캐시에는 영상의 시간 정보가 포함된 원본 자막과 번역 자막이 저장될 수 있습니다.
 
 민감한 콘텐츠에 사용하기 전에 [PRIVACY.md](../PRIVACY.md)와 [SECURITY.md](../SECURITY.md)를 읽어 주세요.
 

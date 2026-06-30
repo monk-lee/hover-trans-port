@@ -1131,28 +1131,19 @@ fn subtitle_translation_timeout_applies_to_each_subtitle_chunk() {
 if [ "$1" = "exec" ]; then
   prompt_file="$0.prompt"
   /bin/cat > "$prompt_file"
-  ids="$(/usr/bin/python3 - "$prompt_file" <<'PY'
+  /usr/bin/python3 - "$prompt_file" <<'PY'
 import json
 import sys
+import time
 
 prompt = open(sys.argv[1], encoding="utf-8").read()
 payload = json.loads(prompt.split("Input JSON:", 1)[1].strip())
-print("\n".join(payload["expectedCueIds"]))
+expected = payload["expectedCueIds"]
+if expected == ["cue-1"]:
+    time.sleep(5)
+cues = [{"id": cue_id, "translatedText": f"번역 {cue_id}입니다"} for cue_id in expected]
+print(json.dumps({"cues": cues}, ensure_ascii=False), end="")
 PY
-)"
-  if [ "$ids" = "cue-1" ]; then
-    /bin/sleep 5
-  fi
-  printf '{"cues":['
-  first=1
-  for cue_id in $ids; do
-    if [ "$first" = "0" ]; then
-      printf ','
-    fi
-    first=0
-    printf '{"id":"%s","translatedText":"번역 %s입니다"}' "$cue_id" "$cue_id"
-  done
-  printf ']}'
   exit 0
 fi
 
