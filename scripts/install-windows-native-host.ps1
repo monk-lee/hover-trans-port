@@ -3,7 +3,7 @@ param(
   [ValidateSet("install", "update", "status", "uninstall")]
   [string]$Command = "install",
   [Alias("--host-version", "-host-version", "host-version")]
-  [string]$HostVersion = "0.2.17",
+  [string]$HostVersion = "0.2.18",
   [Alias("--release-tag", "-release-tag", "release-tag")]
   [string]$ReleaseTag = "latest",
   [Alias("--helper-source", "-helper-source", "helper-source")]

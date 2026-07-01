@@ -9,8 +9,8 @@ import type {
 } from "./youtubeSubtitles";
 
 export const NATIVE_HOST_NAME = "com.monklabs.hover_trans_port";
-export const NATIVE_BRIDGE_VERSION = "0.2.17-rust-helper";
-export const NATIVE_HOST_VERSION = "0.2.17";
+export const NATIVE_BRIDGE_VERSION = "0.2.18-rust-helper";
+export const NATIVE_HOST_VERSION = "0.2.18";
 export const NATIVE_HOST_PROTOCOL_VERSION = 3;
 
 export type NativePingRequest = {

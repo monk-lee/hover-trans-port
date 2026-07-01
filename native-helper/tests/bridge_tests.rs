@@ -1131,19 +1131,15 @@ fn subtitle_translation_timeout_applies_to_each_subtitle_chunk() {
 if [ "$1" = "exec" ]; then
   prompt_file="$0.prompt"
   /bin/cat > "$prompt_file"
-  /usr/bin/python3 - "$prompt_file" <<'PY'
-import json
-import sys
-import time
-
-prompt = open(sys.argv[1], encoding="utf-8").read()
-payload = json.loads(prompt.split("Input JSON:", 1)[1].strip())
-expected = payload["expectedCueIds"]
-if expected == ["cue-1"]:
-    time.sleep(5)
-cues = [{"id": cue_id, "translatedText": f"번역 {cue_id}입니다"} for cue_id in expected]
-print(json.dumps({"cues": cues}, ensure_ascii=False), end="")
-PY
+  expected="$(/usr/bin/sed -n 's/.*"expectedCueIds":\["\([^"]*\)"\].*/\1/p' "$prompt_file")"
+  if [ "$expected" = "cue-1" ]; then
+    /bin/sleep 5
+  fi
+  if [ "$expected" = "cue-0" ] || [ "$expected" = "cue-1" ]; then
+    printf '{"cues":[{"id":"%s","translatedText":"번역 %s입니다"}]}' "$expected" "$expected"
+    exit 0
+  fi
+  printf '{"cues":[]}'
   exit 0
 fi
 
@@ -1432,10 +1428,10 @@ fn native_host_update_status_reports_available_release() {
     write_release_fixture(
         &releases_path,
         r#"[{
-          "tag_name": "v0.2.18",
+          "tag_name": "v0.2.19",
           "prerelease": false,
           "draft": false,
-          "html_url": "https://github.com/monk-lee/hover-trans-port/releases/tag/v0.2.18",
+          "html_url": "https://github.com/monk-lee/hover-trans-port/releases/tag/v0.2.19",
           "assets": [
             {"name": "install-macos-native-host.sh"},
             {"name": "checksums.txt"},
@@ -1463,9 +1459,9 @@ fn native_host_update_status_reports_available_release() {
     assert_eq!(response["type"], "NATIVE_HOST_UPDATE_STATUS_RESULT");
     assert_eq!(response["requestId"], "req-update-status");
     assert_eq!(response["ok"], true);
-    assert_eq!(response["installedVersion"], "0.2.17");
-    assert_eq!(response["latestVersion"], "0.2.18");
-    assert_eq!(response["latestTag"], "v0.2.18");
+    assert_eq!(response["installedVersion"], "0.2.18");
+    assert_eq!(response["latestVersion"], "0.2.19");
+    assert_eq!(response["latestTag"], "v0.2.19");
     assert_eq!(response["updateAvailable"], true);
 }
 
