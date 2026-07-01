@@ -942,6 +942,10 @@ try {
     captionContainer.getAttribute("data-hover-trans-port-youtube-subtitles-active") === null,
     "failed YouTube subtitle translation should clear the translated overlay so native captions remain visible"
   );
+  assert(
+    video.paused === false,
+    "failed YouTube subtitle translation should resume playback when falling back to native captions"
+  );
   await failedTranslationSession.refresh();
   assert(
     document

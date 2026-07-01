@@ -345,6 +345,11 @@ export class YouTubeSubtitleSession {
     const video = this.video ?? document.querySelector("video");
     const wasPlaying = Boolean(video && !video.paused);
     video?.pause();
+    const resumePlaybackIfNeeded = async (): Promise<void> => {
+      if (wasPlaying) {
+        await video?.play().catch(() => undefined);
+      }
+    };
     this.subtitleTranslationErrorMessage = null;
     this.writeDebugEvent("youtube.subtitle.accept", {
       hasCurrent: this.current !== null,
@@ -359,6 +364,7 @@ export class YouTubeSubtitleSession {
           status: "error",
           message: "YouTube 자막 스크립트를 읽지 못했습니다."
         });
+        await resumePlaybackIfNeeded();
         return;
       }
 
@@ -394,6 +400,7 @@ export class YouTubeSubtitleSession {
           status: "error",
           message: "YouTube 자막 스크립트를 읽지 못했습니다."
         });
+        await resumePlaybackIfNeeded();
         return;
       }
 
@@ -505,6 +512,7 @@ export class YouTubeSubtitleSession {
         message: formatDebugError(error)
       });
       this.showSubtitleTranslationError("자막 번역에 실패했습니다.");
+      await resumePlaybackIfNeeded();
       return;
     }
 
@@ -561,6 +569,7 @@ export class YouTubeSubtitleSession {
         ? response.message
         : "자막 번역에 실패했습니다."
     );
+    await resumePlaybackIfNeeded();
   }
 
   private async loadCurrentSubtitleSource(
