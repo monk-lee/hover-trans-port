@@ -40,13 +40,19 @@ function transpile(sourcePath) {
   }).outputText;
 }
 
+const xmlEntities = new Map([
+  ["&amp;", "&"],
+  ["&lt;", "<"],
+  ["&gt;", ">"],
+  ["&quot;", '"'],
+  ["&#39;", "'"]
+]);
+
 function decodeXmlEntities(text) {
-  return text
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
+  return text.replace(
+    /&(amp|lt|gt|quot|#39);/g,
+    (entity) => xmlEntities.get(entity) ?? entity
+  );
 }
 
 class FakeTextArea {
@@ -248,6 +254,13 @@ try {
     "XML duration seconds should become end milliseconds"
   );
   assert(xmlCues[0].text === "Tom & Jerry", "XML entities should decode");
+  const doubleEncodedXml =
+    '<transcript><text start="0" dur="1">&amp;lt;tag&amp;gt;</text></transcript>';
+  const doubleEncodedCues = parseYouTubeXmlTranscript(doubleEncodedXml);
+  assert(
+    doubleEncodedCues[0].text === "&lt;tag&gt;",
+    "XML entities should decode once without double-unescaping"
+  );
 
   let fetchRequest = null;
   global.fetch = (url, init) => {

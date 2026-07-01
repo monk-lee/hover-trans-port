@@ -114,13 +114,6 @@ export function parseYouTubeJson3Transcript(
   return normalizeSubtitleCues(cues);
 }
 
-function decodeXmlText(text: string): string {
-  const textarea = document.createElement("textarea");
-  textarea.innerHTML = text;
-
-  return textarea.value;
-}
-
 export function parseYouTubeXmlTranscript(text: string): YouTubeSubtitleCue[] {
   const parser = new DOMParser();
   const doc = parser.parseFromString(text, "text/xml");
@@ -135,7 +128,7 @@ export function parseYouTubeXmlTranscript(text: string): YouTubeSubtitleCue[] {
         id: `cue-${index}`,
         startMs: start,
         endMs: start + duration,
-        text: decodeXmlText(node.textContent ?? "")
+        text: node.textContent ?? ""
       };
     })
   );
