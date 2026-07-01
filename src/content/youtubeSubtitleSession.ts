@@ -344,6 +344,7 @@ export class YouTubeSubtitleSession {
   private async runAcceptTranslation(): Promise<void> {
     const video = this.video ?? document.querySelector("video");
     const wasPlaying = Boolean(video && !video.paused);
+    const shouldStartPlaybackAfterSubtitleReady = Boolean(video);
     video?.pause();
     const resumePlaybackIfNeeded = async (): Promise<void> => {
       if (wasPlaying) {
@@ -445,7 +446,7 @@ export class YouTubeSubtitleSession {
         if (cacheResponse?.ok && cacheResponse.cached) {
           this.activate(cacheResponse.cues);
 
-          if (wasPlaying) {
+          if (shouldStartPlaybackAfterSubtitleReady) {
             await video?.play().catch(() => undefined);
           }
           return;
@@ -475,7 +476,8 @@ export class YouTubeSubtitleSession {
       ? Math.round(video.currentTime * 1000)
       : undefined;
     this.activeTranslationRequestId = requestId;
-    this.resumePlaybackAfterFirstSubtitleChunk = wasPlaying;
+    this.resumePlaybackAfterFirstSubtitleChunk =
+      shouldStartPlaybackAfterSubtitleReady;
     this.resumedPlaybackForActiveRequest = false;
     let response: SubtitleTranslationResultResponse;
 
@@ -542,7 +544,7 @@ export class YouTubeSubtitleSession {
         });
       }
 
-      if (wasPlaying) {
+      if (shouldStartPlaybackAfterSubtitleReady) {
         await video?.play().catch(() => undefined);
       }
       return;
@@ -558,7 +560,7 @@ export class YouTubeSubtitleSession {
         message: this.subtitleTranslationErrorMessage
       });
 
-      if (wasPlaying) {
+      if (shouldStartPlaybackAfterSubtitleReady) {
         await video?.play().catch(() => undefined);
       }
       return;
@@ -858,19 +860,21 @@ export class YouTubeSubtitleSession {
 
     this.applyTranslatedCueChunk(message.cues);
     this.handleTranslationProgress(message);
+    const shouldResumePlayback =
+      this.resumePlaybackAfterFirstSubtitleChunk &&
+      !this.resumedPlaybackForActiveRequest;
     this.writeDebugEvent("youtube.subtitle.chunk_result", {
       currentChunk: message.currentChunk,
       totalChunks: message.totalChunks,
       cueCount: message.cues.length,
       provider: message.provider,
       cached: message.cached,
-      elapsedMs: message.elapsedMs
+      elapsedMs: message.elapsedMs,
+      shouldResumePlayback,
+      videoPausedBeforeResume: this.video?.paused ?? null
     });
 
-    if (
-      this.resumePlaybackAfterFirstSubtitleChunk &&
-      !this.resumedPlaybackForActiveRequest
-    ) {
+    if (shouldResumePlayback) {
       this.resumedPlaybackForActiveRequest = true;
       void this.video?.play().catch(() => undefined);
     }

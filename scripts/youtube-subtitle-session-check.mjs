@@ -753,6 +753,71 @@ try {
   await loadingPromise;
   global.chrome.runtime.sendMessage = defaultSendMessage;
 
+  let pausedFirstChunkRequestId = null;
+  let resolvePausedFirstChunkTranslation;
+  global.chrome.runtime.sendMessage = (message) => {
+    sentMessages.push(message);
+    if (message.type === "TRANSLATE_SUBTITLE_TRACK") {
+      pausedFirstChunkRequestId = message.requestId;
+      return new Promise((resolve) => {
+        resolvePausedFirstChunkTranslation = () =>
+          resolve({
+            type: "SUBTITLE_TRANSLATION_RESULT",
+            requestId: message.requestId,
+            ok: true,
+            provider: "codex",
+            cached: false,
+            elapsedMs: 10,
+            cues: [
+              {
+                id: "cue-0",
+                startMs: 0,
+                endMs: 1000,
+                translatedText: "멈춘 상태"
+              }
+            ]
+          });
+      });
+    }
+
+    return defaultSendMessage(message);
+  };
+  const pausedFirstChunkSession = new YouTubeSubtitleSession({
+    getPlayerResponse: () => playerResponseFixture,
+    fetchTranscript: async () => [
+      { id: "cue-0", startMs: 0, endMs: 1000, text: "Hello" }
+    ]
+  });
+  await pausedFirstChunkSession.refresh();
+  subtitleButton.setAttribute("aria-pressed", "true");
+  video.paused = true;
+  const pausedFirstChunkPromise = pausedFirstChunkSession.acceptTranslation();
+  await flushPromises();
+  global.chrome.runtime.dispatchMessage({
+    type: "SUBTITLE_TRANSLATION_CHUNK_RESULT",
+    requestId: pausedFirstChunkRequestId,
+    currentChunk: 1,
+    totalChunks: 2,
+    provider: "codex",
+    cached: false,
+    elapsedMs: 10,
+    cues: [
+      {
+        id: "cue-0",
+        startMs: 0,
+        endMs: 1000,
+        translatedText: "멈춘 상태 첫 청크"
+      }
+    ]
+  });
+  assert(
+    video.paused === false,
+    "first completed subtitle chunk should resume playback after accepting translation even if the video was paused"
+  );
+  resolvePausedFirstChunkTranslation();
+  await pausedFirstChunkPromise;
+  global.chrome.runtime.sendMessage = defaultSendMessage;
+
   let partialThenFailedRequestCount = 0;
   let resolvePartialThenFailedTranslation;
   global.chrome.runtime.sendMessage = (message) => {

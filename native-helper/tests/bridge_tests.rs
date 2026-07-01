@@ -602,6 +602,79 @@ exit 2
 }
 
 #[test]
+fn subtitle_translation_keeps_valid_cues_when_quality_repair_fails() {
+    let temp = tempdir().unwrap();
+    let cache_path = temp.path().join("cache.sqlite");
+    let codex = temp.path().join("codex-subtitle-repair-keeps-valid-cues");
+    fs::write(
+        &codex,
+        r#"#!/bin/sh
+if [ "$1" = "exec" ]; then
+  prompt="$(/bin/cat)"
+  case "$prompt" in
+    *'"qualityIssues"'*)
+      printf '%s' '{"cues":[{"id":"cue-final","translatedText":"마지막 요약입니다. 하지만 repair도 이 짧은 cue 안에 너무 많은 주변 설명과 부연, 다음 영상 안내까지 계속 넣어서 여전히 길이 검증을 통과하지 못하는 번역을 반환합니다."}]}'
+      exit 0
+      ;;
+    *'"cuesToTranslate"'*)
+      printf '%s' '{"cues":[{"id":"cue-final","translatedText":"마지막 요약입니다. 하지만 처음 번역도 이 짧은 cue 안에 너무 많은 주변 설명과 부연, 다음 영상 안내까지 계속 넣어서 길이 검증에 걸리는 번역입니다."}]}'
+      exit 0
+      ;;
+  esac
+fi
+printf 'unexpected subtitle repair fallback prompt' >&2
+exit 2
+"#,
+    )
+    .unwrap();
+    make_executable(&codex);
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CODEX_PATH".to_string(),
+        codex.to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "HOVER_TRANS_PORT_CACHE_PATH".to_string(),
+        cache_path.to_string_lossy().into_owned(),
+    );
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+    env.insert("HOME".to_string(), temp.path().display().to_string());
+
+    let response = handle_request(
+        json!({
+            "type": "TRANSLATE_SUBTITLES",
+            "requestId": "req-sub-repair-keeps-valid-cues",
+            "provider": "codex",
+            "model": "gpt-5.4-mini",
+            "targetLang": "Korean",
+            "videoId": "abc",
+            "sourceTrackIdentity": "track",
+            "sourceTimelineHash": "hash-repair-keeps-valid-cues",
+            "promptVersion": 1,
+            "cacheEnabled": true,
+            "timeoutMs": 5_000,
+            "cues": [
+                {
+                    "id": "cue-final",
+                    "startMs": 590_000,
+                    "endMs": 591_200,
+                    "text": "wrap up"
+                }
+            ]
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "SUBTITLE_TRANSLATE_RESULT");
+    assert_eq!(response["ok"], true);
+    assert_eq!(
+        response["cues"][0]["translatedText"],
+        "마지막 요약입니다. 하지만 처음 번역도 이 짧은 cue 안에 너무 많은 주변 설명과 부연, 다음 영상 안내까지 계속 넣어서 길이 검증에 걸리는 번역입니다."
+    );
+}
+
+#[test]
 fn subtitle_translation_runs_targeted_repair_when_full_repair_keeps_quality_issues() {
     let temp = tempdir().unwrap();
     let cache_path = temp.path().join("cache.sqlite");
@@ -1129,12 +1202,12 @@ fn subtitle_translation_timeout_applies_to_each_subtitle_chunk() {
         &codex,
         r#"#!/bin/sh
 if [ "$1" = "exec" ]; then
-  prompt_file="$0.prompt"
-  /bin/cat > "$prompt_file"
-  expected="$(/usr/bin/sed -n 's/.*"expectedCueIds":\["\([^"]*\)"\].*/\1/p' "$prompt_file")"
-  if [ "$expected" = "cue-1" ]; then
-    /bin/sleep 5
-  fi
+	  prompt_file="$0.prompt"
+	  /bin/cat > "$prompt_file"
+	  expected="$(/usr/bin/sed -n 's/.*"expectedCueIds":\["\([^"]*\)"\].*/\1/p' "$prompt_file")"
+	  if [ "$expected" = "cue-1" ]; then
+	    /bin/sleep 8
+	  fi
   if [ "$expected" = "cue-0" ] || [ "$expected" = "cue-1" ]; then
     printf '{"cues":[{"id":"%s","translatedText":"번역 %s입니다"}]}' "$expected" "$expected"
     exit 0
@@ -1194,7 +1267,7 @@ exit 2
             "promptVersion": 1,
             "cacheEnabled": false,
             "debugLogging": true,
-            "timeoutMs": 3000,
+            "timeoutMs": 6000,
             "cues": cues
         }),
         BridgeDeps::with_env(env),
@@ -1218,7 +1291,7 @@ exit 2
         .as_u64()
         .unwrap_or_default();
     assert!(
-        second_timeout_budget >= 2_900,
+        second_timeout_budget >= 5_900,
         "second subtitle chunk should receive a fresh provider timeout budget: {log_content}"
     );
 }

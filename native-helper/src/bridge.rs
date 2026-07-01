@@ -717,13 +717,14 @@ fn translate_subtitles_valid(request: TranslateSubtitlesRequest, deps: BridgeDep
                             elapsed_ms = elapsed_ms.saturating_add(repair_elapsed_ms);
                         }
                         Err(error) => {
-                            log_provider_error(
+                            log_subtitle_quality_repair_failure(
                                 &deps.env,
                                 debug_logging,
                                 &request.request_id,
+                                "chunk",
+                                Some(chunk.index),
                                 &error,
                             );
-                            return subtitle_provider_error_response(request.request_id, error);
                         }
                     }
                 }
@@ -772,8 +773,14 @@ fn translate_subtitles_valid(request: TranslateSubtitlesRequest, deps: BridgeDep
                 elapsed_ms = elapsed_ms.saturating_add(repair_elapsed_ms);
             }
             Err(error) => {
-                log_provider_error(&deps.env, debug_logging, &request.request_id, &error);
-                return subtitle_provider_error_response(request.request_id, error);
+                log_subtitle_quality_repair_failure(
+                    &deps.env,
+                    debug_logging,
+                    &request.request_id,
+                    "timeline",
+                    None,
+                    &error,
+                );
             }
         }
     }
@@ -1067,6 +1074,34 @@ fn log_provider_error(
             "elapsedMs": elapsed_ms,
             "message": summarize_provider_error_for_log(error)
         }),
+    );
+}
+
+fn log_subtitle_quality_repair_failure(
+    env: &BTreeMap<String, String>,
+    enabled: bool,
+    request_id: &str,
+    scope: &str,
+    chunk_index: Option<usize>,
+    error: &ProviderError,
+) {
+    let mut fields = json!({
+        "requestId": request_id,
+        "scope": scope,
+        "error": error.code(),
+        "retryable": error.retryable(),
+        "message": error.to_string()
+    });
+
+    if let Some(chunk_index) = chunk_index {
+        fields["chunkIndex"] = json!(chunk_index);
+    }
+
+    log_debug_event(
+        env,
+        enabled,
+        "subtitle_translation.quality_repair_failed",
+        fields,
     );
 }
 
