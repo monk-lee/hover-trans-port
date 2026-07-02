@@ -61,6 +61,7 @@ This checklist is for the first public source release.
 
 - [ ] Tag v0.2.18
 - [ ] Release title: v0.2.18
+- [ ] Release notes mention YouTube provided-caption translation, chunked local CLI translation, synced subtitle overlay, and local subtitle cache
 - [ ] Release notes mention macOS + Chrome + Codex CLI, Claude CLI, Gemini CLI, OpenCode CLI, and Antigravity CLI support
 - [ ] Release notes link docs/native-host-install.md
 - [ ] Release notes link PRIVACY.md
