@@ -16,11 +16,18 @@ import {
   type NativePongResponse,
   type NativeRequest,
   type NativeResponse,
+  type NativeSubtitleCacheWriteResponse,
+  type NativeSubtitleCacheResponse,
+  type NativeSubtitleTranslateResponse,
   type NativeTranslateResultResponse
 } from "../shared/nativeProtocol";
 import type {
   NativeHostUpdateApplyResponse,
   NativeHostUpdateStoredStatus,
+  SubtitleTrackTranslationRequest,
+  SubtitleTranslationCacheRequest,
+  SubtitleTranslationCacheResponse,
+  SubtitleTranslationResultResponse,
   TranslationTarget
 } from "../shared/messages";
 import { evaluateNativeHostCompatibility } from "../shared/nativeHostCompatibility";
@@ -47,17 +54,31 @@ import {
   normalizeProvider,
   normalizeTargetLang,
   normalizeTimeoutMs,
+  normalizeYouTubeSubtitleTimeoutMs,
   type StoredOptions
 } from "../shared/options";
 import {
   createTranslationInflightKey,
   TranslationInflightRegistry
 } from "./translationInflight";
+import type {
+  TranslatedSubtitleCue,
+  SubtitleChunk,
+  YouTubeSubtitleCue
+} from "../shared/youtubeSubtitles";
+import {
+  orderSubtitleChunksForPlayback,
+  planSubtitleChunks
+} from "../shared/youtubeSubtitles";
 
 const NATIVE_HOST_TIMEOUT_MS = 5000;
 const NATIVE_HOST_UPDATE_STATUS_TIMEOUT_MS = 15000;
 const NATIVE_HOST_UPDATE_TIMEOUT_MS = 130000;
 const NATIVE_TRANSLATION_OVERHEAD_MS = 5000;
+const SUBTITLE_CHUNK_MAX_ATTEMPTS = 1;
+const SUBTITLE_NATIVE_RESPONSE_TIMEOUT_MULTIPLIER = 2;
+const SUBTITLE_NATIVE_RESPONSE_TIMEOUT_OVERHEAD_MS = 10_000;
+const SUBTITLE_CACHE_WRITE_TIMEOUT_MS = 3000;
 const STATUS_CHECK_MAX_ATTEMPTS = 3;
 const STATUS_CHECK_INITIAL_RETRY_DELAY_MS = 300;
 const STATUS_CHECK_BACKOFF_FACTOR = 3;
@@ -146,6 +167,20 @@ export type NativeTranslationStatus =
       retryable: boolean;
       elapsedMs?: number;
     };
+
+type OmitResponseEnvelope<T> = T extends unknown
+  ? Omit<T, "type" | "requestId">
+  : never;
+
+export type SubtitleCacheStatus =
+  OmitResponseEnvelope<SubtitleTranslationCacheResponse>;
+
+export type SubtitleTranslationStatus =
+  OmitResponseEnvelope<SubtitleTranslationResultResponse>;
+type SubtitleTranslationFailure = Extract<
+  SubtitleTranslationStatus,
+  { ok: false }
+>;
 
 type DebugLogError =
   | "NATIVE_HOST_UNAVAILABLE"
@@ -256,6 +291,24 @@ function isTranslateResult(
   return response.type === "TRANSLATE_RESULT";
 }
 
+function isSubtitleCacheResult(
+  response: NativeResponse
+): response is NativeSubtitleCacheResponse {
+  return response.type === "SUBTITLE_CACHE_RESULT";
+}
+
+function isSubtitleCacheWriteResult(
+  response: NativeResponse
+): response is NativeSubtitleCacheWriteResponse {
+  return response.type === "SUBTITLE_CACHE_WRITE_RESULT";
+}
+
+function isSubtitleTranslateResult(
+  response: NativeResponse
+): response is NativeSubtitleTranslateResponse {
+  return response.type === "SUBTITLE_TRANSLATE_RESULT";
+}
+
 function isCacheClearResult(
   response: NativeResponse
 ): response is NativeCacheClearResponse {
@@ -361,6 +414,24 @@ function toExtensionTranslationError(error: string): ExtensionTranslationError {
     case "NATIVE_HOST_UNSUPPORTED":
     case "PROVIDER_NOT_FOUND":
     case "PROVIDER_UNAVAILABLE":
+    case "PROVIDER_TIMEOUT":
+    case "PROVIDER_EXIT_NONZERO":
+    case "PROVIDER_OUTPUT_PARSE_FAILED":
+    case "CACHE_ERROR":
+      return error;
+    default:
+      return "UNKNOWN_ERROR";
+  }
+}
+
+function toExtensionSubtitleTranslationError(
+  error: string
+): Extract<SubtitleTranslationStatus, { ok: false }>["error"] {
+  switch (error) {
+    case "NATIVE_HOST_UNAVAILABLE":
+    case "NATIVE_HOST_UPDATE_REQUIRED":
+    case "NATIVE_HOST_UNSUPPORTED":
+    case "PROVIDER_NOT_FOUND":
     case "PROVIDER_TIMEOUT":
     case "PROVIDER_EXIT_NONZERO":
     case "PROVIDER_OUTPUT_PARSE_FAILED":
@@ -489,6 +560,21 @@ function nativeHostStatusFromHostInfo(
 function createTranslationBlockedByNativeHost(
   status: Extract<NativeHostStatus, { ok: false }>
 ): Extract<NativeTranslationStatus, { ok: false }> {
+  return {
+    ok: false,
+    error:
+      status.error === "NATIVE_HOST_UPDATE_REQUIRED" ||
+      status.error === "NATIVE_HOST_UNSUPPORTED"
+        ? status.error
+        : "NATIVE_HOST_UNAVAILABLE",
+    message: toUserFacingTranslationMessage(status.error, status.message),
+    retryable: status.retryable
+  };
+}
+
+function createSubtitleTranslationBlockedByNativeHost(
+  status: Extract<NativeHostStatus, { ok: false }>
+): Extract<SubtitleTranslationStatus, { ok: false }> {
   return {
     ok: false,
     error:
@@ -1288,6 +1374,563 @@ export async function translateWithNativeHost(
       });
     }
   );
+}
+
+type SubtitleCacheInput = Omit<
+  SubtitleTranslationCacheRequest,
+  "type" | "requestId"
+>;
+
+type SubtitleTranslationInput = Omit<
+  SubtitleTrackTranslationRequest,
+  "type" | "requestId"
+> & {
+  chunkCountEstimate?: number;
+};
+
+export type SubtitleTranslationProgress = {
+  currentChunk: number;
+  totalChunks: number;
+};
+
+export type SubtitleTranslationChunkResult = SubtitleTranslationProgress & {
+  provider: ProviderId;
+  cues: TranslatedSubtitleCue[];
+  cached: boolean;
+  elapsedMs: number;
+};
+
+type SubtitleTranslationSegment = SubtitleChunk;
+
+function planSubtitleTranslationSegments(
+  cues: YouTubeSubtitleCue[],
+  currentTimeMs?: number
+): SubtitleTranslationSegment[] {
+  return orderSubtitleChunksForPlayback(planSubtitleChunks(cues), currentTimeMs);
+}
+
+function createSubtitleSegmentCacheHash(cues: YouTubeSubtitleCue[]): string {
+  const timeline = cues
+    .map((cue) => `${cue.id}\t${cue.startMs}\t${cue.endMs}\t${cue.text}`)
+    .join("\n");
+
+  return `${timeline.length}:${fnv1a(timeline)}`;
+}
+
+function orderTranslatedCuesBySourceTimeline(
+  sourceCues: YouTubeSubtitleCue[],
+  translatedCues: TranslatedSubtitleCue[]
+): TranslatedSubtitleCue[] {
+  const sourceOrder = new Map(
+    sourceCues.map((cue, index) => [cue.id, index] as const)
+  );
+
+  return [...translatedCues].sort((left, right) => {
+    return (
+      (sourceOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
+      (sourceOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER)
+    );
+  });
+}
+
+function getSubtitleNativeResponseTimeoutMs(timeoutMs: number): number {
+  return (
+    timeoutMs * SUBTITLE_NATIVE_RESPONSE_TIMEOUT_MULTIPLIER +
+    SUBTITLE_NATIVE_RESPONSE_TIMEOUT_OVERHEAD_MS
+  );
+}
+
+function createSubtitleChunkFailure(
+  response: NativeResponse | undefined,
+  requestId: string,
+  selectedProvider: ProviderSelection
+): SubtitleTranslationFailure {
+  if (
+    response &&
+    isSubtitleTranslateResult(response) &&
+    response.requestId === requestId &&
+    !response.ok
+  ) {
+    return {
+      ok: false,
+      provider: response.provider,
+      error: toExtensionSubtitleTranslationError(response.error),
+      message: toUserFacingTranslationMessage(
+        response.error,
+        response.message,
+        response.provider ?? selectedProvider
+      ),
+      retryable: response.retryable,
+      elapsedMs: response.elapsedMs
+    };
+  }
+
+  if (response?.type === "ERROR") {
+    return {
+      ok: false,
+      error: toExtensionSubtitleTranslationError(response.error),
+      message: toUserFacingTranslationMessage(
+        response.error,
+        response.message,
+        selectedProvider
+      ),
+      retryable: response.retryable
+    };
+  }
+
+  return {
+    ok: false,
+    error: response ? "UNKNOWN_ERROR" : "NATIVE_HOST_UNAVAILABLE",
+    message: response
+      ? "Native host returned an invalid subtitle translation response."
+      : "Native helper response timed out before subtitle translation finished.",
+    retryable: true
+  };
+}
+
+function createSubtitleChunkFailureWithContext(
+  failure: SubtitleTranslationFailure,
+  currentChunk: number,
+  totalChunks: number
+): SubtitleTranslationFailure {
+  return {
+    ...failure,
+    message: createSubtitleChunkFailureMessage(failure, currentChunk, totalChunks)
+  };
+}
+
+function createSubtitleChunkFailureMessage(
+  failure: SubtitleTranslationFailure,
+  currentChunk: number,
+  totalChunks: number
+): string {
+  const chunkLabel = `${currentChunk}/${totalChunks} 구간`;
+
+  if (failure.error === "PROVIDER_TIMEOUT") {
+    return `${chunkLabel} 번역 시간이 초과되었습니다. ${failure.message}`;
+  }
+
+  return `${chunkLabel} 번역에 실패했습니다. ${failure.message}`;
+}
+
+function shouldAbortSubtitleTranslationAfterChunkFailure(
+  failure: SubtitleTranslationFailure
+): boolean {
+  switch (failure.error) {
+    case "PROVIDER_TIMEOUT":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function shouldContinueAfterSubtitleChunkFailure(
+  failure: SubtitleTranslationFailure
+): boolean {
+  return (
+    failure.error === "PROVIDER_EXIT_NONZERO" ||
+    failure.error === "PROVIDER_OUTPUT_PARSE_FAILED"
+  );
+}
+
+function fnv1a(input: string): string {
+  let hash = 2166136261;
+
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return (hash >>> 0).toString(36);
+}
+
+export async function getSubtitleTranslationCache(
+  requestId: string,
+  input: SubtitleCacheInput
+): Promise<SubtitleCacheStatus> {
+  const nativeHostStatus = await checkNativeHost(`${requestId}:host-info`);
+
+  if (!nativeHostStatus.ok) {
+    return {
+      ok: false,
+      error:
+        nativeHostStatus.error === "NATIVE_HOST_UPDATE_REQUIRED" ||
+        nativeHostStatus.error === "NATIVE_HOST_UNSUPPORTED"
+          ? nativeHostStatus.error
+          : "NATIVE_HOST_UNAVAILABLE",
+      message: nativeHostStatus.message,
+      retryable: nativeHostStatus.retryable
+    };
+  }
+
+  const request: NativeRequest = {
+    type: "GET_SUBTITLE_TRANSLATION_CACHE",
+    requestId,
+    provider: input.provider,
+    model: input.model,
+    targetLang: input.targetLang,
+    videoId: input.videoId,
+    sourceTrackIdentity: input.sourceTrackIdentity,
+    sourceTimelineHash: input.sourceTimelineHash,
+    promptVersion: input.promptVersion
+  };
+
+  try {
+    const response = await sendNativeHostMessage(request);
+
+    if (
+      response &&
+      isSubtitleCacheResult(response) &&
+      response.requestId === requestId &&
+      response.ok &&
+      response.cached
+    ) {
+      return {
+        ok: true,
+        cached: true,
+        cues: response.cues
+      };
+    }
+
+    if (
+      response &&
+      isSubtitleCacheResult(response) &&
+      response.requestId === requestId &&
+      response.ok &&
+      !response.cached
+    ) {
+      return {
+        ok: true,
+        cached: false
+      };
+    }
+
+    if (
+      response &&
+      isSubtitleCacheResult(response) &&
+      response.requestId === requestId &&
+      !response.ok
+    ) {
+      return {
+        ok: false,
+        error: response.error === "CACHE_ERROR" ? "CACHE_ERROR" : "UNKNOWN_ERROR",
+        message: response.message,
+        retryable: response.retryable
+      };
+    }
+
+    return {
+      ok: false,
+      error: response ? "UNKNOWN_ERROR" : "NATIVE_HOST_UNAVAILABLE",
+      message: response
+        ? "Native host returned an invalid subtitle cache response."
+        : "Native host did not respond.",
+      retryable: true
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: "NATIVE_HOST_UNAVAILABLE",
+      message:
+        error instanceof Error ? error.message : "Native host is not available.",
+      retryable: true
+    };
+  }
+}
+
+async function writeSubtitleTranslationCache(
+  requestId: string,
+  input: SubtitleTranslationInput,
+  translatedCues: TranslatedSubtitleCue[],
+  debugLogging: boolean
+): Promise<void> {
+  const request: NativeRequest = {
+    type: "WRITE_SUBTITLE_TRANSLATION_CACHE",
+    requestId,
+    provider: input.provider,
+    model: input.model,
+    targetLang: input.targetLang,
+    videoId: input.videoId,
+    sourceTrackIdentity: input.sourceTrackIdentity,
+    sourceTimelineHash: input.sourceTimelineHash,
+    promptVersion: input.promptVersion,
+    sourceCues: input.cues,
+    translatedCues
+  };
+
+  try {
+    const response = await sendNativeHostMessage(
+      request,
+      SUBTITLE_CACHE_WRITE_TIMEOUT_MS
+    );
+
+    if (
+      response &&
+      isSubtitleCacheWriteResult(response) &&
+      response.requestId === requestId &&
+      response.ok
+    ) {
+      writeDebugLogEventDirect(
+        debugLogging,
+        requestId,
+        "youtube.subtitle.cache_write_result",
+        { ok: true }
+      );
+      return;
+    }
+
+    writeDebugLogEventDirect(
+      debugLogging,
+      requestId,
+      "youtube.subtitle.cache_write_result",
+      {
+        ok: false,
+        error:
+          response && isSubtitleCacheWriteResult(response) && !response.ok
+            ? response.error
+            : "UNKNOWN_ERROR",
+        message:
+          response && isSubtitleCacheWriteResult(response) && !response.ok
+            ? response.message
+            : response
+              ? "Native host returned an invalid subtitle cache write response."
+              : "Native host did not respond."
+      }
+    );
+  } catch (error) {
+    writeDebugLogEventDirect(
+      debugLogging,
+      requestId,
+      "youtube.subtitle.cache_write_result",
+      {
+        ok: false,
+        error: "NATIVE_HOST_UNAVAILABLE",
+        message:
+          error instanceof Error ? error.message : "Native host is not available."
+      }
+    );
+  }
+}
+
+export async function translateSubtitleTrack(
+  requestId: string,
+  input: SubtitleTranslationInput,
+  onProgress?: (progress: SubtitleTranslationProgress) => void,
+  onChunkResult?: (result: SubtitleTranslationChunkResult) => void
+): Promise<SubtitleTranslationStatus> {
+  if (input.cues.length === 0) {
+    return {
+      ok: false,
+      error: "UNKNOWN_ERROR",
+      message: "번역할 YouTube 자막 내용이 없습니다.",
+      retryable: false
+    };
+  }
+
+  const options = (await chrome.storage.local.get(
+    "hoverTransPort"
+  )) as StoredOptions;
+  const selectedProvider = normalizeProvider(
+    input.provider ?? options.hoverTransPort?.provider
+  );
+  const selectedModel =
+    input.model?.trim() || getModelForProvider(options.hoverTransPort, selectedProvider);
+  const selectedTargetLang = normalizeTargetLang(
+    input.targetLang,
+    getBrowserTargetLang(getBrowserLocaleCandidates())
+  );
+  const timeoutMsValue = normalizeYouTubeSubtitleTimeoutMs(
+    input.timeoutMs ?? options.hoverTransPort?.youtubeSubtitleTimeoutMs
+  );
+  const cacheEnabledValue =
+    typeof input.cacheEnabled === "boolean"
+      ? input.cacheEnabled
+      : normalizeCacheEnabled(options.hoverTransPort?.cacheEnabled);
+  const debugLoggingValue =
+    typeof input.debugLogging === "boolean"
+      ? input.debugLogging
+      : normalizeDebugLogging(options.hoverTransPort?.debugLogging);
+  const nativeHostStatus = await checkNativeHost(`${requestId}:host-info`);
+
+  if (!nativeHostStatus.ok) {
+    return createSubtitleTranslationBlockedByNativeHost(nativeHostStatus);
+  }
+
+  try {
+    const chunks = planSubtitleTranslationSegments(
+      input.cues,
+      input.currentTimeMs
+    );
+    const translatedCues: TranslatedSubtitleCue[] = [];
+    const failedChunks: Array<Extract<SubtitleTranslationStatus, { ok: false }>> =
+      [];
+    let elapsedMs = 0;
+    let responseProvider: ProviderId = resolveProviderForModel(selectedProvider);
+    let allChunksCached = true;
+
+    for (let index = 0; index < chunks.length; index += 1) {
+      const chunk = chunks[index];
+      const currentChunk = index + 1;
+      const totalChunks = chunks.length;
+      onProgress?.({
+        currentChunk,
+        totalChunks
+      });
+      const segmentTimelineHash = createSubtitleSegmentCacheHash(chunk.cues);
+      const chunkRequestId = `${requestId}:chunk-${currentChunk}-of-${totalChunks}`;
+      let finalFailure: Extract<SubtitleTranslationStatus, { ok: false }> | null =
+        null;
+
+      for (let attempt = 1; attempt <= SUBTITLE_CHUNK_MAX_ATTEMPTS; attempt += 1) {
+        const request: NativeRequest = {
+          type: "TRANSLATE_SUBTITLES",
+          requestId:
+            attempt === 1 ? chunkRequestId : `${chunkRequestId}:retry-${attempt}`,
+          provider: selectedProvider,
+          model: selectedModel,
+          targetLang: selectedTargetLang,
+          videoId: input.videoId,
+          sourceTrackIdentity: input.sourceTrackIdentity,
+          sourceTimelineHash: `${input.sourceTimelineHash}:segment:${chunk.index}:${segmentTimelineHash}`,
+          promptVersion: input.promptVersion,
+          cues: chunk.cues,
+          contextBefore: chunk.contextBefore,
+          contextAfter: chunk.contextAfter,
+          timeoutMs: timeoutMsValue,
+          cacheEnabled: cacheEnabledValue,
+          debugLogging: debugLoggingValue
+        };
+        const response = await sendNativeHostMessage(
+          request,
+          getSubtitleNativeResponseTimeoutMs(timeoutMsValue)
+        );
+
+        if (
+          response &&
+          isSubtitleTranslateResult(response) &&
+          response.requestId === request.requestId &&
+          response.ok
+        ) {
+          responseProvider = response.provider;
+          translatedCues.push(...response.cues);
+          elapsedMs += response.elapsedMs;
+          allChunksCached = allChunksCached && response.cached && attempt === 1;
+          onChunkResult?.({
+            currentChunk,
+            totalChunks,
+            provider: response.provider,
+            cues: response.cues,
+            cached: response.cached,
+            elapsedMs: response.elapsedMs
+          });
+          finalFailure = null;
+          break;
+        }
+
+        const failure = createSubtitleChunkFailure(
+          response,
+          request.requestId,
+          selectedProvider
+        );
+        elapsedMs += failure.elapsedMs ?? 0;
+
+        finalFailure = createSubtitleChunkFailureWithContext(
+          failure,
+          currentChunk,
+          totalChunks
+        );
+        break;
+      }
+
+      if (!finalFailure) {
+        continue;
+      }
+
+      writeDebugLogEventDirect(
+        debugLoggingValue,
+        requestId,
+        "subtitle_translation.chunk_error",
+        {
+          currentChunk,
+          totalChunks,
+          error: finalFailure.error,
+          message: finalFailure.message,
+          retryable: finalFailure.retryable
+        }
+      );
+      failedChunks.push(finalFailure);
+
+      if (shouldAbortSubtitleTranslationAfterChunkFailure(finalFailure)) {
+        return finalFailure;
+      }
+
+      if (!shouldContinueAfterSubtitleChunkFailure(finalFailure)) {
+        break;
+      }
+    }
+
+    if (translatedCues.length === 0) {
+      return (
+        failedChunks[0] ?? {
+          ok: false,
+          error: "UNKNOWN_ERROR",
+          message: "자막 번역 결과를 받지 못했습니다.",
+          retryable: true
+        }
+      );
+    }
+
+    const orderedTranslatedCues = orderTranslatedCuesBySourceTimeline(
+      input.cues,
+      translatedCues
+    );
+
+    if (cacheEnabledValue && failedChunks.length === 0) {
+      void writeSubtitleTranslationCache(
+        `${requestId}:full-cache-write`,
+        input,
+        orderedTranslatedCues,
+        debugLoggingValue
+      );
+    }
+
+    return {
+      ok: true,
+      provider: responseProvider,
+      cues: orderedTranslatedCues,
+      cached: allChunksCached && failedChunks.length === 0,
+      elapsedMs,
+      partial: failedChunks.length > 0,
+      failedChunkCount: failedChunks.length,
+      message:
+        failedChunks.length > 0
+          ? createSubtitlePartialFailureMessage(failedChunks)
+          : undefined
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: "NATIVE_HOST_UNAVAILABLE",
+      message:
+        error instanceof Error ? error.message : "Native host is not available.",
+      retryable: true
+    };
+  }
+}
+
+function createSubtitlePartialFailureMessage(
+  failedChunks: Array<Extract<SubtitleTranslationStatus, { ok: false }>>
+): string {
+  const count = failedChunks.length;
+  const firstReason = failedChunks[0]?.message.trim();
+  const prefix = `${count}개 구간 번역에 실패했습니다.`;
+  const fallback = "해당 구간은 원문 자막으로 표시됩니다.";
+
+  if (!firstReason) {
+    return `${prefix} ${fallback}`;
+  }
+
+  return `${prefix} 첫 실패 사유: ${firstReason} ${fallback}`;
 }
 
 export async function clearTranslationCache(

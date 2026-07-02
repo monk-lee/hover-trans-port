@@ -24,6 +24,7 @@ import {
   DEFAULT_PROVIDER,
   DEFAULT_TRIGGER_HOTKEY,
   DEFAULT_TIMEOUT_MS,
+  DEFAULT_YOUTUBE_SUBTITLE_TIMEOUT_MS,
   getBrowserTargetLang,
   getModelForProvider,
   normalizeCacheEnabled,
@@ -35,6 +36,7 @@ import {
   normalizeTargetLang,
   normalizeTriggerHotkey,
   normalizeTimeoutMs,
+  normalizeYouTubeSubtitleTimeoutMs,
   type CommonTargetLanguage,
   type HoverTransPortOptions,
   type StoredOptions,
@@ -104,6 +106,9 @@ const providerModelInput =
 const providerStatus =
   document.querySelector<HTMLParagraphElement>("#provider-status");
 const timeoutInput = document.querySelector<HTMLInputElement>("#timeout-ms");
+const youtubeSubtitleTimeoutInput = document.querySelector<HTMLInputElement>(
+  "#youtube-subtitle-timeout-ms"
+);
 const cacheEnabledInput =
   document.querySelector<HTMLInputElement>("#cache-enabled");
 const debugLoggingInput =
@@ -315,18 +320,24 @@ function createRequestId(): string {
   return `${Date.now()}-${Math.random()}`;
 }
 
-function timeoutMsToSeconds(timeoutMs: number | undefined): number {
-  return Math.round(normalizeTimeoutMs(timeoutMs) / 1000);
+function timeoutMsToSeconds(
+  timeoutMs: number | undefined,
+  normalize: (timeoutMs: number | string | undefined) => number = normalizeTimeoutMs
+): number {
+  return Math.round(normalize(timeoutMs) / 1000);
 }
 
-function timeoutSecondsInputToMs(seconds: string | undefined): number {
+function timeoutSecondsInputToMs(
+  seconds: string | undefined,
+  normalize: (timeoutMs: number | string | undefined) => number = normalizeTimeoutMs
+): number {
   const trimmed = seconds?.trim();
 
   if (!trimmed) {
-    return DEFAULT_TIMEOUT_MS;
+    return normalize(undefined);
   }
 
-  return normalizeTimeoutMs(Number(trimmed) * 1000);
+  return normalize(Number(trimmed) * 1000);
 }
 
 function getBrowserLocaleCandidates(): Array<string | undefined> {
@@ -725,6 +736,18 @@ async function loadOptions() {
     timeoutInput.placeholder = String(DEFAULT_TIMEOUT_MS / 1000);
   }
 
+  if (youtubeSubtitleTimeoutInput) {
+    youtubeSubtitleTimeoutInput.value = String(
+      timeoutMsToSeconds(
+        options.hoverTransPort?.youtubeSubtitleTimeoutMs,
+        normalizeYouTubeSubtitleTimeoutMs
+      )
+    );
+    youtubeSubtitleTimeoutInput.placeholder = String(
+      DEFAULT_YOUTUBE_SUBTITLE_TIMEOUT_MS / 1000
+    );
+  }
+
   if (cacheEnabledInput) {
     cacheEnabledInput.checked = normalizeCacheEnabled(
       options.hoverTransPort?.cacheEnabled
@@ -834,6 +857,10 @@ async function saveOptions(
     codexModel: current.hoverTransPort?.codexModel,
     triggerHotkey: currentTriggerHotkey,
     timeoutMs: timeoutSecondsInputToMs(timeoutInput?.value),
+    youtubeSubtitleTimeoutMs: timeoutSecondsInputToMs(
+      youtubeSubtitleTimeoutInput?.value,
+      normalizeYouTubeSubtitleTimeoutMs
+    ),
     cacheEnabled: cacheEnabledInput?.checked ?? DEFAULT_CACHE_ENABLED,
     debugLogging: debugLoggingInput?.checked ?? DEFAULT_DEBUG_LOGGING,
     nativeHostUpdateAutoCheck: normalizeNativeHostUpdateAutoCheck(
@@ -1317,6 +1344,25 @@ timeoutInput?.addEventListener("change", () => {
   if (timeoutInput) {
     timeoutInput.value = String(
       timeoutMsToSeconds(timeoutSecondsInputToMs(timeoutInput.value))
+    );
+  }
+
+  saveOptions().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    setSaveState(message);
+  });
+});
+
+youtubeSubtitleTimeoutInput?.addEventListener("change", () => {
+  if (youtubeSubtitleTimeoutInput) {
+    youtubeSubtitleTimeoutInput.value = String(
+      timeoutMsToSeconds(
+        timeoutSecondsInputToMs(
+          youtubeSubtitleTimeoutInput.value,
+          normalizeYouTubeSubtitleTimeoutMs
+        ),
+        normalizeYouTubeSubtitleTimeoutMs
+      )
     );
   }
 

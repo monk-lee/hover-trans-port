@@ -35,7 +35,7 @@ export const PROVIDER_LABELS: Record<ProviderId, string> = {
 };
 
 export const PROVIDER_DEFAULT_MODELS: Record<ProviderId, string> = {
-  codex: "gpt-5.4-mini",
+  codex: "gpt-5.3-codex-spark",
   claude: "haiku",
   gemini: "",
   opencode: "",
@@ -43,7 +43,7 @@ export const PROVIDER_DEFAULT_MODELS: Record<ProviderId, string> = {
 };
 
 export const CODEX_NOT_FOUND_GUIDANCE =
-  "Codex CLI was not found. Windows: install Codex with the official OpenAI installer or run npm install -g @openai/codex, then restart Chrome. Expected paths include %LOCALAPPDATA%\\Programs\\OpenAI\\Codex\\bin\\codex.exe and %APPDATA%\\npm\\codex.cmd. You can also set HOVER_TRANS_PORT_CODEX_PATH.";
+  "Codex CLI was not found. macOS/Linux: expected paths include ~/.local/bin/codex, ~/.local/share/mise/shims/codex, ~/.nvm/current/bin/codex, ~/.volta/bin/codex, /opt/homebrew/bin/codex, and /usr/local/bin/codex. Windows: install Codex with the official OpenAI installer or run npm install -g @openai/codex, then restart Chrome. Windows expected paths include %LOCALAPPDATA%\\Programs\\OpenAI\\Codex\\bin\\codex.exe and %APPDATA%\\npm\\codex.cmd. You can also set HOVER_TRANS_PORT_CODEX_PATH.";
 
 export const PROVIDER_FALLBACK_MODEL_CATALOGS: Record<
   ProviderId,
@@ -51,13 +51,17 @@ export const PROVIDER_FALLBACK_MODEL_CATALOGS: Record<
 > = {
   codex: {
     provider: "codex",
-    defaultModel: "gpt-5.4-mini",
+    defaultModel: "gpt-5.3-codex-spark",
     models: [
       { value: "gpt-5.5", label: "GPT-5.5" },
       { value: "gpt-5.4", label: "GPT-5.4" },
-      { value: "gpt-5.4-mini", label: "GPT-5.4 Mini", recommended: true },
+      { value: "gpt-5.4-mini", label: "GPT-5.4 Mini" },
       { value: "gpt-5.3-codex", label: "GPT-5.3 Codex" },
-      { value: "gpt-5.3-codex-spark", label: "GPT-5.3 Codex Spark" },
+      {
+        value: "gpt-5.3-codex-spark",
+        label: "GPT-5.3 Codex Spark",
+        recommended: true
+      },
       { value: "gpt-5.2", label: "GPT-5.2" }
     ],
     supportsCustomModel: true,

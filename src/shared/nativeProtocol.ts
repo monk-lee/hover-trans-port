@@ -3,11 +3,15 @@ import type {
   ProviderModelCatalog,
   ProviderSelection
 } from "./providers";
+import type {
+  TranslatedSubtitleCue,
+  YouTubeSubtitleCue
+} from "./youtubeSubtitles";
 
 export const NATIVE_HOST_NAME = "com.monklabs.hover_trans_port";
-export const NATIVE_BRIDGE_VERSION = "0.2.17-rust-helper";
-export const NATIVE_HOST_VERSION = "0.2.17";
-export const NATIVE_HOST_PROTOCOL_VERSION = 1;
+export const NATIVE_BRIDGE_VERSION = "0.2.18-rust-helper";
+export const NATIVE_HOST_VERSION = "0.2.18";
+export const NATIVE_HOST_PROTOCOL_VERSION = 3;
 
 export type NativePingRequest = {
   type: "PING";
@@ -33,6 +37,40 @@ export type NativeTranslateRequest = {
   context?: {
     mode: "selection" | "hover-block";
   };
+};
+
+export type NativeSubtitleCacheRequest = {
+  type: "GET_SUBTITLE_TRANSLATION_CACHE";
+  requestId: string;
+  provider?: ProviderSelection;
+  model?: string;
+  targetLang: string;
+  videoId: string;
+  sourceTrackIdentity: string;
+  sourceTimelineHash: string;
+  promptVersion: number;
+};
+
+export type NativeTranslateSubtitlesRequest = Omit<
+  NativeSubtitleCacheRequest,
+  "type"
+> & {
+  type: "TRANSLATE_SUBTITLES";
+  cues: YouTubeSubtitleCue[];
+  contextBefore?: YouTubeSubtitleCue[];
+  contextAfter?: YouTubeSubtitleCue[];
+  timeoutMs?: number;
+  cacheEnabled?: boolean;
+  debugLogging?: boolean;
+};
+
+export type NativeSubtitleCacheWriteRequest = Omit<
+  NativeSubtitleCacheRequest,
+  "type"
+> & {
+  type: "WRITE_SUBTITLE_TRANSLATION_CACHE";
+  sourceCues: YouTubeSubtitleCue[];
+  translatedCues: TranslatedSubtitleCue[];
 };
 
 export type NativeProviderStatusRequest = {
@@ -99,6 +137,9 @@ export type NativeRequest =
   | NativePingRequest
   | NativeHostInfoRequest
   | NativeTranslateRequest
+  | NativeSubtitleCacheRequest
+  | NativeSubtitleCacheWriteRequest
+  | NativeTranslateSubtitlesRequest
   | NativeProviderStatusRequest
   | NativeProviderModelsRequest
   | NativeClearCacheRequest
@@ -185,6 +226,65 @@ export type NativeTranslateResultResponse =
       message: string;
       retryable: boolean;
       elapsedMs?: number;
+    };
+
+export type NativeSubtitleCacheResponse =
+  | {
+      type: "SUBTITLE_CACHE_RESULT";
+      requestId: string;
+      ok: true;
+      cached: true;
+      cues: TranslatedSubtitleCue[];
+    }
+  | {
+      type: "SUBTITLE_CACHE_RESULT";
+      requestId: string;
+      ok: true;
+      cached: false;
+    }
+  | {
+      type: "SUBTITLE_CACHE_RESULT";
+      requestId: string;
+      ok: false;
+      error: NativeErrorCode;
+      message: string;
+      retryable: boolean;
+    };
+
+export type NativeSubtitleTranslateResponse =
+  | {
+      type: "SUBTITLE_TRANSLATE_RESULT";
+      requestId: string;
+      ok: true;
+      provider: ProviderId;
+      cues: TranslatedSubtitleCue[];
+      cached: boolean;
+      elapsedMs: number;
+    }
+  | {
+      type: "SUBTITLE_TRANSLATE_RESULT";
+      requestId: string;
+      ok: false;
+      provider?: ProviderId;
+      error: NativeErrorCode;
+      message: string;
+      retryable: boolean;
+      elapsedMs?: number;
+    };
+
+export type NativeSubtitleCacheWriteResponse =
+  | {
+      type: "SUBTITLE_CACHE_WRITE_RESULT";
+      requestId: string;
+      ok: true;
+    }
+  | {
+      type: "SUBTITLE_CACHE_WRITE_RESULT";
+      requestId: string;
+      ok: false;
+      error: NativeErrorCode;
+      message: string;
+      retryable: boolean;
     };
 
 export type NativeCacheClearResponse =
@@ -349,6 +449,9 @@ export type NativeResponse =
   | NativeProviderStatusResponse
   | NativeProviderModelsResponse
   | NativeTranslateResultResponse
+  | NativeSubtitleCacheResponse
+  | NativeSubtitleCacheWriteResponse
+  | NativeSubtitleTranslateResponse
   | NativeCacheClearResponse
   | NativeDebugLogInfoResponse
   | NativeDebugLogClearResponse

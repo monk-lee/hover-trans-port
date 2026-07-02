@@ -243,12 +243,12 @@ assertIncludes(
 );
 assertIncludes(
   readText("docs/open-source-release-checklist.md"),
-  "hover-trans-port-native-host-linux-0.2.17.tar.gz",
+  "hover-trans-port-native-host-linux-0.2.18.tar.gz",
   "release checklist must include Linux inspect-first tarball"
 );
 assertIncludes(
   readText("docs/open-source-release-checklist.md"),
-  "hover-trans-port-native-host-windows-0.2.17.zip",
+  "hover-trans-port-native-host-windows-0.2.18.zip",
   "release checklist must include Windows inspect-first zip"
 );
 assertIncludes(

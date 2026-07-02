@@ -3,6 +3,10 @@ import type {
   ProviderModelCatalog,
   ProviderSelection
 } from "./providers";
+import type {
+  TranslatedSubtitleCue,
+  YouTubeSubtitleCue
+} from "./youtubeSubtitles";
 
 export type TranslationTargetMode = "selection" | "hover-block";
 
@@ -56,6 +60,48 @@ export type TranslationTarget = {
   pageUrl: string;
   pageTitle: string;
   sourceElement: SourceElement;
+};
+
+export type SubtitleTranslationCacheRequest = {
+  type: "GET_SUBTITLE_TRANSLATION_CACHE";
+  requestId: string;
+  videoId: string;
+  sourceTrackIdentity: string;
+  sourceTimelineHash: string;
+  targetLang: string;
+  provider: ProviderSelection;
+  model: string;
+  promptVersion: number;
+};
+
+export type SubtitleTrackTranslationRequest = Omit<
+  SubtitleTranslationCacheRequest,
+  "type"
+> & {
+  type: "TRANSLATE_SUBTITLE_TRACK";
+  cues: YouTubeSubtitleCue[];
+  currentTimeMs?: number;
+  timeoutMs?: number;
+  cacheEnabled?: boolean;
+  debugLogging?: boolean;
+};
+
+export type SubtitleTranslationProgressMessage = {
+  type: "SUBTITLE_TRANSLATION_PROGRESS";
+  requestId: string;
+  currentChunk: number;
+  totalChunks: number;
+};
+
+export type SubtitleTranslationChunkResultMessage = {
+  type: "SUBTITLE_TRANSLATION_CHUNK_RESULT";
+  requestId: string;
+  currentChunk: number;
+  totalChunks: number;
+  provider: ProviderId;
+  cues: TranslatedSubtitleCue[];
+  cached: boolean;
+  elapsedMs: number;
 };
 
 export type ExtensionRequest =
@@ -114,6 +160,10 @@ export type ExtensionRequest =
       event: string;
       fields?: DebugLogFields;
     }
+  | SubtitleTranslationCacheRequest
+  | SubtitleTrackTranslationRequest
+  | SubtitleTranslationProgressMessage
+  | SubtitleTranslationChunkResultMessage
   | {
       type: "TRANSLATE_CURRENT_TARGET";
       requestId: string;
@@ -142,6 +192,67 @@ export type TranslationResultResponse =
         | "NATIVE_HOST_UNSUPPORTED"
         | "PROVIDER_NOT_FOUND"
         | "PROVIDER_UNAVAILABLE"
+        | "PROVIDER_TIMEOUT"
+        | "PROVIDER_EXIT_NONZERO"
+        | "PROVIDER_OUTPUT_PARSE_FAILED"
+        | "CACHE_ERROR"
+        | "UNKNOWN_ERROR";
+      message: string;
+      retryable: boolean;
+      elapsedMs?: number;
+    };
+
+export type SubtitleTranslationCacheResponse =
+  | {
+      type: "SUBTITLE_TRANSLATION_CACHE_RESULT";
+      requestId: string;
+      ok: true;
+      cached: true;
+      cues: TranslatedSubtitleCue[];
+    }
+  | {
+      type: "SUBTITLE_TRANSLATION_CACHE_RESULT";
+      requestId: string;
+      ok: true;
+      cached: false;
+    }
+  | {
+      type: "SUBTITLE_TRANSLATION_CACHE_RESULT";
+      requestId: string;
+      ok: false;
+      error:
+        | "NATIVE_HOST_UNAVAILABLE"
+        | "NATIVE_HOST_UPDATE_REQUIRED"
+        | "NATIVE_HOST_UNSUPPORTED"
+        | "CACHE_ERROR"
+        | "UNKNOWN_ERROR";
+      message: string;
+      retryable: boolean;
+    };
+
+export type SubtitleTranslationResultResponse =
+  | {
+      type: "SUBTITLE_TRANSLATION_RESULT";
+      requestId: string;
+      ok: true;
+      provider: ProviderId;
+      cues: TranslatedSubtitleCue[];
+      cached: boolean;
+      elapsedMs: number;
+      partial?: boolean;
+      failedChunkCount?: number;
+      message?: string;
+    }
+  | {
+      type: "SUBTITLE_TRANSLATION_RESULT";
+      requestId: string;
+      ok: false;
+      provider?: ProviderId;
+      error:
+        | "NATIVE_HOST_UNAVAILABLE"
+        | "NATIVE_HOST_UPDATE_REQUIRED"
+        | "NATIVE_HOST_UNSUPPORTED"
+        | "PROVIDER_NOT_FOUND"
         | "PROVIDER_TIMEOUT"
         | "PROVIDER_EXIT_NONZERO"
         | "PROVIDER_OUTPUT_PARSE_FAILED"
@@ -401,6 +512,8 @@ export type ExtensionResponse =
   | DebugLogContentResponse
   | DebugLogWriteResponse
   | TranslationResultResponse
+  | SubtitleTranslationCacheResponse
+  | SubtitleTranslationResultResponse
   | {
       type: "ERROR";
       message: string;

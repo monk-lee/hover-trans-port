@@ -17,6 +17,7 @@ const packageJson = JSON.parse(
 const hostName = "com.monklabs.hover_trans_port";
 const requestId = "native-host-installer-smoke";
 const smokeVersion = packageJson.version;
+const expectedProtocolVersion = 3;
 const tempRoot = mkdtempSync(path.join(tmpdir(), "hover-trans-port-smoke-"));
 const homeDir = path.join(tempRoot, "home");
 const installRoot = path.join(tempRoot, "install-root");
@@ -268,7 +269,10 @@ function runLauncherHostInfo(launcherPath, env) {
   assert(response.requestId === requestId, "launcher should preserve requestId");
   assert(response.ok === true, "HOST_INFO should be ok");
   assert(response.hostVersion === packageJson.version, "HOST_INFO should report package host version");
-  assert(response.protocolVersion === 1, "HOST_INFO should report protocol version 1");
+  assert(
+    response.protocolVersion === expectedProtocolVersion,
+    `HOST_INFO should report protocol version ${expectedProtocolVersion}`
+  );
 }
 
 function assertWindowsRegistry(manifestPath) {

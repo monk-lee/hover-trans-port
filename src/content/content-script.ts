@@ -25,6 +25,7 @@ import type {
   TriggerHotkey
 } from "../shared/options";
 import type { ModifierTriggerCode } from "../shared/hotkeys";
+import { startYouTubeSubtitleSession } from "./youtubeSubtitleSession";
 
 const hoverTracker = new HoverTracker();
 const inlineRenderer = new InlineRenderer();
@@ -115,6 +116,21 @@ type SelectionBubbleStoredState =
 const translationStates = new Map<string, TranslationState>();
 let activeTriggerHotkey: TriggerHotkey = DEFAULT_TRIGGER_HOTKEY;
 let uninstallTranslationTrigger: (() => void) | null = null;
+
+function isExtensionContextInvalidated(error: unknown): boolean {
+  const message =
+    typeof error === "object" && error && "message" in error
+      ? String((error as { message?: unknown }).message ?? "")
+      : String(error);
+
+  return message.toLowerCase().includes("extension context invalidated");
+}
+
+window.addEventListener("unhandledrejection", (event) => {
+  if (isExtensionContextInvalidated(event.reason)) {
+    event.preventDefault();
+  }
+});
 
 function createRequestId(): string {
   if ("randomUUID" in crypto) {
@@ -766,6 +782,13 @@ chrome.runtime.onMessage.addListener(
     _sender,
     sendResponse: (response: ExtensionResponse) => void
   ) => {
+    if (
+      message.type === "SUBTITLE_TRANSLATION_PROGRESS" ||
+      message.type === "SUBTITLE_TRANSLATION_CHUNK_RESULT"
+    ) {
+      return;
+    }
+
     if (message.type !== "PING") {
       sendResponse({
         type: "ERROR",
@@ -780,3 +803,7 @@ chrome.runtime.onMessage.addListener(
     });
   }
 );
+
+if (location.hostname === "www.youtube.com" || location.hostname === "youtube.com") {
+  startYouTubeSubtitleSession();
+}

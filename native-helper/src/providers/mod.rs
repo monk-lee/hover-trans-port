@@ -27,6 +27,19 @@ pub struct ProviderTranslateResult {
     pub elapsed_ms: u64,
 }
 
+#[derive(Clone, Debug)]
+pub struct ProviderPromptRequest {
+    pub prompt: String,
+    pub model: Option<String>,
+    pub timeout_ms: u64,
+}
+
+#[derive(Clone, Debug)]
+pub struct ProviderPromptResult {
+    pub text: String,
+    pub elapsed_ms: u64,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderModelOption {
@@ -52,10 +65,31 @@ pub trait Provider {
     fn default_model(&self) -> &'static str;
     fn status(&self) -> ProviderStatusEntry;
     fn model_catalog(&self) -> ProviderModelCatalog;
+    fn run_prompt(
+        &self,
+        request: ProviderPromptRequest,
+    ) -> Result<ProviderPromptResult, ProviderError>;
+
     fn translate(
         &self,
         request: ProviderTranslateRequest,
-    ) -> Result<ProviderTranslateResult, ProviderError>;
+    ) -> Result<ProviderTranslateResult, ProviderError> {
+        let prompt = crate::prompt::build_translate_prompt(
+            &request.text,
+            &request.source_lang,
+            &request.target_lang,
+        );
+        let result = self.run_prompt(ProviderPromptRequest {
+            prompt,
+            model: request.model,
+            timeout_ms: request.timeout_ms,
+        })?;
+
+        Ok(ProviderTranslateResult {
+            translated_text: result.text,
+            elapsed_ms: result.elapsed_ms,
+        })
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -152,6 +186,45 @@ impl ProviderRegistry {
                 let provider = antigravity::AntigravityProvider::new(self.env.clone());
                 provider
                     .translate(request)
+                    .map(|result| (provider.id(), result))
+            }
+        }
+    }
+
+    pub fn run_prompt(
+        &self,
+        selection: Option<&str>,
+        request: ProviderPromptRequest,
+    ) -> Result<(ProviderId, ProviderPromptResult), ProviderError> {
+        match normalize_provider_selection(selection) {
+            ProviderSelection::Codex => {
+                let provider = codex::CodexProvider::new(self.env.clone());
+                provider
+                    .run_prompt(request)
+                    .map(|result| (provider.id(), result))
+            }
+            ProviderSelection::Claude => {
+                let provider = claude::ClaudeProvider::new(self.env.clone());
+                provider
+                    .run_prompt(request)
+                    .map(|result| (provider.id(), result))
+            }
+            ProviderSelection::Gemini => {
+                let provider = gemini::GeminiProvider::new(self.env.clone());
+                provider
+                    .run_prompt(request)
+                    .map(|result| (provider.id(), result))
+            }
+            ProviderSelection::Opencode => {
+                let provider = opencode::OpencodeProvider::new(self.env.clone());
+                provider
+                    .run_prompt(request)
+                    .map(|result| (provider.id(), result))
+            }
+            ProviderSelection::Antigravity => {
+                let provider = antigravity::AntigravityProvider::new(self.env.clone());
+                provider
+                    .run_prompt(request)
                     .map(|result| (provider.id(), result))
             }
         }

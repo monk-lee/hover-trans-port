@@ -6,10 +6,10 @@ use tempfile::tempdir;
 
 use crate::messages::{ProviderId, ProviderStatusEntry};
 use crate::process::{run_process, ProcessRequest, ProviderError};
-use crate::prompt::build_translate_prompt;
 use crate::providers::{
-    binary_discovery, Provider, ProviderModelCatalog, ProviderModelOption,
-    ProviderTranslateRequest, ProviderTranslateResult,
+    binary_discovery,
+    Provider, ProviderModelCatalog, ProviderModelOption, ProviderPromptRequest,
+    ProviderPromptResult,
 };
 
 const PRINT_TIMEOUT_GRACE_MS: u64 = 500;
@@ -80,10 +80,10 @@ impl Provider for AntigravityProvider {
         }
     }
 
-    fn translate(
+    fn run_prompt(
         &self,
-        request: ProviderTranslateRequest,
-    ) -> Result<ProviderTranslateResult, ProviderError> {
+        request: ProviderPromptRequest,
+    ) -> Result<ProviderPromptResult, ProviderError> {
         let Some(binary) = self.find_binary() else {
             return Err(ProviderError::NotFound {
                 executable: PathBuf::from("agy"),
@@ -97,11 +97,9 @@ impl Provider for AntigravityProvider {
             message: error.to_string(),
         })?;
         let log_file = temp_dir.path().join("antigravity.log");
-        let prompt =
-            build_translate_prompt(&request.text, &request.source_lang, &request.target_lang);
         let output = run_process(ProcessRequest {
             executable: binary.clone(),
-            args: build_antigravity_args(request.timeout_ms, &log_file, &prompt),
+            args: build_antigravity_args(request.timeout_ms, &log_file, &request.prompt),
             cwd: Some(workspace_dir),
             env: provider_env(&self.env, &binary),
             stdin: String::new(),
@@ -109,8 +107,8 @@ impl Provider for AntigravityProvider {
         })
         .map_err(map_antigravity_process_error)?;
 
-        Ok(ProviderTranslateResult {
-            translated_text: parse_antigravity_output(&output.stdout)?,
+        Ok(ProviderPromptResult {
+            text: parse_antigravity_output(&output.stdout)?,
             elapsed_ms: output.elapsed_ms,
         })
     }

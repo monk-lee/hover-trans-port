@@ -147,12 +147,12 @@ fn provider_models_returns_catalog_for_selected_provider() {
     assert_eq!(response["requestId"], "req-models");
     assert_eq!(response["ok"], true);
     assert_eq!(response["catalog"]["provider"], "codex");
-    assert_eq!(response["catalog"]["defaultModel"], "gpt-5.4-mini");
+    assert_eq!(response["catalog"]["defaultModel"], "gpt-5.3-codex-spark");
     assert!(response["catalog"]["models"]
         .as_array()
         .unwrap()
         .iter()
-        .any(|model| model["value"] == "gpt-5.4-mini"));
+        .any(|model| model["value"] == "gpt-5.3-codex-spark" && model["recommended"] == true));
 }
 
 #[test]
@@ -212,6 +212,1164 @@ fn cached_claude_and_codex_translations_do_not_collide() {
     assert_eq!(codex_second["provider"], "codex");
     assert_eq!(codex_second["translatedText"], "안녕하세요");
     assert_eq!(codex_second["cached"], true);
+}
+
+#[test]
+fn subtitle_cache_miss_returns_cached_false() {
+    let temp = tempdir().unwrap();
+    let cache_path = temp.path().join("cache.sqlite");
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CACHE_PATH".to_string(),
+        cache_path.to_string_lossy().into_owned(),
+    );
+    env.insert("HOME".to_string(), temp.path().display().to_string());
+
+    let response = handle_request(
+        json!({
+            "type": "GET_SUBTITLE_TRANSLATION_CACHE",
+            "requestId": "req-sub-cache",
+            "provider": "codex",
+            "model": "gpt-5.4-mini",
+            "targetLang": "Korean",
+            "videoId": "abc",
+            "sourceTrackIdentity": "track",
+            "sourceTimelineHash": "hash",
+            "promptVersion": 3
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "SUBTITLE_CACHE_RESULT");
+    assert_eq!(response["requestId"], "req-sub-cache");
+    assert_eq!(response["ok"], true);
+    assert_eq!(response["cached"], false);
+}
+
+#[test]
+fn subtitle_translation_writes_and_reuses_cache() {
+    let temp = tempdir().unwrap();
+    let cache_path = temp.path().join("cache.sqlite");
+    let codex = temp.path().join("codex-subtitle");
+    fs::write(
+        &codex,
+        r#"#!/bin/sh
+if [ "$1" = "exec" ]; then
+  prompt="$(/bin/cat)"
+  case "$prompt" in
+    *'"cue-0"'*)
+      printf '%s' '{"cues":[{"id":"cue-0","translatedText":"안녕"}]}'
+      exit 0
+      ;;
+  esac
+fi
+printf 'unexpected subtitle prompt' >&2
+exit 2
+"#,
+    )
+    .unwrap();
+    make_executable(&codex);
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CODEX_PATH".to_string(),
+        codex.to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "HOVER_TRANS_PORT_CACHE_PATH".to_string(),
+        cache_path.to_string_lossy().into_owned(),
+    );
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+    env.insert("HOME".to_string(), temp.path().display().to_string());
+
+    let first = subtitle_translate("req-sub-first", env.clone());
+    assert_eq!(first["type"], "SUBTITLE_TRANSLATE_RESULT");
+    assert_eq!(first["requestId"], "req-sub-first");
+    assert_eq!(first["ok"], true);
+    assert_eq!(first["provider"], "codex");
+    assert_eq!(first["cached"], false);
+    assert_eq!(first["cues"][0]["id"], "cue-0");
+    assert_eq!(first["cues"][0]["translatedText"], "안녕");
+
+    let second = subtitle_translate("req-sub-second", env);
+    assert_eq!(second["type"], "SUBTITLE_TRANSLATE_RESULT");
+    assert_eq!(second["requestId"], "req-sub-second");
+    assert_eq!(second["ok"], true);
+    assert_eq!(second["cached"], true);
+    assert_eq!(second["cues"][0]["translatedText"], "안녕");
+}
+
+#[test]
+fn subtitle_translation_repairs_quality_risk_before_caching() {
+    let temp = tempdir().unwrap();
+    let cache_path = temp.path().join("cache.sqlite");
+    let codex = temp.path().join("codex-subtitle-repair");
+    fs::write(
+        &codex,
+        r#"#!/bin/sh
+if [ "$1" = "exec" ]; then
+  prompt="$(/bin/cat)"
+  case "$prompt" in
+    *'"qualityIssues"'*)
+      printf '%s' '{"cues":[{"id":"cue-tool","translatedText":"Xcode를 열고"},{"id":"cue-start","translatedText":"미리보기에서 시작하세요"}]}'
+      exit 0
+      ;;
+	    *'"cuesToTranslate"'*)
+	      printf '%s' '{"cues":[{"id":"cue-tool","translatedText":"도구를 열고"},{"id":"cue-start","translatedText":"미리보기에서 시작해"}]}'
+      exit 0
+      ;;
+  esac
+fi
+printf 'unexpected subtitle repair prompt' >&2
+exit 2
+"#,
+    )
+    .unwrap();
+    make_executable(&codex);
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CODEX_PATH".to_string(),
+        codex.to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "HOVER_TRANS_PORT_CACHE_PATH".to_string(),
+        cache_path.to_string_lossy().into_owned(),
+    );
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+    env.insert("HOME".to_string(), temp.path().display().to_string());
+
+    let response = handle_request(
+        json!({
+            "type": "TRANSLATE_SUBTITLES",
+            "requestId": "req-sub-repair",
+            "provider": "codex",
+            "model": "gpt-5.4-mini",
+            "targetLang": "Korean",
+            "videoId": "abc",
+            "sourceTrackIdentity": "track",
+            "sourceTimelineHash": "hash-repair",
+            "promptVersion": 1,
+            "cacheEnabled": true,
+            "timeoutMs": 5_000,
+            "cues": [
+                {
+                    "id": "cue-tool",
+                    "startMs": 0,
+                    "endMs": 2_000,
+                    "text": "open Xcode"
+                },
+                {
+                    "id": "cue-start",
+                    "startMs": 2_000,
+                    "endMs": 4_000,
+                    "text": "and start from the preview"
+                }
+            ]
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "SUBTITLE_TRANSLATE_RESULT");
+    assert_eq!(response["ok"], true);
+    assert_eq!(response["cached"], false);
+    assert_eq!(response["cues"][0]["translatedText"], "Xcode를 열고");
+    assert_eq!(response["cues"][1]["translatedText"], "미리보기에서 시작해");
+}
+
+#[test]
+fn subtitle_translation_retries_once_when_provider_returns_malformed_json() {
+    let temp = tempdir().unwrap();
+    let cache_path = temp.path().join("cache.sqlite");
+    let codex = temp.path().join("codex-subtitle-malformed-json");
+    fs::write(
+        &codex,
+        r#"#!/bin/sh
+state="$HOME/subtitle-total-timeout.state"
+if [ "$1" = "exec" ]; then
+  prompt="$(/bin/cat)"
+  case "$prompt" in
+    *'"cuesToTranslate"'*)
+      if [ -f "$state" ]; then
+        printf '%s' '{"cues":[{"id":"cue-hello","translatedText":"안녕하세요."}]}'
+        exit 0
+      fi
+      printf malformed > "$state"
+      printf '%s' '{"cues":[{"id":"cue-hello","translatedText":"안녕하세요."}'
+      exit 0
+      ;;
+  esac
+fi
+printf 'unexpected malformed-json retry prompt' >&2
+exit 2
+"#,
+    )
+    .unwrap();
+    make_executable(&codex);
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CODEX_PATH".to_string(),
+        codex.to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "HOVER_TRANS_PORT_CACHE_PATH".to_string(),
+        cache_path.to_string_lossy().into_owned(),
+    );
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+    env.insert("HOME".to_string(), temp.path().display().to_string());
+
+    let response = handle_request(
+        json!({
+            "type": "TRANSLATE_SUBTITLES",
+            "requestId": "req-sub-malformed-json",
+            "provider": "codex",
+            "model": "gpt-5.4-mini",
+            "targetLang": "Korean",
+            "videoId": "abc",
+            "sourceTrackIdentity": "track",
+            "sourceTimelineHash": "hash-malformed-json",
+            "promptVersion": 1,
+            "cacheEnabled": true,
+            "timeoutMs": 5_000,
+            "cues": [
+                {
+                    "id": "cue-hello",
+                    "startMs": 1_000,
+                    "endMs": 2_000,
+                    "text": "hello"
+                }
+            ]
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "SUBTITLE_TRANSLATE_RESULT");
+    assert_eq!(response["ok"], true);
+    assert_eq!(response["cues"][0]["translatedText"], "안녕하세요.");
+}
+
+#[test]
+fn subtitle_translation_repairs_implausibly_long_cue_before_failing() {
+    let temp = tempdir().unwrap();
+    let cache_path = temp.path().join("cache.sqlite");
+    let codex = temp.path().join("codex-subtitle-long-repair");
+    fs::write(
+        &codex,
+        r#"#!/bin/sh
+if [ "$1" = "exec" ]; then
+  prompt="$(/bin/cat)"
+  case "$prompt" in
+    *'"qualityIssues"'*)
+      printf '%s' '{"cues":[{"id":"cue-next","translatedText":"다음 부분을 확인해 주세요."}]}'
+      exit 0
+      ;;
+    *'"cuesToTranslate"'*)
+      printf '%s' '{"cues":[{"id":"cue-next","translatedText":"다음 부분을 확인해 주세요. 그리고 이어지는 단계에서 필요한 설정과 실행 방법, 확인해야 할 결과를 모두 한꺼번에 길게 설명해서 짧은 자막 cue에 담기 어렵게 만든 번역입니다."}]}'
+      exit 0
+      ;;
+  esac
+fi
+printf 'unexpected subtitle long repair prompt' >&2
+exit 2
+"#,
+    )
+    .unwrap();
+    make_executable(&codex);
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CODEX_PATH".to_string(),
+        codex.to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "HOVER_TRANS_PORT_CACHE_PATH".to_string(),
+        cache_path.to_string_lossy().into_owned(),
+    );
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+    env.insert("HOME".to_string(), temp.path().display().to_string());
+
+    let response = handle_request(
+        json!({
+            "type": "TRANSLATE_SUBTITLES",
+            "requestId": "req-sub-long-repair",
+            "provider": "codex",
+            "model": "gpt-5.4-mini",
+            "targetLang": "Korean",
+            "videoId": "abc",
+            "sourceTrackIdentity": "track",
+            "sourceTimelineHash": "hash-long-repair",
+            "promptVersion": 1,
+            "cacheEnabled": true,
+            "timeoutMs": 5_000,
+            "cues": [
+                {
+                    "id": "cue-next",
+                    "startMs": 10_000,
+                    "endMs": 12_000,
+                    "text": "check the next section"
+                }
+            ]
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "SUBTITLE_TRANSLATE_RESULT");
+    assert_eq!(response["ok"], true);
+    assert_eq!(
+        response["cues"][0]["translatedText"],
+        "다음 부분을 확인해 주세요."
+    );
+}
+
+#[test]
+fn subtitle_translation_retries_quality_repair_when_repair_output_is_invalid() {
+    let temp = tempdir().unwrap();
+    let cache_path = temp.path().join("cache.sqlite");
+    let codex = temp.path().join("codex-subtitle-repair-invalid-once");
+    fs::write(
+        &codex,
+        r#"#!/bin/sh
+state="$0.state"
+if [ "$1" = "exec" ]; then
+  prompt="$(/bin/cat)"
+  case "$prompt" in
+    *'"qualityIssues"'*)
+      if [ -f "$state" ]; then
+        printf '%s' '{"cues":[{"id":"cue-tool","translatedText":"Xcode를 열고 프로젝트를 시작하세요"}]}'
+        exit 0
+      fi
+      printf invalid-once > "$state"
+      printf '%s' '{"cues":[{"id":"cue-tool","translatedText":"Xcode를 열고 프로젝트를 시작하세요. 이 문장은 일부러 너무 길게 만들어 첫 번째 repair 검증에서 실패하게 합니다. 같은 내용을 계속 덧붙여서 짧은 자막 cue에 들어가기 어려운 길이로 만들고, 구조 재시도에서 정상 repair가 다시 들어오는지 확인합니다. 너무 긴 번역입니다."}]}'
+      exit 0
+      ;;
+    *'"cuesToTranslate"'*)
+      printf '%s' '{"cues":[{"id":"cue-tool","translatedText":"도구를 열고 프로젝트를 시작해"}]}'
+      exit 0
+      ;;
+  esac
+fi
+printf 'unexpected subtitle invalid repair retry prompt' >&2
+exit 2
+"#,
+    )
+    .unwrap();
+    make_executable(&codex);
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CODEX_PATH".to_string(),
+        codex.to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "HOVER_TRANS_PORT_CACHE_PATH".to_string(),
+        cache_path.to_string_lossy().into_owned(),
+    );
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+    env.insert("HOME".to_string(), temp.path().display().to_string());
+
+    let response = handle_request(
+        json!({
+            "type": "TRANSLATE_SUBTITLES",
+            "requestId": "req-sub-repair-invalid-once",
+            "provider": "codex",
+            "model": "gpt-5.4-mini",
+            "targetLang": "Korean",
+            "videoId": "abc",
+            "sourceTrackIdentity": "track",
+            "sourceTimelineHash": "hash-repair-invalid-once",
+            "promptVersion": 1,
+            "cacheEnabled": true,
+            "timeoutMs": 5_000,
+            "cues": [
+                {
+                    "id": "cue-tool",
+                    "startMs": 132_000,
+                    "endMs": 134_000,
+                    "text": "open Xcode and start the project"
+                }
+            ]
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "SUBTITLE_TRANSLATE_RESULT");
+    assert_eq!(response["ok"], true);
+    assert_eq!(
+        response["cues"][0]["translatedText"],
+        "Xcode를 열고 프로젝트를 시작하세요"
+    );
+}
+
+#[test]
+fn subtitle_translation_keeps_valid_cues_when_quality_repair_fails() {
+    let temp = tempdir().unwrap();
+    let cache_path = temp.path().join("cache.sqlite");
+    let codex = temp.path().join("codex-subtitle-repair-keeps-valid-cues");
+    fs::write(
+        &codex,
+        r#"#!/bin/sh
+if [ "$1" = "exec" ]; then
+  prompt="$(/bin/cat)"
+  case "$prompt" in
+    *'"qualityIssues"'*)
+      printf '%s' '{"cues":[{"id":"cue-final","translatedText":"마지막 요약입니다. 하지만 repair도 이 짧은 cue 안에 너무 많은 주변 설명과 부연, 다음 영상 안내까지 계속 넣어서 여전히 길이 검증을 통과하지 못하는 번역을 반환합니다."}]}'
+      exit 0
+      ;;
+    *'"cuesToTranslate"'*)
+      printf '%s' '{"cues":[{"id":"cue-final","translatedText":"마지막 요약입니다. 하지만 처음 번역도 이 짧은 cue 안에 너무 많은 주변 설명과 부연, 다음 영상 안내까지 계속 넣어서 길이 검증에 걸리는 번역입니다."}]}'
+      exit 0
+      ;;
+  esac
+fi
+printf 'unexpected subtitle repair fallback prompt' >&2
+exit 2
+"#,
+    )
+    .unwrap();
+    make_executable(&codex);
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CODEX_PATH".to_string(),
+        codex.to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "HOVER_TRANS_PORT_CACHE_PATH".to_string(),
+        cache_path.to_string_lossy().into_owned(),
+    );
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+    env.insert("HOME".to_string(), temp.path().display().to_string());
+
+    let response = handle_request(
+        json!({
+            "type": "TRANSLATE_SUBTITLES",
+            "requestId": "req-sub-repair-keeps-valid-cues",
+            "provider": "codex",
+            "model": "gpt-5.4-mini",
+            "targetLang": "Korean",
+            "videoId": "abc",
+            "sourceTrackIdentity": "track",
+            "sourceTimelineHash": "hash-repair-keeps-valid-cues",
+            "promptVersion": 1,
+            "cacheEnabled": true,
+            "timeoutMs": 5_000,
+            "cues": [
+                {
+                    "id": "cue-final",
+                    "startMs": 590_000,
+                    "endMs": 591_200,
+                    "text": "wrap up"
+                }
+            ]
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "SUBTITLE_TRANSLATE_RESULT");
+    assert_eq!(response["ok"], true);
+    assert_eq!(
+        response["cues"][0]["translatedText"],
+        "마지막 요약입니다. 하지만 처음 번역도 이 짧은 cue 안에 너무 많은 주변 설명과 부연, 다음 영상 안내까지 계속 넣어서 길이 검증에 걸리는 번역입니다."
+    );
+}
+
+#[test]
+fn subtitle_translation_runs_targeted_repair_when_full_repair_keeps_quality_issues() {
+    let temp = tempdir().unwrap();
+    let cache_path = temp.path().join("cache.sqlite");
+    let codex = temp.path().join("codex-subtitle-targeted-repair");
+    fs::write(
+        &codex,
+        r#"#!/bin/sh
+state="$0.state"
+if [ "$1" = "exec" ]; then
+  prompt="$(/bin/cat)"
+  case "$prompt" in
+    *'"qualityIssues"'*)
+      if [ -f "$state" ]; then
+	        printf '%s' '{"cues":[{"id":"cue-tool","translatedText":"Xcode를 열고"},{"id":"cue-start","translatedText":"예제를 시작하세요"}]}'
+        exit 0
+      fi
+      printf repaired-once > "$state"
+	      printf '%s' '{"cues":[{"id":"cue-tool","translatedText":"도구를 열고"},{"id":"cue-start","translatedText":"예제를 시작해"}]}'
+      exit 0
+      ;;
+	    *'"cuesToTranslate"'*)
+	      printf '%s' '{"cues":[{"id":"cue-tool","translatedText":"도구를 열고"},{"id":"cue-start","translatedText":"예제를 시작해"}]}'
+      exit 0
+      ;;
+  esac
+fi
+printf 'unexpected subtitle targeted repair prompt' >&2
+exit 2
+"#,
+    )
+    .unwrap();
+    make_executable(&codex);
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CODEX_PATH".to_string(),
+        codex.to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "HOVER_TRANS_PORT_CACHE_PATH".to_string(),
+        cache_path.to_string_lossy().into_owned(),
+    );
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+    env.insert("HOME".to_string(), temp.path().display().to_string());
+
+    let response = handle_request(
+        json!({
+            "type": "TRANSLATE_SUBTITLES",
+            "requestId": "req-sub-targeted-repair",
+            "provider": "codex",
+            "model": "gpt-5.4-mini",
+            "targetLang": "Korean",
+            "videoId": "abc",
+            "sourceTrackIdentity": "track",
+            "sourceTimelineHash": "hash-targeted-repair",
+            "promptVersion": 1,
+            "cacheEnabled": true,
+            "timeoutMs": 5_000,
+            "cues": [
+                {
+                    "id": "cue-tool",
+                    "startMs": 132_000,
+                    "endMs": 134_000,
+                    "text": "open Xcode"
+                },
+                {
+                    "id": "cue-start",
+                    "startMs": 134_000,
+                    "endMs": 136_000,
+                    "text": "and start the example"
+                }
+            ]
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "SUBTITLE_TRANSLATE_RESULT");
+    assert_eq!(response["ok"], true);
+    assert_eq!(response["cues"][0]["translatedText"], "Xcode를 열고");
+    assert_eq!(response["cues"][1]["translatedText"], "예제를 시작해");
+}
+
+#[test]
+fn subtitle_translation_starts_quality_repair_with_targeted_issue_span() {
+    let temp = tempdir().unwrap();
+    let cache_path = temp.path().join("cache.sqlite");
+    let codex = temp.path().join("codex-subtitle-targeted-first");
+    fs::write(
+        &codex,
+        r#"#!/bin/sh
+if [ "$1" = "exec" ]; then
+  prompt="$(/bin/cat)"
+  case "$prompt" in
+    *'"qualityIssues"'*)
+      if printf '%s' "$prompt" | /usr/bin/grep -F '"expectedCueIds":["safe-intro"' >/dev/null; then
+        printf 'repair prompt should target only the quality issue span' >&2
+        exit 2
+      fi
+      if printf '%s' "$prompt" | /usr/bin/grep -F '"expectedCueIds":["cue-tool","cue-start"]' >/dev/null; then
+        printf '%s' '{"cues":[{"id":"cue-tool","translatedText":"Xcode를 열고"},{"id":"cue-start","translatedText":"미리보기를 시작하세요"}]}'
+        exit 0
+      fi
+      printf 'repair prompt did not use the expected targeted cue ids' >&2
+      exit 2
+      ;;
+	    *'"cuesToTranslate"'*)
+	      printf '%s' '{"cues":[{"id":"safe-intro","translatedText":"시작입니다"},{"id":"cue-tool","translatedText":"같은 번역 문장입니다"},{"id":"cue-start","translatedText":"같은 번역 문장입니다"}]}'
+      exit 0
+      ;;
+  esac
+fi
+printf 'unexpected subtitle targeted-first prompt' >&2
+exit 2
+"#,
+    )
+    .unwrap();
+    make_executable(&codex);
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CODEX_PATH".to_string(),
+        codex.to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "HOVER_TRANS_PORT_CACHE_PATH".to_string(),
+        cache_path.to_string_lossy().into_owned(),
+    );
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+    env.insert("HOME".to_string(), temp.path().display().to_string());
+
+    let response = handle_request(
+        json!({
+            "type": "TRANSLATE_SUBTITLES",
+            "requestId": "req-sub-targeted-first",
+            "provider": "codex",
+            "model": "gpt-5.4-mini",
+            "targetLang": "Korean",
+            "videoId": "abc",
+            "sourceTrackIdentity": "track",
+            "sourceTimelineHash": "hash-targeted-first",
+            "promptVersion": 1,
+            "cacheEnabled": true,
+            "timeoutMs": 5_000,
+            "cues": [
+                {
+                    "id": "safe-intro",
+                    "startMs": 27_000,
+                    "endMs": 29_000,
+                    "text": "we are starting here"
+                },
+                {
+                    "id": "cue-tool",
+                    "startMs": 29_000,
+                    "endMs": 31_000,
+                    "text": "open Xcode"
+                },
+                {
+                    "id": "cue-start",
+                    "startMs": 31_000,
+                    "endMs": 33_000,
+                    "text": "and start the preview"
+                }
+            ]
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "SUBTITLE_TRANSLATE_RESULT");
+    assert_eq!(response["ok"], true);
+    assert_eq!(response["cues"][0]["translatedText"], "시작입니다");
+    assert_eq!(response["cues"][1]["translatedText"], "Xcode를 열고");
+    assert_eq!(
+        response["cues"][2]["translatedText"],
+        "미리보기를 시작하세요"
+    );
+}
+
+#[test]
+fn subtitle_translation_repairs_quality_issues_across_chunk_boundaries() {
+    let temp = tempdir().unwrap();
+    let cache_path = temp.path().join("cache.sqlite");
+    let codex = temp.path().join("codex-subtitle-timeline-repair");
+    fs::write(
+        &codex,
+        r#"#!/bin/sh
+if [ "$1" = "exec" ]; then
+  prompt_file="$0.prompt"
+  /bin/cat > "$prompt_file"
+  prompt="$(/bin/cat "$prompt_file")"
+  case "$prompt" in
+    *'"qualityIssues"'*)
+      if printf '%s' "$prompt" | /usr/bin/grep -F '"expectedCueIds":["cue-23","cue-24"]' >/dev/null; then
+        printf '%s' '{"cues":[{"id":"cue-23","translatedText":"첫 번째 설명입니다"},{"id":"cue-24","translatedText":"다음 설명입니다"}]}'
+        exit 0
+      fi
+      printf 'repair prompt did not target the cross-boundary cues' >&2
+      exit 2
+      ;;
+    *'"cuesToTranslate"'*)
+      /usr/bin/python3 - "$prompt_file" <<'PY'
+import json
+import re
+import sys
+
+prompt = open(sys.argv[1], encoding="utf-8").read()
+payload = json.loads(prompt.split("Input JSON:", 1)[1].strip())
+cues = []
+for cue_id in payload["expectedCueIds"]:
+    number = re.sub(r"^cue-", "", cue_id)
+    translated = "같은 번역 문장입니다" if cue_id in {"cue-23", "cue-24"} else f"정상 {number}"
+    cues.append({"id": cue_id, "translatedText": translated})
+print(json.dumps({"cues": cues}, ensure_ascii=False), end="")
+PY
+      exit 0
+      ;;
+  esac
+fi
+printf 'unexpected subtitle timeline repair prompt' >&2
+exit 2
+"#,
+    )
+    .unwrap();
+    make_executable(&codex);
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CODEX_PATH".to_string(),
+        codex.to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "HOVER_TRANS_PORT_CACHE_PATH".to_string(),
+        cache_path.to_string_lossy().into_owned(),
+    );
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+    env.insert("HOME".to_string(), temp.path().display().to_string());
+
+    let cues = (0..25)
+        .map(|index| {
+            json!({
+                "id": format!("cue-{index}"),
+                "startMs": if index < 23 {
+                    index * 1000
+                } else if index == 23 {
+                    59_000
+                } else {
+                    60_000
+                },
+                "endMs": if index < 23 {
+                    index * 1000 + 800
+                } else if index == 23 {
+                    59_800
+                } else {
+                    60_800
+                },
+                "text": match index {
+                    23 => "first boundary point".to_string(),
+                    24 => "second boundary point".to_string(),
+                    _ => format!("safe cue {index}"),
+                }
+            })
+        })
+        .collect::<Vec<_>>();
+
+    let response = handle_request(
+        json!({
+            "type": "TRANSLATE_SUBTITLES",
+            "requestId": "req-sub-timeline-repair",
+            "provider": "codex",
+            "model": "gpt-5.4-mini",
+            "targetLang": "Korean",
+            "videoId": "abc",
+            "sourceTrackIdentity": "track",
+            "sourceTimelineHash": "hash-timeline-repair",
+            "promptVersion": 1,
+            "cacheEnabled": true,
+            "timeoutMs": 5_000,
+            "cues": cues
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "SUBTITLE_TRANSLATE_RESULT");
+    assert_eq!(response["ok"], true);
+    assert_eq!(response["cues"][23]["translatedText"], "첫 번째 설명입니다");
+    assert_eq!(response["cues"][24]["translatedText"], "다음 설명입니다");
+}
+
+#[test]
+fn subtitle_translation_uses_explicit_request_context_without_translating_context_cues() {
+    let temp = tempdir().unwrap();
+    let cache_path = temp.path().join("cache.sqlite");
+    let codex = temp.path().join("codex-subtitle-explicit-context");
+    fs::write(
+        &codex,
+        r#"#!/bin/sh
+if [ "$1" = "exec" ]; then
+  prompt_file="$0.prompt"
+  /bin/cat > "$prompt_file"
+  /usr/bin/python3 - "$prompt_file" <<'PY'
+import json
+import sys
+
+prompt = open(sys.argv[1], encoding="utf-8").read()
+payload = json.loads(prompt.split("Input JSON:", 1)[1].strip())
+expected = payload["expectedCueIds"]
+before = [cue["id"] for cue in payload["contextBefore"]]
+after = [cue["id"] for cue in payload["contextAfter"]]
+if expected != ["target-1"] or before != ["before-1"] or after != ["after-1"]:
+    raise SystemExit(f"unexpected prompt payload: {payload!r}")
+print(json.dumps({"cues":[{"id":"target-1","translatedText":"문맥을 반영한 번역입니다"}]}, ensure_ascii=False), end="")
+PY
+  exit 0
+fi
+printf 'unexpected explicit-context prompt' >&2
+exit 2
+"#,
+    )
+    .unwrap();
+    make_executable(&codex);
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CODEX_PATH".to_string(),
+        codex.to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "HOVER_TRANS_PORT_CACHE_PATH".to_string(),
+        cache_path.to_string_lossy().into_owned(),
+    );
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+    env.insert("HOME".to_string(), temp.path().display().to_string());
+
+    let response = handle_request(
+        json!({
+            "type": "TRANSLATE_SUBTITLES",
+            "requestId": "req-sub-explicit-context",
+            "provider": "codex",
+            "model": "gpt-5.4-mini",
+            "targetLang": "Korean",
+            "videoId": "abc",
+            "sourceTrackIdentity": "track",
+            "sourceTimelineHash": "hash-explicit-context",
+            "promptVersion": 1,
+            "cacheEnabled": false,
+            "timeoutMs": 5_000,
+            "contextBefore": [
+                {
+                    "id": "before-1",
+                    "startMs": 58_000,
+                    "endMs": 59_000,
+                    "text": "this explains the previous setup"
+                }
+            ],
+            "cues": [
+                {
+                    "id": "target-1",
+                    "startMs": 60_000,
+                    "endMs": 61_000,
+                    "text": "now do it"
+                }
+            ],
+            "contextAfter": [
+                {
+                    "id": "after-1",
+                    "startMs": 61_000,
+                    "endMs": 62_000,
+                    "text": "then verify the result"
+                }
+            ]
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "SUBTITLE_TRANSLATE_RESULT");
+    assert_eq!(response["ok"], true);
+    assert_eq!(response["cues"].as_array().unwrap().len(), 1);
+    assert_eq!(response["cues"][0]["id"], "target-1");
+    assert_eq!(
+        response["cues"][0]["translatedText"],
+        "문맥을 반영한 번역입니다"
+    );
+}
+
+#[test]
+fn subtitle_cache_write_message_populates_full_track_cache() {
+    let temp = tempdir().unwrap();
+    let cache_path = temp.path().join("cache.sqlite");
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CACHE_PATH".to_string(),
+        cache_path.to_string_lossy().into_owned(),
+    );
+    env.insert("HOME".to_string(), temp.path().display().to_string());
+
+    let write_response = handle_request(
+        json!({
+            "type": "WRITE_SUBTITLE_TRANSLATION_CACHE",
+            "requestId": "req-sub-cache-write",
+            "provider": "codex",
+            "model": "gpt-5.4-mini",
+            "targetLang": "Korean",
+            "videoId": "abc",
+            "sourceTrackIdentity": "track",
+            "sourceTimelineHash": "hash-full-track",
+            "promptVersion": 1,
+            "sourceCues": [
+                {
+                    "id": "cue-1",
+                    "startMs": 0,
+                    "endMs": 1_000,
+                    "text": "hello"
+                }
+            ],
+            "translatedCues": [
+                {
+                    "id": "cue-1",
+                    "startMs": 0,
+                    "endMs": 1_000,
+                    "translatedText": "안녕하세요"
+                }
+            ]
+        }),
+        BridgeDeps::with_env(env.clone()),
+    );
+
+    assert_eq!(write_response["type"], "SUBTITLE_CACHE_WRITE_RESULT");
+    assert_eq!(write_response["ok"], true);
+
+    let lookup_response = handle_request(
+        json!({
+            "type": "GET_SUBTITLE_TRANSLATION_CACHE",
+            "requestId": "req-sub-cache-lookup-written",
+            "provider": "codex",
+            "model": "gpt-5.4-mini",
+            "targetLang": "Korean",
+            "videoId": "abc",
+            "sourceTrackIdentity": "track",
+            "sourceTimelineHash": "hash-full-track",
+            "promptVersion": 1
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(lookup_response["type"], "SUBTITLE_CACHE_RESULT");
+    assert_eq!(lookup_response["ok"], true);
+    assert_eq!(lookup_response["cached"], true);
+    assert_eq!(lookup_response["cues"][0]["translatedText"], "안녕하세요");
+}
+
+#[test]
+fn subtitle_cache_write_rejects_mismatched_translated_cues() {
+    let temp = tempdir().unwrap();
+    let cache_path = temp.path().join("cache.sqlite");
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CACHE_PATH".to_string(),
+        cache_path.to_string_lossy().into_owned(),
+    );
+    env.insert("HOME".to_string(), temp.path().display().to_string());
+
+    let write_response = handle_request(
+        json!({
+            "type": "WRITE_SUBTITLE_TRANSLATION_CACHE",
+            "requestId": "req-sub-cache-write-invalid",
+            "provider": "codex",
+            "model": "gpt-5.4-mini",
+            "targetLang": "Korean",
+            "videoId": "abc",
+            "sourceTrackIdentity": "track",
+            "sourceTimelineHash": "hash-invalid-full-track",
+            "promptVersion": 1,
+            "sourceCues": [
+                {
+                    "id": "cue-1",
+                    "startMs": 0,
+                    "endMs": 1_000,
+                    "text": "hello"
+                }
+            ],
+            "translatedCues": [
+                {
+                    "id": "wrong-cue",
+                    "startMs": 0,
+                    "endMs": 1_000,
+                    "translatedText": "안녕하세요"
+                }
+            ]
+        }),
+        BridgeDeps::with_env(env.clone()),
+    );
+
+    assert_eq!(write_response["type"], "SUBTITLE_CACHE_WRITE_RESULT");
+    assert_eq!(write_response["ok"], false);
+    assert_eq!(write_response["error"], "INVALID_MESSAGE");
+
+    let lookup_response = handle_request(
+        json!({
+            "type": "GET_SUBTITLE_TRANSLATION_CACHE",
+            "requestId": "req-sub-cache-lookup-invalid",
+            "provider": "codex",
+            "model": "gpt-5.4-mini",
+            "targetLang": "Korean",
+            "videoId": "abc",
+            "sourceTrackIdentity": "track",
+            "sourceTimelineHash": "hash-invalid-full-track",
+            "promptVersion": 1
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(lookup_response["type"], "SUBTITLE_CACHE_RESULT");
+    assert_eq!(lookup_response["ok"], true);
+    assert_eq!(lookup_response["cached"], false);
+}
+
+#[test]
+fn subtitle_translation_timeout_applies_to_each_subtitle_chunk() {
+    let temp = tempdir().unwrap();
+    let cache_path = temp.path().join("cache.sqlite");
+    let log_path = temp.path().join("hover-trans-port.log");
+    let codex = temp.path().join("codex-subtitle-total-timeout");
+    fs::write(
+        &codex,
+        r#"#!/bin/sh
+if [ "$1" = "exec" ]; then
+	  prompt_file="$0.prompt"
+	  /bin/cat > "$prompt_file"
+	  expected="$(/usr/bin/sed -n 's/.*"expectedCueIds":\["\([^"]*\)"\].*/\1/p' "$prompt_file")"
+	  if [ "$expected" = "cue-1" ]; then
+	    /bin/sleep 8
+	  fi
+  if [ "$expected" = "cue-0" ] || [ "$expected" = "cue-1" ]; then
+    printf '{"cues":[{"id":"%s","translatedText":"번역 %s입니다"}]}' "$expected" "$expected"
+    exit 0
+  fi
+  printf '{"cues":[]}'
+  exit 0
+fi
+
+printf 'unexpected subtitle total timeout prompt' >&2
+exit 2
+"#,
+    )
+    .unwrap();
+    make_executable(&codex);
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CODEX_PATH".to_string(),
+        codex.to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "HOVER_TRANS_PORT_CACHE_PATH".to_string(),
+        cache_path.to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "HOVER_TRANS_PORT_LOG_PATH".to_string(),
+        log_path.to_string_lossy().into_owned(),
+    );
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+    env.insert("HOME".to_string(), temp.path().display().to_string());
+
+    let cues = vec![
+        json!({
+            "id": "cue-0",
+            "startMs": 0,
+            "endMs": 800,
+            "text": "subtitle line 0"
+        }),
+        json!({
+            "id": "cue-1",
+            "startMs": 61_000,
+            "endMs": 61_800,
+            "text": "subtitle line 1"
+        }),
+    ];
+
+    let response = handle_request(
+        json!({
+            "type": "TRANSLATE_SUBTITLES",
+            "requestId": "req-sub-total-timeout",
+            "provider": "codex",
+            "model": "gpt-5.4-mini",
+            "targetLang": "Korean",
+            "videoId": "abc",
+            "sourceTrackIdentity": "track",
+            "sourceTimelineHash": "hash-total-timeout",
+            "promptVersion": 1,
+            "cacheEnabled": false,
+            "debugLogging": true,
+            "timeoutMs": 6000,
+            "cues": cues
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "SUBTITLE_TRANSLATE_RESULT");
+    assert_eq!(response["ok"], false);
+    assert_eq!(response["error"], "PROVIDER_TIMEOUT");
+    let log_content = fs::read_to_string(log_path).unwrap();
+    let timeout_budgets = log_content
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .filter(|entry| entry["event"] == "subtitle_translation.provider_timeout_budget")
+        .collect::<Vec<_>>();
+    assert!(
+        timeout_budgets.len() >= 2,
+        "expected at least two provider timeout budget logs: {log_content}"
+    );
+    assert_eq!(timeout_budgets[1]["chunkIndex"], 1);
+    let second_timeout_budget = timeout_budgets[1]["remainingTimeoutMs"]
+        .as_u64()
+        .unwrap_or_default();
+    assert!(
+        second_timeout_budget >= 5_900,
+        "second subtitle chunk should receive a fresh provider timeout budget: {log_content}"
+    );
+}
+
+#[test]
+fn subtitle_translation_structural_retry_shares_native_subtitle_request_timeout() {
+    let temp = tempdir().unwrap();
+    let cache_path = temp.path().join("cache.sqlite");
+    let codex = temp.path().join("codex-subtitle-retry-timeout");
+    fs::write(
+        &codex,
+        r#"#!/bin/sh
+state="$0.state"
+count=0
+if [ -f "$state" ]; then
+  count="$(/bin/cat "$state")"
+fi
+count=$((count + 1))
+printf '%s' "$count" > "$state"
+
+if [ "$1" = "exec" ]; then
+  /bin/cat > /dev/null
+  /bin/sleep 2
+  if [ "$count" = "1" ]; then
+    printf '%s' '{"cues":[{"id":"cue-hello","translatedText":"안녕하세요."}'
+  else
+    printf '%s' '{"cues":[{"id":"cue-hello","translatedText":"안녕하세요."}]}'
+  fi
+  exit 0
+fi
+
+printf 'unexpected subtitle retry timeout prompt' >&2
+exit 2
+"#,
+    )
+    .unwrap();
+    make_executable(&codex);
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CODEX_PATH".to_string(),
+        codex.to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "HOVER_TRANS_PORT_CACHE_PATH".to_string(),
+        cache_path.to_string_lossy().into_owned(),
+    );
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+    env.insert("HOME".to_string(), temp.path().display().to_string());
+
+    let response = handle_request(
+        json!({
+            "type": "TRANSLATE_SUBTITLES",
+            "requestId": "req-sub-retry-timeout",
+            "provider": "codex",
+            "model": "gpt-5.4-mini",
+            "targetLang": "Korean",
+            "videoId": "abc",
+            "sourceTrackIdentity": "track",
+            "sourceTimelineHash": "hash-retry-timeout",
+            "promptVersion": 1,
+            "cacheEnabled": false,
+            "timeoutMs": 3000,
+            "cues": [
+                {
+                    "id": "cue-hello",
+                    "startMs": 1_000,
+                    "endMs": 2_000,
+                    "text": "hello"
+                }
+            ]
+        }),
+        BridgeDeps::with_env(env),
+    );
+
+    assert_eq!(response["type"], "SUBTITLE_TRANSLATE_RESULT");
+    assert_eq!(response["ok"], false, "{response}");
+    assert_eq!(response["error"], "PROVIDER_TIMEOUT");
 }
 
 #[test]
@@ -343,10 +1501,10 @@ fn native_host_update_status_reports_available_release() {
     write_release_fixture(
         &releases_path,
         r#"[{
-          "tag_name": "v0.2.18",
+          "tag_name": "v0.2.19",
           "prerelease": false,
           "draft": false,
-          "html_url": "https://github.com/monk-lee/hover-trans-port/releases/tag/v0.2.18",
+          "html_url": "https://github.com/monk-lee/hover-trans-port/releases/tag/v0.2.19",
           "assets": [
             {"name": "install-macos-native-host.sh"},
             {"name": "checksums.txt"},
@@ -374,9 +1532,9 @@ fn native_host_update_status_reports_available_release() {
     assert_eq!(response["type"], "NATIVE_HOST_UPDATE_STATUS_RESULT");
     assert_eq!(response["requestId"], "req-update-status");
     assert_eq!(response["ok"], true);
-    assert_eq!(response["installedVersion"], "0.2.17");
-    assert_eq!(response["latestVersion"], "0.2.18");
-    assert_eq!(response["latestTag"], "v0.2.18");
+    assert_eq!(response["installedVersion"], "0.2.18");
+    assert_eq!(response["latestVersion"], "0.2.19");
+    assert_eq!(response["latestTag"], "v0.2.19");
     assert_eq!(response["updateAvailable"], true);
 }
 
@@ -399,7 +1557,7 @@ fn native_host_update_invokes_persisted_updater() {
     fs::write(
         install_root.join("current").join("metadata.json"),
         format!(
-            "{{\"hostVersion\":\"0.2.3\",\"protocolVersion\":1,\"source\":\"macos-script-installer\",\"updaterPath\":\"{}\"}}",
+            "{{\"hostVersion\":\"0.2.3\",\"protocolVersion\":2,\"source\":\"macos-script-installer\",\"updaterPath\":\"{}\"}}",
             updater_path.display()
         ),
     )
@@ -554,6 +1712,33 @@ fn translate_with_provider(
     )
 }
 
+fn subtitle_translate(request_id: &str, env: BTreeMap<String, String>) -> serde_json::Value {
+    handle_request(
+        json!({
+            "type": "TRANSLATE_SUBTITLES",
+            "requestId": request_id,
+            "provider": "codex",
+            "model": "gpt-5.4-mini",
+            "targetLang": "Korean",
+            "videoId": "abc",
+            "sourceTrackIdentity": "track",
+            "sourceTimelineHash": "hash",
+            "promptVersion": 3,
+            "cacheEnabled": true,
+            "timeoutMs": 5_000,
+            "cues": [
+                {
+                    "id": "cue-0",
+                    "startMs": 0,
+                    "endMs": 1000,
+                    "text": "Hello"
+                }
+            ]
+        }),
+        BridgeDeps::with_env(env),
+    )
+}
+
 fn fixture_path(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
@@ -593,7 +1778,7 @@ fn update_fixture_with_marker(temp_path: &Path) -> (BTreeMap<String, String>, Pa
     fs::write(
         install_root.join("current").join("metadata.json"),
         format!(
-            "{{\"hostVersion\":\"0.2.3\",\"protocolVersion\":1,\"source\":\"macos-script-installer\",\"updaterPath\":\"{}\"}}",
+            "{{\"hostVersion\":\"0.2.3\",\"protocolVersion\":2,\"source\":\"macos-script-installer\",\"updaterPath\":\"{}\"}}",
             updater_path.display()
         ),
     )

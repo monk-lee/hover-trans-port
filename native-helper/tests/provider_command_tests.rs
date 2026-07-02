@@ -14,7 +14,7 @@ use hover_trans_port_helper::providers::gemini::{
 use hover_trans_port_helper::providers::opencode::{
     build_opencode_args, parse_opencode_output, OpencodeProvider,
 };
-use hover_trans_port_helper::providers::{Provider, ProviderRegistry};
+use hover_trans_port_helper::providers::{Provider, ProviderPromptRequest, ProviderRegistry};
 use serde_json::json;
 use std::collections::BTreeMap;
 use std::fs;
@@ -476,6 +476,35 @@ fn codex_fake_cli_translation_returns_success_result() {
 }
 
 #[test]
+fn provider_prompt_request_sends_raw_prompt() {
+    let codex = fixture_path("echo-stdin");
+    make_executable(&codex);
+    let temp = tempdir().unwrap();
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOVER_TRANS_PORT_CODEX_PATH".to_string(),
+        codex.to_string_lossy().into_owned(),
+    );
+    env.insert("HOME".to_string(), temp.path().display().to_string());
+    env.insert("PATH".to_string(), "/bin:/usr/bin".to_string());
+
+    let registry = ProviderRegistry::new(env);
+    let (_provider, result) = registry
+        .run_prompt(
+            Some("codex"),
+            ProviderPromptRequest {
+                prompt: "RAW_SUBTITLE_PROMPT".to_string(),
+                model: None,
+                timeout_ms: 30_000,
+            },
+        )
+        .unwrap();
+
+    assert!(result.text.contains("RAW_SUBTITLE_PROMPT"));
+    assert!(!result.text.contains("Translate the following text"));
+}
+
+#[test]
 fn codex_model_catalog_filters_visible_debug_models() {
     let codex = fixture_path("codex");
     make_executable(&codex);
@@ -491,12 +520,12 @@ fn codex_model_catalog_filters_visible_debug_models() {
     let catalog = provider.model_catalog();
 
     assert_eq!(catalog.provider, ProviderId::Codex);
-    assert_eq!(catalog.default_model, "gpt-5.4-mini");
+    assert_eq!(catalog.default_model, "gpt-5.3-codex-spark");
     assert_eq!(catalog.source, "cli");
     assert!(catalog
         .models
         .iter()
-        .any(|model| model.value == "gpt-5.4-mini"));
+        .any(|model| model.value == "gpt-5.3-codex-spark" && model.recommended == Some(true)));
     assert!(!catalog
         .models
         .iter()
