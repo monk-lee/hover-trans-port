@@ -1,6 +1,6 @@
 {
   "name": "hover-trans-port",
-  "version": "0.2.18",
+  "version": "0.2.19",
   "description": "Chrome MV3 extension that translates selected or hovered text through a local AI CLI native host.",
   "type": "module",
   "license": "MIT",
@@ -47,6 +47,7 @@
     "popup-options:check": "node scripts/popup-options-open-check.mjs",
     "inline-renderer:check": "node scripts/inline-renderer-check.mjs",
     "translatable-element:check": "node scripts/translatable-element-check.mjs",
+    "hover-tracker:check": "node scripts/hover-tracker-check.mjs",
     "youtube-subtitles-shared:check": "node scripts/youtube-subtitles-shared-check.mjs",
     "youtube-caption-tracks:check": "node scripts/youtube-caption-tracks-check.mjs",
     "youtube-transcript-fetch:check": "node scripts/youtube-transcript-fetch-check.mjs",
@@ -60,7 +61,7 @@
     "provider-model-source-status:check": "node scripts/provider-model-source-status-check.mjs",
     "provider-model-catalog:check": "node scripts/provider-model-catalog-check.mjs",
     "translation-latency:check": "node scripts/translation-latency-check.mjs",
-    "verify": "pnpm typecheck && pnpm build && pnpm validate && pnpm hotkey && pnpm provider-options:check && pnpm provider-model-options:check && pnpm provider-model-source-status:check && pnpm provider-model-catalog:check && pnpm translation-latency:check && pnpm popup-options:check && pnpm inline-renderer:check && pnpm translatable-element:check && pnpm youtube-subtitles-shared:check && pnpm youtube-caption-tracks:check && pnpm youtube-transcript-fetch:check && pnpm youtube-subtitle-ui:check && pnpm youtube-subtitle-session:check && pnpm youtube-subtitle-protocol:check && pnpm helper:test && pnpm native:installer:check && pnpm native:compatibility-check && pnpm native:browser-targets-check && pnpm native:paths-check && pnpm native-host-update:check && pnpm release:workflow-check && pnpm native:cross-platform-workflow-check && pnpm open-source:check",
+    "verify": "pnpm typecheck && pnpm build && pnpm validate && pnpm hotkey && pnpm provider-options:check && pnpm provider-model-options:check && pnpm provider-model-source-status:check && pnpm provider-model-catalog:check && pnpm translation-latency:check && pnpm popup-options:check && pnpm inline-renderer:check && pnpm translatable-element:check && pnpm hover-tracker:check && pnpm youtube-subtitles-shared:check && pnpm youtube-caption-tracks:check && pnpm youtube-transcript-fetch:check && pnpm youtube-subtitle-ui:check && pnpm youtube-subtitle-session:check && pnpm youtube-subtitle-protocol:check && pnpm helper:test && pnpm native:installer:check && pnpm native:compatibility-check && pnpm native:browser-targets-check && pnpm native:paths-check && pnpm native-host-update:check && pnpm release:workflow-check && pnpm native:cross-platform-workflow-check && pnpm open-source:check",
     "test": "pnpm verify"
   },
   "devDependencies": {

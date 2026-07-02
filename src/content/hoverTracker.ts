@@ -5,10 +5,12 @@ export class HoverTracker {
 
   start(): void {
     document.addEventListener("mouseover", this.handleMouseOver, true);
+    document.addEventListener("mousemove", this.handleMouseOver, true);
   }
 
   stop(): void {
     document.removeEventListener("mouseover", this.handleMouseOver, true);
+    document.removeEventListener("mousemove", this.handleMouseOver, true);
     this.currentElement = null;
   }
 

@@ -14,17 +14,12 @@ export default defineConfig({
       input: {
         popup: resolve(srcRoot, "popup.html"),
         options: resolve(srcRoot, "options.html"),
-        background: resolve(srcRoot, "background/service-worker.ts"),
-        content: resolve(srcRoot, "content/content-script.ts")
+        background: resolve(srcRoot, "background/service-worker.ts")
       },
       output: {
         entryFileNames: (chunkInfo) => {
           if (chunkInfo.name === "background") {
             return "background/service-worker.js";
-          }
-
-          if (chunkInfo.name === "content") {
-            return "content/content-script.js";
           }
 
           return "assets/[name]-[hash].js";
