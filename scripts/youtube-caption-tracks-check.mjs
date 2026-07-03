@@ -126,6 +126,15 @@ try {
     selectedForKoreanOnly.length === 0,
     "target-language caption tracks should not be translation candidates"
   );
+
+  const selectedForLocalizedKoreanOnly = selectCaptionTrackCandidates({
+    tracks: tracks.filter((track) => track.languageCode === "ko"),
+    targetLang: "한국어"
+  });
+  assert(
+    selectedForLocalizedKoreanOnly.length === 0,
+    "localized Korean target labels should match Korean caption tracks"
+  );
 } finally {
   rmSync(tempDir, { recursive: true, force: true });
 }

@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-pub const NATIVE_BRIDGE_VERSION: &str = "0.2.19-rust-helper";
-pub const NATIVE_HOST_VERSION: &str = "0.2.19";
+pub const NATIVE_BRIDGE_VERSION: &str = "0.2.20-rust-helper";
+pub const NATIVE_HOST_VERSION: &str = "0.2.20";
 pub const NATIVE_HOST_PROTOCOL_VERSION: u64 = 3;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]

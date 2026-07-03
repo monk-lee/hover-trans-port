@@ -229,6 +229,7 @@ const requiredSnippets = [
   ["Fixes MV3 content script packaging so Chrome does not load static module imports", "MV3 content script release note"],
   ["Improves hover target tracking after extension reload", "hover trigger release note"],
   ["Includes YouTube provided-caption translation", "YouTube subtitle release note"],
+  ["Hides the YouTube subtitle translation prompt when the active caption language already matches the configured target language", "YouTube active caption language release note"],
   ["Includes prebuilt native host release packages for macOS, Linux, and Windows", "cross-platform native host release note"],
   ["Includes macOS/Linux and Windows PowerShell native host installers with download-then-run guidance", "cross-platform installer release note"],
   ["Registers Chrome Native Messaging manifests on Linux and Windows", "platform manifest release note"],

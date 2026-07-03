@@ -36,7 +36,7 @@ This checklist is for the first public source release.
 - [ ] pnpm macos:script-installer:build
 - [ ] pnpm windows:script-installer:test
 - [ ] Release uploads `install.sh`, `install.ps1`, `install-windows-native-host.ps1`, `install-macos-native-host.sh`, `checksums.txt`, and architecture-specific helper files as individual assets so download-then-run install commands work without piping remote scripts into a shell.
-- [ ] Release also includes `hover-trans-port-native-host-macos-0.2.19.tar.gz`, `hover-trans-port-native-host-linux-0.2.19.tar.gz`, and `hover-trans-port-native-host-windows-0.2.19.zip` for inspect-first/offline installation.
+- [ ] Release also includes `hover-trans-port-native-host-macos-0.2.20.tar.gz`, `hover-trans-port-native-host-linux-0.2.20.tar.gz`, and `hover-trans-port-native-host-windows-0.2.20.zip` for inspect-first/offline installation.
 - [ ] pnpm native:uninstall
 - [ ] Reload the extension and confirm `Check Native Host` returns `Native Host is not installed or not reachable.`
 - [ ] pnpm build
@@ -59,8 +59,8 @@ This checklist is for the first public source release.
 
 ## Release
 
-- [ ] Tag v0.2.19
-- [ ] Release title: v0.2.19
+- [ ] Tag v0.2.20
+- [ ] Release title: v0.2.20
 - [ ] Release notes mention YouTube provided-caption translation, chunked local CLI translation, synced subtitle overlay, and local subtitle cache
 - [ ] Release notes mention macOS + Chrome + Codex CLI, Claude CLI, Gemini CLI, OpenCode CLI, and Antigravity CLI support
 - [ ] Release notes link docs/native-host-install.md

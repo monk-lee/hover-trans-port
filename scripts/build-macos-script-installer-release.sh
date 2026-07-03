@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 BUILD_DIR="$ROOT/build/macos-script-installer"
-HOST_VERSION="0.2.19"
+HOST_VERSION="0.2.20"
 
 if [ "$(uname -s)" != "Darwin" ]; then
   echo "build-macos-script-installer-release: macOS is required" >&2

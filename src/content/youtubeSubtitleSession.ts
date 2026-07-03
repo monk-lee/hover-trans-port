@@ -17,10 +17,12 @@ import {
   SUBTITLE_TRANSLATION_PROMPT_VERSION,
   type TranslatedSubtitleCue,
   type YouTubeCaptionTrack,
+  type YouTubeCaptionTrackKind,
   type YouTubeSubtitleCue
 } from "../shared/youtubeSubtitles";
 import {
   extractCaptionTracksFromPlayerResponse,
+  isCaptionLanguageTarget,
   isCaptionTrackLanguageTarget,
   selectCaptionTrackCandidates
 } from "./youtubeCaptionTracks";
@@ -109,6 +111,11 @@ type PendingSubtitleSource = {
   timeoutMs: number;
   cacheEnabled: boolean;
   debugLogging: boolean;
+};
+
+type ActiveCaptionTrack = {
+  languageCode: string;
+  kind?: YouTubeCaptionTrackKind;
 };
 
 let startedSession: YouTubeSubtitleSession | null = null;
@@ -204,11 +211,18 @@ export class YouTubeSubtitleSession {
         this.deps.getPlayerResponse?.() ?? readYouTubePlayerResponse()
       );
       const defaultTrack = tracks[0];
+      const activeTrack = readActiveCaptionTrack(video);
+      const activeTrackIsTarget = Boolean(
+        activeTrack &&
+          isCaptionLanguageTarget(activeTrack.languageCode, targetLang)
+      );
+      const defaultTrackIsTarget = Boolean(
+        !activeTrack &&
+          defaultTrack &&
+          isCaptionTrackLanguageTarget(defaultTrack, targetLang)
+      );
 
-      if (
-        defaultTrack &&
-        isCaptionTrackLanguageTarget(defaultTrack, targetLang)
-      ) {
+      if (activeTrackIsTarget || defaultTrackIsTarget) {
         this.current = null;
         this.pending = null;
         this.translatedCues = null;
@@ -219,7 +233,12 @@ export class YouTubeSubtitleSession {
         return;
       }
 
-      const trackCandidates = selectCaptionTrackCandidates({ tracks, targetLang });
+      const trackCandidates = selectCaptionTrackCandidates({
+        tracks,
+        activeLanguageCode: activeTrack?.languageCode,
+        activeKind: activeTrack?.kind,
+        targetLang
+      });
 
       if (trackCandidates.length === 0) {
         this.current = null;
@@ -1233,6 +1252,120 @@ function getNativeSubtitleButton(): HTMLButtonElement | null {
   const button = document.querySelector(".ytp-subtitles-button");
 
   return button instanceof HTMLButtonElement ? button : null;
+}
+
+function readActiveCaptionTrack(
+  video: HTMLVideoElement
+): ActiveCaptionTrack | null {
+  return (
+    readActiveCaptionTrackFromPlayer() ??
+    readActiveCaptionTrackFromTextTracks(video)
+  );
+}
+
+function readActiveCaptionTrackFromPlayer(): ActiveCaptionTrack | null {
+  const candidates = [
+    document.getElementById("movie_player"),
+    document.querySelector(".html5-video-player")
+  ];
+
+  for (const candidate of candidates) {
+    const getOption = (
+      candidate as
+        | (Element & { getOption?: (section: string, option: string) => unknown })
+        | null
+    )?.getOption;
+
+    if (typeof getOption !== "function") {
+      continue;
+    }
+
+    try {
+      const activeTrack = normalizeActiveCaptionTrack(
+        getOption.call(candidate, "captions", "track")
+      );
+
+      if (activeTrack) {
+        return activeTrack;
+      }
+    } catch {
+      // Fall back to textTracks below.
+    }
+  }
+
+  return null;
+}
+
+function readActiveCaptionTrackFromTextTracks(
+  video: HTMLVideoElement
+): ActiveCaptionTrack | null {
+  const textTracks = video.textTracks;
+
+  if (!textTracks) {
+    return null;
+  }
+
+  for (let index = 0; index < textTracks.length; index += 1) {
+    const track = textTracks[index];
+
+    if (track?.mode !== "showing") {
+      continue;
+    }
+
+    const languageCode = track.language.trim();
+
+    if (languageCode) {
+      return { languageCode };
+    }
+  }
+
+  return null;
+}
+
+function normalizeActiveCaptionTrack(track: unknown): ActiveCaptionTrack | null {
+  if (typeof track === "string") {
+    const languageCode = track.trim();
+    return languageCode ? { languageCode } : null;
+  }
+
+  if (!track || typeof track !== "object") {
+    return null;
+  }
+
+  const raw = track as {
+    languageCode?: unknown;
+    language_code?: unknown;
+    lang?: unknown;
+    vssId?: unknown;
+    kind?: unknown;
+  };
+  const vssId = readString(raw.vssId);
+  const languageCode =
+    readString(raw.languageCode) ||
+    readString(raw.language_code) ||
+    readString(raw.lang) ||
+    normalizeLanguageCodeFromVssId(vssId);
+
+  if (!languageCode) {
+    return null;
+  }
+
+  const kind =
+    raw.kind === "asr" || vssId.startsWith("a.")
+      ? "asr"
+      : raw.kind === "manual"
+        ? "manual"
+        : undefined;
+
+  return kind ? { languageCode, kind } : { languageCode };
+}
+
+function readString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeLanguageCodeFromVssId(vssId: string): string {
+  return vssId.replace(/^a?\./u, "").trim();
 }
 
 function isYouTubeHost(): boolean {

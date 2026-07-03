@@ -465,6 +465,27 @@ const koreanDefaultPlayerResponseFixture = {
   }
 };
 
+const koreanActivePlayerResponseFixture = {
+  captions: {
+    playerCaptionsTracklistRenderer: {
+      captionTracks: [
+        {
+          baseUrl: "https://www.youtube.com/api/timedtext?v=abc123&lang=en",
+          languageCode: "en",
+          name: { simpleText: "English" },
+          vssId: ".en"
+        },
+        {
+          baseUrl: "https://www.youtube.com/api/timedtext?v=abc123&lang=ko",
+          languageCode: "ko",
+          name: { simpleText: "Korean" },
+          vssId: ".ko"
+        }
+      ]
+    }
+  }
+};
+
 const fallbackPlayerResponseFixture = {
   captions: {
     playerCaptionsTracklistRenderer: {
@@ -662,6 +683,39 @@ try {
       .getAttribute("data-hover-trans-port-status") === "hidden",
     "turning on native captions should not ask to translate when caption language already matches the target language"
   );
+  global.chrome.storage.local.get = defaultStorageGet;
+
+  player.getOption = (section, option) =>
+    section === "captions" && option === "track"
+      ? { languageCode: "ko", kind: "manual" }
+      : undefined;
+  global.chrome.storage.local.get = () =>
+    Promise.resolve({
+      hoverTransPort: {
+        provider: "codex",
+        targetLang: "Korean",
+        cacheEnabled: true,
+        debugLogging: true
+      }
+    });
+  const activeSameLanguageSession = new YouTubeSubtitleSession({
+    getPlayerResponse: () => koreanActivePlayerResponseFixture,
+    fetchTranscript: async () => [
+      { id: "cue-0", startMs: 0, endMs: 1000, text: "Hello" }
+    ]
+  });
+  subtitleButton.setAttribute("aria-pressed", "false");
+  await activeSameLanguageSession.refresh();
+  subtitleButton.setAttribute("aria-pressed", "true");
+  subtitleButton.dispatchEvent({ type: "click" });
+  await flushPromises();
+  assert(
+    document
+      .querySelector('[data-hover-trans-port-youtube-subtitle-prompt="true"]')
+      .getAttribute("data-hover-trans-port-status") === "hidden",
+    "turning on native captions should not ask to translate when the active caption language already matches the target language"
+  );
+  player.getOption = undefined;
   global.chrome.storage.local.get = defaultStorageGet;
 
   let resolveSlowTranslation;

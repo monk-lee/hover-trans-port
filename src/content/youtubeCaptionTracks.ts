@@ -16,10 +16,18 @@ type SelectCaptionTrackInput = {
 };
 
 const TARGET_LANG_TO_CODE: Record<string, string> = {
+  "한국어": "ko",
   korean: "ko",
+  "영어": "en",
   english: "en",
+  "日本語": "ja",
+  "일본어": "ja",
   japanese: "ja",
+  "中文": "zh",
+  "중국어": "zh",
   chinese: "zh",
+  "español": "es",
+  "스페인어": "es",
   spanish: "es"
 };
 
@@ -34,7 +42,14 @@ export function isCaptionTrackLanguageTarget(
   track: YouTubeCaptionTrack,
   targetLang: string
 ): boolean {
-  const trackCode = normalizeLanguagePrimaryCode(track.languageCode);
+  return isCaptionLanguageTarget(track.languageCode, targetLang);
+}
+
+export function isCaptionLanguageTarget(
+  languageCode: string,
+  targetLang: string
+): boolean {
+  const trackCode = normalizeLanguagePrimaryCode(languageCode);
   const targetCode = normalizeLanguagePrimaryCode(
     targetLangToLanguageCode(targetLang)
   );

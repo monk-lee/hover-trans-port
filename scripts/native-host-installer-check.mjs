@@ -283,7 +283,7 @@ assert(
   "PowerShell installer should register 64-bit registry view"
 );
 assert(
-  packageJson.version === "0.2.19",
+  packageJson.version === "0.2.20",
   "package native host fixture version should remain locked for installer checks"
 );
 assert(
@@ -506,7 +506,7 @@ withTempRoot("linux-install", (root) => {
   const result = runJson(["install", "--helper-source", helper], env);
 
   assert(result.ok === true, "linux json install should report ok");
-  assert(result.installedVersion === "0.2.19", "linux install should name host version");
+  assert(result.installedVersion === "0.2.20", "linux install should name host version");
   assert(result.installRoot === env.HOVER_TRANS_PORT_INSTALL_ROOT, "linux install root should be XDG-style");
   assert(
     JSON.stringify(result.manifests) === JSON.stringify(expectedManifestPaths("linux", home)),
@@ -528,7 +528,7 @@ withTempRoot("linux-release-download", (root) => {
   const helperBody = "#!/bin/sh\nprintf 'downloaded linux helper\\n'\n";
   const releaseBaseUrl = writeReleaseFixture(
     root,
-    "v0.2.19",
+    "v0.2.20",
     "hover-trans-port-helper-linux-x64",
     helperBody
   );
@@ -541,10 +541,10 @@ withTempRoot("linux-release-download", (root) => {
     TMPDIR: installerTmp
   };
 
-  const result = runJson(["install", "--release-tag", "v0.2.19"], env);
+  const result = runJson(["install", "--release-tag", "v0.2.20"], env);
 
   assert(result.ok === true, "linux release install should report ok");
-  assert(result.installedVersion === "0.2.19", "linux release install should name host version");
+  assert(result.installedVersion === "0.2.20", "linux release install should name host version");
   assert(
     readFileSync(result.helperPath, "utf8") === helperBody,
     "linux release install should download the linux helper asset"
@@ -584,14 +584,14 @@ withTempRoot("install", (root) => {
 
   const result = runJson(["install", "--helper-source", helper], env);
   assert(result.ok === true, "macOS json install should report ok");
-  assert(result.installedVersion === "0.2.19", "macOS install should name host version");
+  assert(result.installedVersion === "0.2.20", "macOS install should name host version");
   assert(
     JSON.stringify(result.manifests) === JSON.stringify(expectedManifestPaths("darwin", home)),
     "macOS install manifests should match native browser target contract"
   );
 
   const installRoot = env.HOVER_TRANS_PORT_INSTALL_ROOT;
-  const versionDir = join(installRoot, "native-hosts/0.2.19");
+  const versionDir = join(installRoot, "native-hosts/0.2.20");
   const installedHelper = join(versionDir, "hover-trans-port-helper");
   const launcher = join(installRoot, "launcher");
   const current = join(installRoot, "current");
@@ -610,8 +610,8 @@ withTempRoot("install", (root) => {
 
   assert(existsSync(installedHelper), "helper should be copied into version directory");
   assert((lstatSync(installedHelper).mode & 0o111) !== 0, "installed helper should be executable");
-  const metadata = readMetadata(installRoot, "0.2.19");
-  assert(metadata.hostVersion === "0.2.19", "metadata should name host version");
+  const metadata = readMetadata(installRoot, "0.2.20");
+  assert(metadata.hostVersion === "0.2.20", "metadata should name host version");
   assert(metadata.protocolVersion === 3, "metadata should name protocol version");
   assert(metadata.source === "unix-script-installer", "metadata should name installer source");
   assert(metadata.updaterPath === join(versionDir, "install.sh"), "metadata should name updater path");
@@ -656,7 +656,7 @@ withTempRoot("macos-wrapper", (root) => {
 
   assert(result.ok === true, "macOS compatibility wrapper should report ok");
   assert(
-    result.updaterPath === join(env.HOVER_TRANS_PORT_INSTALL_ROOT, "native-hosts/0.2.19/install.sh"),
+    result.updaterPath === join(env.HOVER_TRANS_PORT_INSTALL_ROOT, "native-hosts/0.2.20/install.sh"),
     "macOS compatibility wrapper should persist install.sh updater path"
   );
 });
@@ -681,7 +681,7 @@ withTempRoot("macos-legacy-standalone-payload", (root) => {
   });
 
   assert(result.ok === true, "standalone legacy macOS payload should report ok");
-  assert(result.installedVersion === "0.2.19", "standalone legacy macOS payload should install host version");
+  assert(result.installedVersion === "0.2.20", "standalone legacy macOS payload should install host version");
   assert(
     readFileSync(result.helperPath, "utf8") === helperBody,
     "standalone legacy macOS payload should use bundled helper beside wrapper"
@@ -707,7 +707,7 @@ withTempRoot("macos-legacy-pipe", (root) => {
   );
 
   assert(result.ok === true, "pipe-style legacy macOS installer should report ok");
-  assert(result.installedVersion === "0.2.19", "pipe-style legacy macOS installer should install host version");
+  assert(result.installedVersion === "0.2.20", "pipe-style legacy macOS installer should install host version");
   assert(
     installerTempEntries(installerTmp).length === 0,
     "pipe-style legacy macOS installer should clean embedded fallback temp dir"
@@ -767,7 +767,7 @@ withTempRoot("persisted-updater-download", (root) => {
   const assetName = currentMacosAssetName();
   const releaseBaseUrl = writeReleaseFixture(
     root,
-    "v0.2.19",
+    "v0.2.20",
     assetName,
     downloadedHelperBody
   );
@@ -788,9 +788,9 @@ withTempRoot("persisted-updater-download", (root) => {
     [
       "update",
       "--host-version",
-      "0.2.19",
+      "0.2.20",
       "--release-tag",
-      "v0.2.19"
+      "v0.2.20"
     ],
     {
       ...env,
@@ -799,10 +799,10 @@ withTempRoot("persisted-updater-download", (root) => {
   );
 
   assert(result.ok === true, "persisted updater should report ok");
-  assert(result.installedVersion === "0.2.19", "persisted updater should install target version");
+  assert(result.installedVersion === "0.2.20", "persisted updater should install target version");
 
   const installedHelper = readFileSync(
-    join(installRoot, "native-hosts/0.2.19/hover-trans-port-helper"),
+    join(installRoot, "native-hosts/0.2.20/hover-trans-port-helper"),
     "utf8"
   );
   assert(
@@ -821,7 +821,7 @@ withTempRoot("status-uninstall", (root) => {
 
   run(["install", "--helper-source", helper], env);
   const status = run(["status"], env);
-  assert(status.includes("installed native host 0.2.19"), "status should report installed version");
+  assert(status.includes("installed native host 0.2.20"), "status should report installed version");
 
   run(["uninstall"], env);
   assert(!existsSync(env.HOVER_TRANS_PORT_INSTALL_ROOT), "uninstall should remove install root");
