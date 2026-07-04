@@ -118,7 +118,7 @@ jobs:
           test -f "$NATIVE_DIR/checksums.txt"
           test -f "$NATIVE_DIR/hover-trans-port-helper-macos-arm64"
           test -f "$NATIVE_DIR/hover-trans-port-helper-macos-x64"
-          test -f "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.20.tar.gz"
+          test -f "$NATIVE_DIR/hover-trans-port-native-host-macos-0.2.21.tar.gz"
 
           (
             cd "$NATIVE_DIR"
@@ -138,7 +138,7 @@ jobs:
             build/native-host-release-assets/macos/checksums.txt
             build/native-host-release-assets/macos/hover-trans-port-helper-macos-arm64
             build/native-host-release-assets/macos/hover-trans-port-helper-macos-x64
-            build/native-host-release-assets/macos/hover-trans-port-native-host-macos-0.2.20.tar.gz
+            build/native-host-release-assets/macos/hover-trans-port-native-host-macos-0.2.21.tar.gz
 
   build-native-linux:
     name: Build native host Linux
@@ -197,7 +197,7 @@ jobs:
           test -f "$NATIVE_DIR/checksums.txt"
           test -f "$NATIVE_DIR/hover-trans-port-helper-linux-x64"
           test -f "$NATIVE_DIR/hover-trans-port-helper-linux-arm64"
-          test -f "$NATIVE_DIR/hover-trans-port-native-host-linux-0.2.20.tar.gz"
+          test -f "$NATIVE_DIR/hover-trans-port-native-host-linux-0.2.21.tar.gz"
 
           (
             cd "$NATIVE_DIR"
@@ -213,7 +213,7 @@ jobs:
             build/native-host-release-assets/linux/checksums.txt
             build/native-host-release-assets/linux/hover-trans-port-helper-linux-x64
             build/native-host-release-assets/linux/hover-trans-port-helper-linux-arm64
-            build/native-host-release-assets/linux/hover-trans-port-native-host-linux-0.2.20.tar.gz
+            build/native-host-release-assets/linux/hover-trans-port-native-host-linux-0.2.21.tar.gz
 
   build-native-windows:
     name: Build native host Windows
@@ -287,7 +287,7 @@ jobs:
             "checksums.txt",
             "hover-trans-port-helper-windows-x64.exe",
             "hover-trans-port-helper-windows-arm64.exe",
-            "hover-trans-port-native-host-windows-0.2.20.zip"
+            "hover-trans-port-native-host-windows-0.2.21.zip"
           ) | ForEach-Object {
             $assetPath = Join-Path $nativeDir $_
             if (-not (Test-Path -LiteralPath $assetPath)) {
@@ -314,7 +314,7 @@ jobs:
             build/native-host-release-assets/windows/checksums.txt
             build/native-host-release-assets/windows/hover-trans-port-helper-windows-x64.exe
             build/native-host-release-assets/windows/hover-trans-port-helper-windows-arm64.exe
-            build/native-host-release-assets/windows/hover-trans-port-native-host-windows-0.2.20.zip
+            build/native-host-release-assets/windows/hover-trans-port-native-host-windows-0.2.21.zip
 
   publish:
     name: Publish GitHub Release
@@ -357,9 +357,9 @@ jobs:
           cp "$ARTIFACT_DIR/native-host-linux/hover-trans-port-helper-linux-x64" "$RELEASE_DIR/hover-trans-port-helper-linux-x64"
           cp "$ARTIFACT_DIR/native-host-windows/hover-trans-port-helper-windows-arm64.exe" "$RELEASE_DIR/hover-trans-port-helper-windows-arm64.exe"
           cp "$ARTIFACT_DIR/native-host-windows/hover-trans-port-helper-windows-x64.exe" "$RELEASE_DIR/hover-trans-port-helper-windows-x64.exe"
-          cp "$ARTIFACT_DIR/native-host-macos/hover-trans-port-native-host-macos-0.2.20.tar.gz" "$RELEASE_DIR/hover-trans-port-native-host-macos-0.2.20.tar.gz"
-          cp "$ARTIFACT_DIR/native-host-linux/hover-trans-port-native-host-linux-0.2.20.tar.gz" "$RELEASE_DIR/hover-trans-port-native-host-linux-0.2.20.tar.gz"
-          cp "$ARTIFACT_DIR/native-host-windows/hover-trans-port-native-host-windows-0.2.20.zip" "$RELEASE_DIR/hover-trans-port-native-host-windows-0.2.20.zip"
+          cp "$ARTIFACT_DIR/native-host-macos/hover-trans-port-native-host-macos-0.2.21.tar.gz" "$RELEASE_DIR/hover-trans-port-native-host-macos-0.2.21.tar.gz"
+          cp "$ARTIFACT_DIR/native-host-linux/hover-trans-port-native-host-linux-0.2.21.tar.gz" "$RELEASE_DIR/hover-trans-port-native-host-linux-0.2.21.tar.gz"
+          cp "$ARTIFACT_DIR/native-host-windows/hover-trans-port-native-host-windows-0.2.21.zip" "$RELEASE_DIR/hover-trans-port-native-host-windows-0.2.21.zip"
           cp "$ARTIFACT_DIR/extension/hover-trans-port-extension-${TAG_NAME}.zip" "$RELEASE_DIR/hover-trans-port-extension-${TAG_NAME}.zip"
 
           (
@@ -375,9 +375,9 @@ jobs:
               hover-trans-port-helper-linux-x64 \
               hover-trans-port-helper-windows-arm64.exe \
               hover-trans-port-helper-windows-x64.exe \
-              hover-trans-port-native-host-macos-0.2.20.tar.gz \
-              hover-trans-port-native-host-linux-0.2.20.tar.gz \
-              hover-trans-port-native-host-windows-0.2.20.zip \
+              hover-trans-port-native-host-macos-0.2.21.tar.gz \
+              hover-trans-port-native-host-linux-0.2.21.tar.gz \
+              hover-trans-port-native-host-windows-0.2.21.zip \
               "hover-trans-port-extension-${TAG_NAME}.zip" > checksums.txt
           )
 
@@ -402,16 +402,16 @@ jobs:
           - hover-trans-port-helper-linux-x64: Linux x64 native helper
           - hover-trans-port-helper-windows-arm64.exe: Windows ARM64 native helper
           - hover-trans-port-helper-windows-x64.exe: Windows x64 native helper
-          - hover-trans-port-native-host-macos-0.2.20.tar.gz: inspect-first macOS native host package
-          - hover-trans-port-native-host-linux-0.2.20.tar.gz: inspect-first Linux native host package
-          - hover-trans-port-native-host-windows-0.2.20.zip: inspect-first Windows native host package
+          - hover-trans-port-native-host-macos-0.2.21.tar.gz: inspect-first macOS native host package
+          - hover-trans-port-native-host-linux-0.2.21.tar.gz: inspect-first Linux native host package
+          - hover-trans-port-native-host-windows-0.2.21.zip: inspect-first Windows native host package
           - hover-trans-port-extension-${TAG_NAME}.zip: unpacked Chrome extension package built from dist/
 
           Highlights:
           - Fixes MV3 content script packaging so Chrome does not load static module imports from content/content-script.js.
           - Improves hover target tracking after extension reload by refreshing the current target on mouse movement before the trigger hotkey.
           - Includes YouTube provided-caption translation with a player control prompt, chunked local CLI translation, synced subtitle overlay, and local subtitle cache.
-          - Hides the YouTube subtitle translation prompt when the active caption language already matches the configured target language.
+          - Hides the YouTube subtitle translation prompt when a target-language caption track is already available, including automatic captions and custom target language names.
           - Includes prebuilt native host release packages for macOS, Linux, and Windows.
           - Includes macOS/Linux and Windows PowerShell native host installers with download-then-run guidance.
           - Registers Chrome Native Messaging manifests on Linux and Windows with platform-specific install paths.
@@ -448,9 +448,9 @@ jobs:
           test -f "$RELEASE_DIR/hover-trans-port-helper-linux-x64"
           test -f "$RELEASE_DIR/hover-trans-port-helper-windows-arm64.exe"
           test -f "$RELEASE_DIR/hover-trans-port-helper-windows-x64.exe"
-          test -f "$RELEASE_DIR/hover-trans-port-native-host-macos-0.2.20.tar.gz"
-          test -f "$RELEASE_DIR/hover-trans-port-native-host-linux-0.2.20.tar.gz"
-          test -f "$RELEASE_DIR/hover-trans-port-native-host-windows-0.2.20.zip"
+          test -f "$RELEASE_DIR/hover-trans-port-native-host-macos-0.2.21.tar.gz"
+          test -f "$RELEASE_DIR/hover-trans-port-native-host-linux-0.2.21.tar.gz"
+          test -f "$RELEASE_DIR/hover-trans-port-native-host-windows-0.2.21.zip"
           test -f "$EXTENSION_ZIP"
           test -f build/release/release-notes.md
 
@@ -477,9 +477,9 @@ jobs:
             "$RELEASE_DIR/hover-trans-port-helper-linux-x64" \
             "$RELEASE_DIR/hover-trans-port-helper-windows-arm64.exe" \
             "$RELEASE_DIR/hover-trans-port-helper-windows-x64.exe" \
-            "$RELEASE_DIR/hover-trans-port-native-host-macos-0.2.20.tar.gz" \
-            "$RELEASE_DIR/hover-trans-port-native-host-linux-0.2.20.tar.gz" \
-            "$RELEASE_DIR/hover-trans-port-native-host-windows-0.2.20.zip" \
+            "$RELEASE_DIR/hover-trans-port-native-host-macos-0.2.21.tar.gz" \
+            "$RELEASE_DIR/hover-trans-port-native-host-linux-0.2.21.tar.gz" \
+            "$RELEASE_DIR/hover-trans-port-native-host-windows-0.2.21.zip" \
             "$EXTENSION_ZIP" \
             --verify-tag \
             --latest \

@@ -84,7 +84,7 @@ jobs:
           (
             cd build/native-host-release-assets/macos
             shasum -a 256 -c checksums.txt
-            test -f hover-trans-port-native-host-macos-0.2.20.tar.gz
+            test -f hover-trans-port-native-host-macos-0.2.21.tar.gz
           )
 
       - name: Upload macOS native host assets
@@ -141,7 +141,7 @@ jobs:
           (
             cd build/native-host-release-assets/linux
             shasum -a 256 -c checksums.txt
-            test -f hover-trans-port-native-host-linux-0.2.20.tar.gz
+            test -f hover-trans-port-native-host-linux-0.2.21.tar.gz
           )
 
       - name: Upload Linux native host assets
@@ -225,7 +225,7 @@ jobs:
             }
           }
 
-          if (-not (Test-Path -LiteralPath (Join-Path $nativeDir "hover-trans-port-native-host-windows-0.2.20.zip"))) {
+          if (-not (Test-Path -LiteralPath (Join-Path $nativeDir "hover-trans-port-native-host-windows-0.2.21.zip"))) {
             throw "missing Windows inspect-first package"
           }
 

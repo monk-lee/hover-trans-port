@@ -64,7 +64,7 @@ Common browser and editing shortcuts such as Ctrl+C or Ctrl+F are blocked from t
 4. Wait while subtitle chunks are translated. The first translated chunk can start playback while later chunks continue in the background.
 5. Toggle the translated subtitle overlay from the same player control.
 
-HoverTransPort does not transcribe audio, run OCR, or generate captions for videos that have no YouTube caption track. If the video's active/default caption language already matches your target language, the extension does not ask to translate it.
+HoverTransPort does not transcribe audio, run OCR, or generate captions for videos that have no YouTube caption track. If YouTube already offers a caption track in your target language, the extension does not ask to translate it.
 
 ## Current Scope
 

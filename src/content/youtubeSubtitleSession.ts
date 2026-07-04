@@ -210,19 +210,16 @@ export class YouTubeSubtitleSession {
       const tracks = extractCaptionTracksFromPlayerResponse(
         this.deps.getPlayerResponse?.() ?? readYouTubePlayerResponse()
       );
-      const defaultTrack = tracks[0];
       const activeTrack = readActiveCaptionTrack(video);
       const activeTrackIsTarget = Boolean(
         activeTrack &&
           isCaptionLanguageTarget(activeTrack.languageCode, targetLang)
       );
-      const defaultTrackIsTarget = Boolean(
-        !activeTrack &&
-          defaultTrack &&
-          isCaptionTrackLanguageTarget(defaultTrack, targetLang)
+      const targetTrackAvailable = tracks.some((track) =>
+        isCaptionTrackLanguageTarget(track, targetLang)
       );
 
-      if (activeTrackIsTarget || defaultTrackIsTarget) {
+      if (activeTrackIsTarget || targetTrackAvailable) {
         this.current = null;
         this.pending = null;
         this.translatedCues = null;

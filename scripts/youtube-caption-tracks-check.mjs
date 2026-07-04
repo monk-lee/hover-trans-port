@@ -52,6 +52,7 @@ writeFileSync(
 try {
   const {
     extractCaptionTracksFromPlayerResponse,
+    isCaptionLanguageTarget,
     selectCaptionTrack,
     selectCaptionTrackCandidates
   } = await import(
@@ -135,6 +136,26 @@ try {
     selectedForLocalizedKoreanOnly.length === 0,
     "localized Korean target labels should match Korean caption tracks"
   );
+
+  const languageMatchCases = [
+    ["en-US", "English"],
+    ["en", "영어"],
+    ["ja", "Japanese"],
+    ["ja", "일본어"],
+    ["zh-Hans", "Chinese"],
+    ["zh", "중국어"],
+    ["es-419", "Spanish"],
+    ["es", "스페인어"],
+    ["fr", "French"],
+    ["fr", "프랑스어"]
+  ];
+
+  for (const [languageCode, targetLang] of languageMatchCases) {
+    assert(
+      isCaptionLanguageTarget(languageCode, targetLang),
+      `target language ${targetLang} should match YouTube language code ${languageCode}`
+    );
+  }
 } finally {
   rmSync(tempDir, { recursive: true, force: true });
 }

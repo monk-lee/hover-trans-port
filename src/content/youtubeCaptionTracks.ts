@@ -30,6 +30,8 @@ const TARGET_LANG_TO_CODE: Record<string, string> = {
   "스페인어": "es",
   spanish: "es"
 };
+const DISPLAY_NAME_LOCALES = ["en", "ko", "ja", "zh", "es"] as const;
+const languageDisplayNamesByLocale = new Map<string, Intl.DisplayNames>();
 
 export function targetLangToLanguageCode(targetLang: string): string {
   return (
@@ -54,7 +56,11 @@ export function isCaptionLanguageTarget(
     targetLangToLanguageCode(targetLang)
   );
 
-  return trackCode.length > 0 && trackCode === targetCode;
+  if (trackCode.length > 0 && trackCode === targetCode) {
+    return true;
+  }
+
+  return isCaptionLanguageDisplayNameTarget(languageCode, targetLang);
 }
 
 function captionName(track: unknown): string {
@@ -172,4 +178,77 @@ export function selectCaptionTrackCandidates(
 
 function normalizeLanguagePrimaryCode(language: string): string {
   return language.trim().toLowerCase().replace(/_/gu, "-").split("-")[0] ?? "";
+}
+
+function isCaptionLanguageDisplayNameTarget(
+  languageCode: string,
+  targetLang: string
+): boolean {
+  const targetName = normalizeLanguageDisplayName(targetLang);
+
+  if (!targetName || typeof Intl.DisplayNames !== "function") {
+    return false;
+  }
+
+  for (const code of languageCodeCandidates(languageCode)) {
+    for (const locale of displayNameLocales()) {
+      const displayName = getLanguageDisplayName(locale, code);
+
+      if (
+        displayName &&
+        normalizeLanguageDisplayName(displayName) === targetName
+      ) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+function languageCodeCandidates(languageCode: string): string[] {
+  const normalized = languageCode.trim().toLowerCase().replace(/_/gu, "-");
+  const primary = normalizeLanguagePrimaryCode(normalized);
+
+  return Array.from(new Set([normalized, primary].filter(Boolean)));
+}
+
+function displayNameLocales(): string[] {
+  const locales = new Set<string>(DISPLAY_NAME_LOCALES);
+
+  if (typeof navigator !== "undefined") {
+    const navigatorLocales = [
+      ...(navigator.languages ?? []),
+      navigator.language
+    ].filter((locale): locale is string => typeof locale === "string");
+
+    for (const locale of navigatorLocales) {
+      const primary = normalizeLanguagePrimaryCode(locale);
+
+      if (primary) {
+        locales.add(primary);
+      }
+    }
+  }
+
+  return [...locales];
+}
+
+function getLanguageDisplayName(locale: string, languageCode: string): string {
+  try {
+    let displayNames = languageDisplayNamesByLocale.get(locale);
+
+    if (!displayNames) {
+      displayNames = new Intl.DisplayNames([locale], { type: "language" });
+      languageDisplayNamesByLocale.set(locale, displayNames);
+    }
+
+    return displayNames.of(languageCode) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function normalizeLanguageDisplayName(value: string): string {
+  return value.normalize("NFKC").trim().toLowerCase().replace(/\s+/gu, " ");
 }

@@ -486,6 +486,35 @@ const koreanActivePlayerResponseFixture = {
   }
 };
 
+const koreanAvailableAfterNonTargetPlayerResponseFixture = {
+  captions: {
+    playerCaptionsTracklistRenderer: {
+      captionTracks: [
+        {
+          baseUrl: "https://www.youtube.com/api/timedtext?v=abc123&lang=en",
+          languageCode: "en",
+          name: { simpleText: "English" },
+          vssId: ".en"
+        },
+        {
+          baseUrl: "https://www.youtube.com/api/timedtext?v=abc123&lang=ja",
+          languageCode: "ja",
+          name: { simpleText: "Japanese" },
+          vssId: ".ja"
+        },
+        {
+          baseUrl:
+            "https://www.youtube.com/api/timedtext?v=abc123&lang=ko&kind=asr",
+          languageCode: "ko",
+          kind: "asr",
+          name: { simpleText: "Korean auto" },
+          vssId: "a.ko"
+        }
+      ]
+    }
+  }
+};
+
 const fallbackPlayerResponseFixture = {
   captions: {
     playerCaptionsTracklistRenderer: {
@@ -716,6 +745,34 @@ try {
     "turning on native captions should not ask to translate when the active caption language already matches the target language"
   );
   player.getOption = undefined;
+  global.chrome.storage.local.get = defaultStorageGet;
+
+  global.chrome.storage.local.get = () =>
+    Promise.resolve({
+      hoverTransPort: {
+        provider: "codex",
+        targetLang: "Korean",
+        cacheEnabled: true,
+        debugLogging: true
+      }
+    });
+  const targetLanguageAvailableSession = new YouTubeSubtitleSession({
+    getPlayerResponse: () => koreanAvailableAfterNonTargetPlayerResponseFixture,
+    fetchTranscript: async () => [
+      { id: "cue-0", startMs: 0, endMs: 1000, text: "Hello" }
+    ]
+  });
+  subtitleButton.setAttribute("aria-pressed", "false");
+  await targetLanguageAvailableSession.refresh();
+  subtitleButton.setAttribute("aria-pressed", "true");
+  subtitleButton.dispatchEvent({ type: "click" });
+  await flushPromises();
+  assert(
+    document
+      .querySelector('[data-hover-trans-port-youtube-subtitle-prompt="true"]')
+      .getAttribute("data-hover-trans-port-status") === "hidden",
+    "turning on native captions should not ask to translate when a target-language caption track is available after non-target tracks"
+  );
   global.chrome.storage.local.get = defaultStorageGet;
 
   let resolveSlowTranslation;

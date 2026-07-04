@@ -54,8 +54,8 @@ User-facing docs prefer `install.sh` for macOS/Linux and `install.ps1` for Windo
 The macOS tarball form is also supported:
 
 ```bash
-tar -xzf hover-trans-port-native-host-macos-0.2.20.tar.gz
-cd hover-trans-port-native-host-macos-0.2.20
+tar -xzf hover-trans-port-native-host-macos-0.2.21.tar.gz
+cd hover-trans-port-native-host-macos-0.2.21
 bash install.sh install
 ```
 
@@ -189,7 +189,7 @@ HoverTransPort supports YouTube videos that already expose YouTube-provided capt
 On a supported YouTube watch page:
 
 1. HoverTransPort adds a compact subtitle translation control to the YouTube player controls.
-2. If the video's active/default caption language already matches the configured target language, no translation prompt is shown.
+2. If YouTube already offers a caption track in the configured target language, no translation prompt is shown.
 3. If translation is useful, the control asks whether to translate the available captions into the configured target language.
 4. Accepted translations run through the selected local CLI provider in timed chunks. The first completed chunk can be displayed while later chunks continue in the background.
 5. Translated subtitles render in a HoverTransPort overlay synced to the video timeline.
