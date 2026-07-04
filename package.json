@@ -65,11 +65,11 @@
     "test": "pnpm verify"
   },
   "devDependencies": {
-    "@types/chrome": "^0.1.42",
-    "@types/node": "^25.9.1",
+    "@types/chrome": "^0.2.2",
+    "@types/node": "^26.1.0",
     "esbuild": "^0.28.1",
     "typescript": "^6.0.3",
-    "vite": "^8.0.16"
+    "vite": "^8.1.3"
   },
   "packageManager": "pnpm@10.32.1"
 }
