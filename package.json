@@ -1,6 +1,6 @@
 {
   "name": "hover-trans-port",
-  "version": "0.2.21",
+  "version": "0.2.22",
   "description": "Chrome MV3 extension that translates selected or hovered text through a local AI CLI native host.",
   "type": "module",
   "license": "MIT",

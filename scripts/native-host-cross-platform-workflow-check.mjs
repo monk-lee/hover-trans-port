@@ -56,9 +56,9 @@ for (const [expected, description] of [
   ["amd64_arm64", "Windows ARM64 toolchain arch"],
   ["actions/upload-artifact@v4", "dry-run artifact upload"],
   ["build-native-host-release-assets.mjs", "release asset builder"],
-  ["hover-trans-port-native-host-macos-0.2.21.tar.gz", "macOS inspect-first package"],
-  ["hover-trans-port-native-host-linux-0.2.21.tar.gz", "Linux inspect-first package"],
-  ["hover-trans-port-native-host-windows-0.2.21.zip", "Windows inspect-first package"]
+  ["hover-trans-port-native-host-macos-0.2.22.tar.gz", "macOS inspect-first package"],
+  ["hover-trans-port-native-host-linux-0.2.22.tar.gz", "Linux inspect-first package"],
+  ["hover-trans-port-native-host-windows-0.2.22.zip", "Windows inspect-first package"]
 ]) {
   requireIncludes(workflow, expected, description);
 }
@@ -78,8 +78,8 @@ for (const [expected, description] of [
   ["x86_64-pc-windows-msvc", "CI Windows x64 target"],
   ["aarch64-pc-windows-msvc", "CI Windows ARM64 target"],
   ["vcvarsall.bat", "CI Windows ARM64 MSVC setup"],
-  ["hover-trans-port-native-host-linux-0.2.21.tar.gz", "CI Linux inspect-first package"],
-  ["hover-trans-port-native-host-windows-0.2.21.zip", "CI Windows inspect-first package"]
+  ["hover-trans-port-native-host-linux-0.2.22.tar.gz", "CI Linux inspect-first package"],
+  ["hover-trans-port-native-host-windows-0.2.22.zip", "CI Windows inspect-first package"]
 ]) {
   requireIncludes(ciWorkflow, expected, description);
 }
