@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import {
   BROWSER_TARGET_IDS,
   NATIVE_HOST_NAME,
+  getBrowserTargetIds,
   getNativeHostBrowserTargets,
   getWindowsRegistryViews,
   normalizeBrowserSelection
@@ -72,6 +73,11 @@ const TARGET_CONTRACTS = {
     linuxDir: "/home/tester/.config/vivaldi/NativeMessagingHosts",
     windowsDir: "C:\\Users\\tester\\AppData\\Local\\Hover Trans Port\\NativeMessagingHosts\\vivaldi",
     registryKey: "HKCU\\Software\\Vivaldi\\NativeMessagingHosts\\com.monklabs.hover_trans_port"
+  },
+  aside: {
+    label: "Aside",
+    support: "environment-verified",
+    macDir: "/Users/tester/Library/Application Support/Aside/NativeMessagingHosts"
   }
 };
 
@@ -94,7 +100,8 @@ assert.deepEqual(BROWSER_TARGET_IDS, [
   "brave",
   "whale",
   "atlas",
-  "vivaldi"
+  "vivaldi",
+  "aside"
 ]);
 
 assert.deepEqual(normalizeBrowserSelection(undefined), BROWSER_TARGET_IDS);
@@ -104,6 +111,7 @@ assert.deepEqual(normalizeBrowserSelection("   "), BROWSER_TARGET_IDS);
 assert.deepEqual(normalizeBrowserSelection("chrome,edge"), ["chrome", "edge"]);
 assert.deepEqual(normalizeBrowserSelection("Chrome, EDGE"), ["chrome", "edge"]);
 assert.deepEqual(normalizeBrowserSelection("chrome,edge,chrome"), ["chrome", "edge"]);
+assert.deepEqual(normalizeBrowserSelection("aside"), ["aside"]);
 assert.throws(() => normalizeBrowserSelection(","), /No browser targets selected/);
 assert.throws(() => normalizeBrowserSelection(" , , "), /No browser targets selected/);
 assert.throws(() => normalizeBrowserSelection("firefox"), /Unsupported browser target/);
@@ -113,6 +121,24 @@ assert.throws(
   /Unsupported native host install platform/
 );
 
+assert.deepEqual(getBrowserTargetIds("darwin"), BROWSER_TARGET_IDS);
+assert.deepEqual(
+  getBrowserTargetIds("linux"),
+  BROWSER_TARGET_IDS.filter((id) => id !== "aside")
+);
+assert.deepEqual(
+  getBrowserTargetIds("win32"),
+  BROWSER_TARGET_IDS.filter((id) => id !== "aside")
+);
+assert.throws(
+  () => getNativeHostBrowserTargets("linux", "/home/tester", "aside"),
+  /Unsupported browser target.*aside/
+);
+assert.throws(
+  () => getNativeHostBrowserTargets("win32", "C:\\Users\\tester", "aside"),
+  /Unsupported browser target.*aside/
+);
+
 assert.deepEqual(
   getNativeHostBrowserTargets("darwin", "/Users/tester"),
   BROWSER_TARGET_IDS.map((id) => expectedManifestTarget(id, "macDir"))
@@ -120,12 +146,12 @@ assert.deepEqual(
 
 assert.deepEqual(
   getNativeHostBrowserTargets("linux", "/home/tester"),
-  BROWSER_TARGET_IDS.map((id) => expectedManifestTarget(id, "linuxDir"))
+  getBrowserTargetIds("linux").map((id) => expectedManifestTarget(id, "linuxDir"))
 );
 
 assert.deepEqual(
   getNativeHostBrowserTargets("win32", "C:\\Users\\tester"),
-  BROWSER_TARGET_IDS.map((id) => expectedWindowsTarget(id))
+  getBrowserTargetIds("win32").map((id) => expectedWindowsTarget(id))
 );
 assert.deepEqual(getWindowsRegistryViews(), ["/reg:32", "/reg:64"]);
 

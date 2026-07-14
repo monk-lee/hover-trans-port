@@ -9,8 +9,15 @@ export const BROWSER_TARGET_IDS = [
   "brave",
   "whale",
   "atlas",
-  "vivaldi"
+  "vivaldi",
+  "aside"
 ];
+
+const PLATFORM_BROWSER_TARGET_IDS = {
+  darwin: BROWSER_TARGET_IDS,
+  linux: BROWSER_TARGET_IDS.filter((id) => id !== "aside"),
+  win32: BROWSER_TARGET_IDS.filter((id) => id !== "aside")
+};
 
 const BROWSER_LABELS = {
   chrome: "Google Chrome",
@@ -19,7 +26,8 @@ const BROWSER_LABELS = {
   brave: "Brave",
   whale: "Naver Whale",
   atlas: "ChatGPT Atlas",
-  vivaldi: "Vivaldi"
+  vivaldi: "Vivaldi",
+  aside: "Aside"
 };
 
 const SUPPORT = {
@@ -29,13 +37,26 @@ const SUPPORT = {
   brave: "repo-reference-backed",
   whale: "declared-only",
   atlas: "declared-only",
-  vivaldi: "declared-only"
+  vivaldi: "declared-only",
+  aside: "environment-verified"
 };
 
-export function normalizeBrowserSelection(rawValue) {
+export function getBrowserTargetIds(platform) {
+  const targetIds = PLATFORM_BROWSER_TARGET_IDS[platform];
+  if (!targetIds) {
+    throw new Error(`Unsupported native host install platform: ${platform}`);
+  }
+
+  return [...targetIds];
+}
+
+export function normalizeBrowserSelection(
+  rawValue,
+  allowedTargetIds = BROWSER_TARGET_IDS
+) {
   const normalizedValue = String(rawValue ?? "").trim().toLowerCase();
   if (!normalizedValue || normalizedValue === "all") {
-    return [...BROWSER_TARGET_IDS];
+    return [...allowedTargetIds];
   }
 
   const selected = normalizedValue
@@ -48,7 +69,7 @@ export function normalizeBrowserSelection(rawValue) {
   }
 
   const unsupported = selected.filter(
-    (value) => !BROWSER_TARGET_IDS.includes(value)
+    (value) => !allowedTargetIds.includes(value)
   );
 
   if (unsupported.length > 0) {
@@ -67,7 +88,8 @@ export function getNativeHostBrowserTargets(
   homeDir,
   browserSelection = "all"
 ) {
-  const selected = normalizeBrowserSelection(browserSelection);
+  const allowedTargetIds = getBrowserTargetIds(platform);
+  const selected = normalizeBrowserSelection(browserSelection, allowedTargetIds);
   return selected.map((id) => createTarget(platform, homeDir, id));
 }
 
@@ -152,6 +174,12 @@ function macManifestDir(homeDir, id) {
       "Library",
       "Application Support",
       "Vivaldi",
+      "NativeMessagingHosts"
+    ],
+    aside: [
+      "Library",
+      "Application Support",
+      "Aside",
       "NativeMessagingHosts"
     ]
   };
