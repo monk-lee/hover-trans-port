@@ -189,6 +189,10 @@ function makeEnv(root) {
     HOVER_TRANS_PORT_ATLAS_NATIVE_HOSTS_DIR: join(
       home,
       "Library/Application Support/OpenAI/ChatGPT Atlas/NativeMessagingHosts"
+    ),
+    HOVER_TRANS_PORT_ASIDE_NATIVE_HOSTS_DIR: join(
+      home,
+      "Library/Application Support/Aside/NativeMessagingHosts"
     )
   };
 }
@@ -493,6 +497,10 @@ assertNot(
   powershellInstaller.includes("$PersistedInstallerPath"),
   "PowerShell installer should not carry unused persisted installer path state"
 );
+assertNot(
+  powershellInstaller.includes('Id = "aside"'),
+  "PowerShell installer must not include macOS-only Aside"
+);
 
 withTempRoot("linux-install", (root) => {
   const home = join(root, "home");
@@ -519,6 +527,10 @@ withTempRoot("linux-install", (root) => {
   assert(
     result.manifests.some((path) => path.endsWith(".config/chromium/NativeMessagingHosts/com.monklabs.hover_trans_port.json")),
     "linux install should include Chromium manifest"
+  );
+  assert(
+    !result.manifests.some((manifestPath) => manifestPath.includes("/Aside/")),
+    "linux install must not include Aside"
   );
 });
 
@@ -607,6 +619,10 @@ withTempRoot("install", (root) => {
     env.HOVER_TRANS_PORT_ATLAS_NATIVE_HOSTS_DIR,
     "com.monklabs.hover_trans_port.json"
   );
+  const asideManifestPath = join(
+    env.HOVER_TRANS_PORT_ASIDE_NATIVE_HOSTS_DIR,
+    "com.monklabs.hover_trans_port.json"
+  );
 
   assert(existsSync(installedHelper), "helper should be copied into version directory");
   assert((lstatSync(installedHelper).mode & 0o111) !== 0, "installed helper should be executable");
@@ -617,6 +633,10 @@ withTempRoot("install", (root) => {
   assert(metadata.updaterPath === join(versionDir, "install.sh"), "metadata should name updater path");
   assert(existsSync(metadata.updaterPath), "version directory should contain updater script");
   assert((lstatSync(metadata.updaterPath).mode & 0o111) !== 0, "updater script should be executable");
+  assert(
+    readFileSync(metadata.updaterPath, "utf8") === readFileSync(installer, "utf8"),
+    "installed updater should preserve Aside-aware install.sh"
+  );
   assert(
     expectedManifestPaths("darwin", home).every(existsSync),
     "macOS install should write full native browser target manifest matrix"
@@ -641,6 +661,10 @@ withTempRoot("install", (root) => {
   assert(
     readJson(atlasManifestPath).path === launcher,
     "Atlas manifest should point at stable launcher"
+  );
+  assert(
+    readJson(asideManifestPath).path === launcher,
+    "Aside manifest should point at stable launcher"
   );
 });
 
