@@ -8,6 +8,7 @@ This guide covers the current native host install paths:
 - Linux
 - Windows PowerShell
 - Google Chrome
+- Aside on macOS
 - Unpacked extension loaded from this repository's `dist/` folder
 - Codex CLI as the default executable provider
 - Claude CLI as an optional executable provider
@@ -66,6 +67,8 @@ curl -fLO https://github.com/monk-lee/hover-trans-port/releases/latest/download/
 bash install.sh install
 ```
 
+Existing macOS users must run the updated installer once to add Aside registration. An older native host's persisted updater can update the helper but cannot learn a new browser manifest path. After this one-time manual install, later updates retain the Aside registration.
+
 Useful macOS/Linux commands:
 
 ```bash
@@ -93,7 +96,7 @@ Useful Windows PowerShell commands:
 .\install.ps1 uninstall
 ```
 
-The installer writes the helper to `~/Library/Application Support/Hover Trans Port/native-hosts/<version>/`, updates `current`, writes the stable launcher, and registers Chrome's Native Messaging manifest.
+The installer writes the helper to `~/Library/Application Support/Hover Trans Port/native-hosts/<version>/`, updates `current`, writes the stable launcher, and registers Native Messaging manifests for the supported browsers, including Aside on macOS.
 
 On Linux, the installer writes the helper under `~/.local/share/hover-trans-port/native-hosts/<version>/`. On Windows, the installer writes under `$env:LOCALAPPDATA\Hover Trans Port\native-hosts\<version>` and registers Chrome's Native Messaging host in the current user's registry hive.
 
@@ -136,7 +139,7 @@ pnpm native:install
 
 The installer writes:
 
-- A Chrome native host manifest in Chrome's user-specific Native Messaging hosts directory.
+- Native host manifests in each supported browser's user-specific Native Messaging hosts directory, including Aside on macOS.
 - By default, a manifest `path` that points at `native-helper/target/release/hover-trans-port-helper`.
 
 Run `pnpm helper:build:release` before `pnpm native:install`; the installer fails with a clear message if the compiled helper is missing.

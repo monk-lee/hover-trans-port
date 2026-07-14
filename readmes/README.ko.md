@@ -72,7 +72,7 @@ HoverTransPort는 오디오 전사, OCR, 또는 자막이 없는 영상의 새 �
 
 | 현재 동작 | 아직 아님 |
 | --- | --- |
-| macOS, Linux, Windows와 Google Chrome | Chrome Web Store 설치 |
+| macOS, Linux, Windows의 Google Chrome과 macOS의 Aside | Chrome Web Store 설치 |
 | `dist/` 폴더를 직접 불러오는 unpacked extension | browser store 배포 패키지 |
 | Codex, Claude, Gemini, OpenCode, Antigravity CLI provider | 전체 페이지 자동 번역 |
 | 마우스로 가리킨 읽기 가능한 블록과 선택 영역 번역 | PDF, iframe, OCR, 음성 인식, 오디오 전사 |

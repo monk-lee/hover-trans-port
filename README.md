@@ -70,7 +70,7 @@ HoverTransPort does not transcribe audio, run OCR, or generate captions for vide
 
 | Works today | Not yet |
 | --- | --- |
-| macOS, Linux, Windows, and Google Chrome | Chrome Web Store install |
+| macOS, Linux, and Windows with Google Chrome; Aside on macOS | Chrome Web Store install |
 | Unpacked extension loaded from `dist/` | Packaged browser-store distribution |
 | Codex, Claude, Gemini, OpenCode, and Antigravity CLI providers | Full-page automatic translation |
 | Hovered readable block and selection translation | PDF, iframe, OCR, speech recognition, or audio transcription |

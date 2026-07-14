@@ -26,6 +26,15 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const packageJson = JSON.parse(
   readFileSync(join(repoRoot, "package.json"), "utf8")
 );
+const readme = readFileSync(join(repoRoot, "README.md"), "utf8");
+const koreanReadme = readFileSync(
+  join(repoRoot, "readmes/README.ko.md"),
+  "utf8"
+);
+const nativeHostDocs = readFileSync(
+  join(repoRoot, "docs/native-host-install.md"),
+  "utf8"
+);
 const installer = join(repoRoot, "scripts/install.sh");
 const macosCompatibilityInstaller = join(
   repoRoot,
@@ -257,6 +266,20 @@ function installerTempEntries(installerTmp) {
 assert(
   extractEmbeddedInstallPayload() === readFileSync(installer, "utf8"),
   "legacy macOS wrapper embedded payload should match install.sh"
+);
+assert(
+  readme.includes("Aside on macOS"),
+  "README should name macOS Aside support"
+);
+assert(
+  koreanReadme.includes("macOS의 Aside"),
+  "Korean README should name macOS Aside support"
+);
+assert(
+  nativeHostDocs.includes(
+    "Existing macOS users must run the updated installer once"
+  ),
+  "native host docs should explain the one-time Aside registration install"
 );
 assert(
   powershellInstaller.includes('[ValidateSet("install", "update", "status", "uninstall")]'),
