@@ -33,7 +33,7 @@ if [ "$1" = "debug" ] && [ "$2" = "models" ]; then
 {
   "models": [
     { "slug": "gpt-5.5", "display_name": "GPT-5.5", "visibility": "list" },
-    { "slug": "gpt-5.3-codex-spark", "display_name": "GPT-5.3 Codex Spark", "visibility": "list" },
+    { "slug": "gpt-6-luna", "display_name": "GPT-6 Luna", "visibility": "list" },
     { "slug": "gpt-5.4-mini", "display_name": "GPT-5.4 Mini", "visibility": "list" },
     { "slug": "gpt-5.4-nano", "display_name": "GPT-5.4 Nano", "visibility": "hide" }
   ]
@@ -47,13 +47,13 @@ exit 1
     const catalog = await new CodexProvider().modelCatalog();
 
     assert.equal(catalog.source, "cli");
-    assert.equal(catalog.defaultModel, "gpt-5.3-codex-spark");
+    assert.equal(catalog.defaultModel, "gpt-6-luna");
     assert.deepEqual(
       catalog.models.map((model) => model.value),
-      ["gpt-5.5", "gpt-5.3-codex-spark", "gpt-5.4-mini"]
+      ["gpt-5.5", "gpt-6-luna", "gpt-5.4-mini"]
     );
     assert.equal(
-      catalog.models.find((model) => model.value === "gpt-5.3-codex-spark")?.recommended,
+      catalog.models.find((model) => model.value === "gpt-6-luna")?.recommended,
       true
     );
   }
@@ -70,9 +70,9 @@ exit 1
   async () => {
     const catalog = await new CodexProvider().modelCatalog();
     assert.equal(catalog.source, "fallback");
-    assert.equal(catalog.defaultModel, "gpt-5.3-codex-spark");
+    assert.equal(catalog.defaultModel, "gpt-6-luna");
     assert.equal(
-      catalog.models.find((model) => model.value === "gpt-5.3-codex-spark")?.recommended,
+      catalog.models.find((model) => model.value === "gpt-6-luna")?.recommended,
       true
     );
   }

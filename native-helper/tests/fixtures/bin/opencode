@@ -4,6 +4,20 @@ if [ "$1" = "--version" ]; then
   exit 0
 fi
 
+if [ "$*" = "models --verbose --pure" ]; then
+  cat <<'MODELS'
+test/large
+{"capabilities":{"input":{"text":true},"output":{"text":true}},"cost":{"input":1,"output":2},"variants":{"medium":{}}}
+test/low-only
+{"capabilities":{"input":{"text":true},"output":{"text":true}},"cost":{"input":0,"output":0},"variants":{"low":{}}}
+test/light
+{"capabilities":{"input":{"text":true},"output":{"text":true}},"cost":{"input":0.1,"output":0.5},"variants":{"medium":{}}}
+test/retired
+{"status":"deprecated","capabilities":{"input":{"text":true},"output":{"text":true}},"cost":{"input":0,"output":0},"variants":{"medium":{}}}
+MODELS
+  exit 0
+fi
+
 if [ "$1" = "run" ]; then
   format=""
   pure=0

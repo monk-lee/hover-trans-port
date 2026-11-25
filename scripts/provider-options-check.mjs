@@ -78,9 +78,9 @@ assertIncludes(
   "Antigravity provider label"
 );
 assertIncludes(providersTs, 'claude: "haiku"', "Claude provider default model");
-assertIncludes(providersTs, 'gemini: ""', "Gemini provider default model");
-assertIncludes(providersTs, 'opencode: ""', "OpenCode provider default model");
-assertIncludes(providersTs, 'antigravity: ""', "Antigravity provider default model");
+assertIncludes(providersTs, 'gemini: "gemini-3.5-flash-lite"', "Gemini provider default model");
+assertIncludes(providersTs, 'opencode: "default"', "OpenCode provider default model");
+assertIncludes(providersTs, 'antigravity: "default"', "Antigravity provider default model");
 assertIncludes(
   providersTs,
   "CODEX_NOT_FOUND_GUIDANCE",
@@ -124,17 +124,17 @@ assertIncludes(
 );
 assertIncludes(
   optionsMainTs,
-  "persistProviderModel = true",
-  "saveOptions persist flag default"
+  'modelAction === "select"',
+  "only model selection saves an explicit model"
 );
 assertIncludes(
   optionsMainTs,
-  "persistProviderModel: false",
-  "provider change preserves provider model"
+  "delete nextOptions.modelsByProvider[modelProvider]",
+  "reset clears the saved model"
 );
 assertIncludes(
   optionsMainTs,
-  "getDefaultModelForProvider(modelProvider)",
+  "getProviderModelCatalog(selectedProvider).defaultModel",
   "provider model reset uses provider default"
 );
 assertIncludes(
@@ -159,7 +159,7 @@ assertIncludes(
 );
 assertNotIncludes(
   optionsMainTs,
-  "getDefaultModelForProvider(modelProvider) || DEFAULT_CODEX_MODEL",
+  "getProviderModelCatalog(selectedProvider).defaultModel || DEFAULT_CODEX_MODEL",
   "Claude model reset avoids Codex fallback"
 );
 

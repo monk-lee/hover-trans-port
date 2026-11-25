@@ -6,8 +6,7 @@ use tempfile::tempdir;
 use crate::messages::{ProviderId, ProviderStatusEntry};
 use crate::process::{run_process, ProcessRequest, ProviderError};
 use crate::providers::{
-    binary_discovery,
-    Provider, ProviderModelCatalog, ProviderModelOption, ProviderPromptRequest,
+    binary_discovery, Provider, ProviderModelCatalog, ProviderModelOption, ProviderPromptRequest,
     ProviderPromptResult,
 };
 
@@ -45,7 +44,7 @@ impl Provider for OpencodeProvider {
     }
 
     fn default_model(&self) -> &'static str {
-        ""
+        "default"
     }
 
     fn status(&self) -> ProviderStatusEntry {
@@ -85,7 +84,22 @@ impl Provider for OpencodeProvider {
     }
 
     fn model_catalog(&self) -> ProviderModelCatalog {
-        opencode_fallback_model_catalog()
+        let fallback = ProviderModelCatalog::with_cli_default(self.id(), self.label(), true);
+        let (Some(binary), Ok(dir)) = (self.find_binary(), tempdir()) else {
+            return fallback;
+        };
+        let output = run_process(ProcessRequest {
+            args: vec!["models".into(), "--verbose".into(), "--pure".into()],
+            cwd: Some(dir.path().to_path_buf()),
+            env: provider_env(&self.env, &binary),
+            executable: binary,
+            stdin: String::new(),
+            timeout_ms: DEFAULT_STATUS_TIMEOUT_MS,
+        });
+        match output {
+            Ok(output) => opencode_model_catalog(&output.stdout, fallback),
+            Err(_) => fallback,
+        }
     }
 
     fn run_prompt(
@@ -102,9 +116,12 @@ impl Provider for OpencodeProvider {
             message: error.to_string(),
         })?;
 
+        let model = request
+            .model
+            .unwrap_or_else(|| self.model_catalog().default_model);
         let output = run_process(ProcessRequest {
             executable: binary.clone(),
-            args: build_opencode_args(request.model.as_deref(), temp_dir.path()),
+            args: build_opencode_args(Some(&model), temp_dir.path()),
             cwd: Some(temp_dir.path().to_path_buf()),
             env: provider_env(&self.env, &binary),
             stdin: request.prompt,
@@ -134,7 +151,11 @@ pub fn build_opencode_args(model: Option<&str>, dir: &Path) -> Vec<String> {
         .filter(|value| !value.is_empty() && !value.eq_ignore_ascii_case("default"))
     {
         args.push("--model".to_string());
-        args.push(model.to_string());
+        if let Some(base) = model.strip_suffix("#medium") {
+            args.extend([base.to_string(), "--variant".into(), "medium".into()]);
+        } else {
+            args.push(model.to_string());
+        }
     }
 
     args.push("--agent".to_string());
@@ -191,18 +212,57 @@ pub fn parse_opencode_output(stdout: &str) -> Result<String, ProviderError> {
     Ok(latest_text.unwrap_or_else(|| trimmed.to_string()))
 }
 
-fn opencode_fallback_model_catalog() -> ProviderModelCatalog {
-    ProviderModelCatalog {
-        provider: ProviderId::Opencode,
-        default_model: String::new(),
-        models: vec![ProviderModelOption {
-            value: String::new(),
-            label: "Default (OpenCode CLI)".to_string(),
-            recommended: Some(true),
-        }],
-        supports_custom_model: true,
-        source: "fallback".to_string(),
+// OpenCode 1.x prints one provider/model line followed by its pretty-printed JSON.
+fn opencode_model_catalog(stdout: &str, mut catalog: ProviderModelCatalog) -> ProviderModelCatalog {
+    let mut rest = stdout.trim();
+    let mut lowest_cost = f64::INFINITY;
+    let mut recommended = None;
+    while let Some((id, metadata)) = rest.split_once('\n') {
+        let id = id.trim();
+        rest = metadata.trim_start();
+        if !id.contains('/') || id.chars().any(char::is_whitespace) || !rest.starts_with('{') {
+            continue;
+        }
+        let mut records = serde_json::Deserializer::from_str(rest).into_iter::<serde_json::Value>();
+        let Some(Ok(model)) = records.next() else {
+            break;
+        };
+        rest = rest[records.byte_offset()..].trim_start();
+        if model["status"] == "deprecated"
+            || model["capabilities"]["output"]["text"] != true
+            || model["capabilities"]["input"]["text"] != true
+        {
+            continue;
+        }
+        catalog.source = "cli".to_string();
+        catalog.models.push(ProviderModelOption {
+            value: id.to_string(),
+            label: id.to_string(),
+            recommended: None,
+        });
+        if !model["variants"]["medium"].is_object() {
+            continue;
+        }
+        catalog.models.push(ProviderModelOption {
+            value: format!("{id}#medium"),
+            label: format!("{id} (medium)"),
+            recommended: None,
+        });
+        if let (Some(input), Some(output)) = (
+            model["cost"]["input"].as_f64(),
+            model["cost"]["output"].as_f64(),
+        ) {
+            let cost = input + output;
+            if cost < lowest_cost {
+                lowest_cost = cost;
+                recommended = Some(catalog.models.len() - 1);
+            }
+        }
     }
+    if let Some(index) = recommended {
+        catalog.recommend(index);
+    }
+    catalog
 }
 
 fn map_opencode_process_error(error: ProviderError) -> ProviderError {

@@ -7,11 +7,16 @@ use tempfile::tempdir;
 use crate::messages::{ProviderId, ProviderStatusEntry};
 use crate::process::{run_process, ProcessRequest, ProviderError};
 use crate::providers::{
-    binary_discovery,
-    Provider, ProviderModelCatalog, ProviderModelOption, ProviderPromptRequest,
+    binary_discovery, Provider, ProviderModelCatalog, ProviderModelOption, ProviderPromptRequest,
     ProviderPromptResult,
 };
 
+const PREFERRED_MEDIUM_MODELS: &[&str] = &[
+    "gemini-3.8-flash-medium",
+    "gemini-3.7-flash-medium",
+    "gemini-3.6-flash-medium",
+    "gemini-4-hydrogen-medium",
+];
 const PRINT_TIMEOUT_GRACE_MS: u64 = 500;
 
 #[derive(Clone, Debug)]
@@ -43,7 +48,7 @@ impl Provider for AntigravityProvider {
     }
 
     fn default_model(&self) -> &'static str {
-        ""
+        "default"
     }
 
     fn status(&self) -> ProviderStatusEntry {
@@ -67,17 +72,62 @@ impl Provider for AntigravityProvider {
     }
 
     fn model_catalog(&self) -> ProviderModelCatalog {
-        ProviderModelCatalog {
-            provider: self.id(),
-            default_model: String::new(),
-            models: vec![ProviderModelOption {
-                value: String::new(),
-                label: "Default (Antigravity CLI)".to_string(),
-                recommended: Some(true),
-            }],
-            supports_custom_model: false,
-            source: "fallback".to_string(),
+        let mut catalog = ProviderModelCatalog::with_cli_default(self.id(), self.label(), false);
+        let Some(binary) = self.find_binary() else {
+            return catalog;
+        };
+        let probe = |args: &[&str]| {
+            run_process(ProcessRequest {
+                executable: binary.clone(),
+                args: args.iter().map(|arg| arg.to_string()).collect(),
+                cwd: None,
+                env: provider_env(&self.env, &binary),
+                stdin: String::new(),
+                timeout_ms: 5_000,
+            })
+        };
+        // Old versions accept a positional prompt. Only run the subcommand if advertised.
+        let Ok(help) = probe(&["--help"]) else {
+            return catalog;
+        };
+        if !help
+            .stdout
+            .lines()
+            .chain(help.stderr.lines())
+            .any(|line| line.split_whitespace().next() == Some("models"))
+        {
+            return catalog;
         }
+        let Ok(output) = probe(&["models"]) else {
+            return catalog;
+        };
+        for line in output.stdout.lines() {
+            let Some((slug, label)) = line.trim().split_once(char::is_whitespace) else {
+                continue;
+            };
+            if !slug.contains('-')
+                || !slug
+                    .bytes()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'.' | b'_'))
+            {
+                continue;
+            }
+            catalog.models.push(ProviderModelOption {
+                value: slug.to_string(),
+                label: label.trim().to_string(),
+                recommended: None,
+            });
+        }
+        if catalog.models.len() > 1 {
+            catalog.source = "cli".to_string();
+            if let Some(index) = PREFERRED_MEDIUM_MODELS
+                .iter()
+                .find_map(|slug| catalog.models.iter().position(|entry| entry.value == *slug))
+            {
+                catalog.recommend(index);
+            }
+        }
+        catalog
     }
 
     fn run_prompt(
@@ -97,9 +147,12 @@ impl Provider for AntigravityProvider {
             message: error.to_string(),
         })?;
         let log_file = temp_dir.path().join("antigravity.log");
+        let model = request
+            .model
+            .unwrap_or_else(|| self.model_catalog().default_model);
         let output = run_process(ProcessRequest {
             executable: binary.clone(),
-            args: build_antigravity_args(request.timeout_ms, &log_file, &request.prompt),
+            args: build_antigravity_args(request.timeout_ms, &log_file, &request.prompt, &model),
             cwd: Some(workspace_dir),
             env: provider_env(&self.env, &binary),
             stdin: String::new(),
@@ -114,16 +167,24 @@ impl Provider for AntigravityProvider {
     }
 }
 
-pub fn build_antigravity_args(timeout_ms: u64, log_file: &Path, prompt: &str) -> Vec<String> {
-    vec![
+pub fn build_antigravity_args(
+    timeout_ms: u64,
+    log_file: &Path,
+    prompt: &str,
+    model: &str,
+) -> Vec<String> {
+    let mut args = vec![
         "--log-file".to_string(),
         log_file.display().to_string(),
         "--print-timeout".to_string(),
         timeout_ms_to_duration_arg(timeout_ms),
         "--sandbox".to_string(),
-        "--print".to_string(),
-        prompt.to_string(),
-    ]
+    ];
+    if !model.is_empty() && model != "default" {
+        args.extend(["--model".to_string(), model.to_string()]);
+    }
+    args.extend(["--print".to_string(), prompt.to_string()]);
+    args
 }
 
 pub fn parse_antigravity_output(stdout: &str) -> Result<String, ProviderError> {

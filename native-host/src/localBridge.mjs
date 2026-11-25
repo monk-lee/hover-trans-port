@@ -446,9 +446,8 @@ export async function handleNativeRequest(message, dependencies = {}) {
     }
 
     const { selectedProvider } = resolvedProvider;
-    const selectedModel = message.model || selectedProvider.defaultModel;
-
     try {
+      const selectedModel = message.model || (await selectedProvider.modelCatalog()).defaultModel;
       const cacheEnabled = message.cacheEnabled !== false;
       const debugLogging = message.debugLogging === true;
       const baseLogFields = {

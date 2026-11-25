@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import {
   mkdirSync,
   mkdtempSync,
@@ -152,6 +153,7 @@ async function runOptionsWithCatalogSource(source) {
     addEventListener() {},
     removeEventListener() {}
   };
+  let storedOptions = { enabled: true, provider: "codex", codexModel: "saved-custom-model" };
   global.chrome = {
     i18n: {
       getUILanguage() {
@@ -161,14 +163,11 @@ async function runOptionsWithCatalogSource(source) {
     storage: {
       local: {
         async get() {
-          return {
-            hoverTransPort: {
-              enabled: true,
-              provider: "codex"
-            }
-          };
+          return { hoverTransPort: storedOptions };
         },
-        async set() {}
+        async set({ hoverTransPort }) {
+          storedOptions = hoverTransPort;
+        }
       }
     },
     runtime: {
@@ -199,11 +198,11 @@ async function runOptionsWithCatalogSource(source) {
             ok: true,
             catalog: {
               provider: "codex",
-              defaultModel: "gpt-5.3-codex-spark",
+              defaultModel: "gpt-6-luna",
               models: [
                 {
-                  value: "gpt-5.3-codex-spark",
-                  label: "GPT-5.3 Codex Spark",
+                  value: "gpt-6-luna",
+                  label: "GPT-6 Luna (medium)",
                   recommended: true
                 }
               ],
@@ -243,6 +242,16 @@ async function runOptionsWithCatalogSource(source) {
       fail(`unexpected rejection: ${String(unhandledRejections[0])}`);
     }
 
+    assert.equal(elements.get("#provider-model").value, "saved-custom-model");
+    for (const listener of elements.get("#provider-model-reset").listeners.get("click")) listener();
+    await settlePromises();
+    assert.equal(elements.get("#provider-model").value, "gpt-6-luna");
+    assert.equal(storedOptions.codexModel, undefined);
+    assert.equal(storedOptions.modelsByProvider.codex, undefined);
+
+    const { getModelForProvider } = await import(pathToFileURL(join(tempSharedDir, "options.js")).href);
+    assert.equal(getModelForProvider(undefined, "gemini"), "gemini-3.5-flash-lite");
+    assert.equal(getModelForProvider({ modelsByProvider: { gemini: "" } }, "gemini"), "default");
     return elements.get("#provider-status").textContent;
   } finally {
     process.off("unhandledRejection", onUnhandledRejection);

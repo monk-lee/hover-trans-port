@@ -378,6 +378,9 @@ global.chrome = {
     },
     sendMessage(message) {
       sentMessages.push(message);
+      if (message.type === "GET_PROVIDER_MODELS") {
+        return Promise.resolve({ type: "PROVIDER_MODELS_RESULT", ok: true, catalog: { defaultModel: "gpt-6-luna" } });
+      }
       if (message.type === "GET_SUBTITLE_TRANSLATION_CACHE") {
         return Promise.resolve({
           type: "SUBTITLE_TRANSLATION_CACHE_RESULT",
@@ -660,7 +663,7 @@ try {
     sentMessages.some(
       (message) =>
         message.type === "TRANSLATE_SUBTITLE_TRACK" &&
-        message.timeoutMs === 60000
+        message.model === "gpt-6-luna" && message.timeoutMs === 60000
     ),
     `YouTube subtitle translation should default to a 60 second timeout, got ${JSON.stringify(
       sentMessages
@@ -672,10 +675,12 @@ try {
     captionContainer.textContent.includes("안녕"),
     "successful translation should render in the YouTube caption container"
   );
+  await flushPromises();
   const overlayActivatedCountBeforeRefresh = countDebugEvents(
     "youtube.subtitle.overlay_activated"
   );
   await session.refresh();
+  await flushPromises();
   assert(
     captionContainer.textContent.includes("안녕"),
     "same-source refresh should not clear an active translated subtitle"

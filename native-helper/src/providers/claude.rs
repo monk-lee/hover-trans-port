@@ -6,8 +6,7 @@ use tempfile::tempdir;
 use crate::messages::{ProviderId, ProviderStatusEntry};
 use crate::process::{run_process, ProcessRequest, ProviderError};
 use crate::providers::{
-    binary_discovery,
-    Provider, ProviderModelCatalog, ProviderModelOption, ProviderPromptRequest,
+    binary_discovery, Provider, ProviderModelCatalog, ProviderModelOption, ProviderPromptRequest,
     ProviderPromptResult,
 };
 
@@ -93,7 +92,7 @@ impl Provider for ClaudeProvider {
             models: vec![
                 ProviderModelOption {
                     value: "haiku".to_string(),
-                    label: "Haiku".to_string(),
+                    label: "Haiku (medium)".to_string(),
                     recommended: Some(true),
                 },
                 ProviderModelOption {
@@ -135,11 +134,15 @@ impl Provider for ClaudeProvider {
             .map(str::trim)
             .filter(|value| !value.is_empty())
             .unwrap_or(self.default_model());
+        let mut env = provider_env(&self.env, &binary);
+        if matches!(model, DEFAULT_CLAUDE_MODEL | "claude-haiku-5-5") {
+            env.insert("CLAUDE_CODE_EFFORT_LEVEL".into(), "medium".into());
+        }
         let output = run_process(ProcessRequest {
             executable: binary.clone(),
             args: build_claude_args(Some(model)),
             cwd: Some(temp_dir.path().to_path_buf()),
-            env: provider_env(&self.env, &binary),
+            env,
             stdin: request.prompt,
             timeout_ms: request.timeout_ms,
         })

@@ -55,8 +55,8 @@ User-facing docs prefer `install.sh` for macOS/Linux and `install.ps1` for Windo
 The macOS tarball form is also supported:
 
 ```bash
-tar -xzf hover-trans-port-native-host-macos-0.2.22.tar.gz
-cd hover-trans-port-native-host-macos-0.2.22
+tar -xzf hover-trans-port-native-host-macos-0.2.23.tar.gz
+cd hover-trans-port-native-host-macos-0.2.23
 bash install.sh install
 ```
 
@@ -167,7 +167,17 @@ Common settings:
 - `YouTube subtitle timeout seconds`: per-subtitle-chunk provider CLI timeout for YouTube caption translation. The default is 60 seconds. Values are clamped to 5-120.
 - `Provider`: executable CLI used for translation. Codex is the default provider; Claude, Gemini, OpenCode, and Antigravity are optional and CLI-only.
 - `Use cache`: when disabled, Local Bridge skips both cache lookup and cache write.
-- `Model`: provider model alias passed as `--model <model>`. The Options page asks the native host for a provider model catalog. Providers with a stable machine-readable list, such as Codex through `codex debug models`, can show CLI-provided models. Providers without a stable list command use built-in fallback aliases and still allow custom model values when the CLI accepts a model flag. Selecting `Default (Claude CLI)`, `Default (Gemini CLI)`, or `Default (OpenCode CLI)` omits `--model` so that CLI chooses its configured default. OpenCode expects explicit custom models in `provider/model` form. Antigravity exposes only `Default (Antigravity CLI)` because `agy --print` uses the CLI-configured default model and does not accept a model flag. Codex reset restores `gpt-5.3-codex-spark`; Claude reset restores `haiku`; Gemini, OpenCode, and Antigravity reset restore the CLI default.
+- `Model` applies to inline and YouTube subtitle translations. **Reset** clears the saved choice for the selected provider and restores the recommendation. Selecting a CLI default lets the CLI choose its configured model.
+
+| Provider | Translation default | How HoverTransPort selects it |
+| --- | --- | --- |
+| Codex | GPT-6 Luna, medium | Prefers `gpt-6-luna` in `codex debug models`. Older catalogs use the first available of GPT-5.6 Luna, Codex Spark, and GPT-5.4 Mini, then the first listed model. |
+| Claude | Haiku, medium | Uses the `haiku` alias with medium effort. Claude Code 2.1.293+ maps this alias to Haiku 5.5 on Anthropic. Other backends can map it to an older Haiku with different effort support. |
+| Gemini | Gemini 3.5 Flash-Lite, medium | Sets `thinkingLevel` in the translation workspace for this model. |
+| OpenCode | Lowest listed cost among text models offering medium | Reads `opencode models --verbose --pure` on the supported 1.x CLI. Compares the sum of input and output token rates for models that accept and produce text. Catalog order breaks ties. The selected model runs with `--variant medium`. |
+| Antigravity | Gemini Flash, medium | Reads `agy models` when the installed CLI advertises the command. Prefers Flash 3.8, 3.7, then 3.6, followed by Hydrogen, using only listed medium variants. |
+
+OpenCode and Antigravity use their configured CLI default when discovery finds no matching model. This includes Antigravity 1.0.2, which has no model selector. A saved model stays selected until you change it or choose **Reset**.
 
 Invalid or unavailable model names fail at translation time and render the inline provider execution error.
 

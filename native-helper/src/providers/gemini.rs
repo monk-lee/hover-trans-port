@@ -7,15 +7,14 @@ use tempfile::tempdir;
 use crate::messages::{ProviderId, ProviderStatusEntry};
 use crate::process::{run_process, ProcessRequest, ProviderError};
 use crate::providers::{
-    binary_discovery,
-    Provider, ProviderModelCatalog, ProviderModelOption, ProviderPromptRequest,
+    binary_discovery, Provider, ProviderModelCatalog, ProviderModelOption, ProviderPromptRequest,
     ProviderPromptResult,
 };
 
 const PROMPT_ARG: &str =
     "Translate according to the instructions provided on stdin. Return only the translated text.";
 const DEFAULT_STATUS_TIMEOUT_MS: u64 = 5_000;
-const GEMINI_WORKSPACE_SETTINGS: &str = r#"{"tools":{"core":[]},"context":{"fileName":[]}}"#;
+const DEFAULT_GEMINI_MODEL: &str = "gemini-3.5-flash-lite";
 
 #[derive(Clone, Debug)]
 pub struct GeminiProvider {
@@ -42,7 +41,7 @@ impl Provider for GeminiProvider {
     }
 
     fn default_model(&self) -> &'static str {
-        ""
+        DEFAULT_GEMINI_MODEL
     }
 
     fn status(&self) -> ProviderStatusEntry {
@@ -103,10 +102,15 @@ impl Provider for GeminiProvider {
         let temp_dir = tempdir().map_err(|error| ProviderError::SpawnFailed {
             message: error.to_string(),
         })?;
-        prepare_gemini_workspace(temp_dir.path())?;
+        let model = request
+            .model
+            .as_deref()
+            .unwrap_or(self.default_model())
+            .trim();
+        prepare_gemini_workspace(temp_dir.path(), model)?;
         let output = run_process(ProcessRequest {
             executable: binary.clone(),
-            args: build_gemini_args(request.model.as_deref()),
+            args: build_gemini_args(Some(model)),
             cwd: Some(temp_dir.path().to_path_buf()),
             env: provider_env(&self.env, &binary),
             stdin: request.prompt,
@@ -140,12 +144,23 @@ pub fn build_gemini_args(model: Option<&str>) -> Vec<String> {
     args
 }
 
-fn prepare_gemini_workspace(path: &Path) -> Result<(), ProviderError> {
+fn prepare_gemini_workspace(path: &Path, model: &str) -> Result<(), ProviderError> {
     let gemini_dir = path.join(".gemini");
     fs::create_dir_all(&gemini_dir).map_err(|error| ProviderError::SpawnFailed {
         message: error.to_string(),
     })?;
-    fs::write(gemini_dir.join("settings.json"), GEMINI_WORKSPACE_SETTINGS).map_err(|error| {
+    let mut settings = serde_json::json!({"tools": {"core": []}, "context": {"fileName": []}});
+    if model == DEFAULT_GEMINI_MODEL {
+        settings["modelConfigs"] = serde_json::json!({
+            "customOverrides": [{
+                "match": { "model": DEFAULT_GEMINI_MODEL },
+                "modelConfig": {
+                    "generateContentConfig": { "thinkingConfig": { "thinkingLevel": "MEDIUM" } }
+                }
+            }]
+        });
+    }
+    fs::write(gemini_dir.join("settings.json"), settings.to_string()).map_err(|error| {
         ProviderError::SpawnFailed {
             message: error.to_string(),
         }
@@ -155,21 +170,26 @@ fn prepare_gemini_workspace(path: &Path) -> Result<(), ProviderError> {
 fn gemini_fallback_model_catalog() -> ProviderModelCatalog {
     ProviderModelCatalog {
         provider: ProviderId::Gemini,
-        default_model: String::new(),
+        default_model: DEFAULT_GEMINI_MODEL.to_string(),
         models: vec![
             ProviderModelOption {
-                value: String::new(),
-                label: "Default (Gemini CLI)".to_string(),
+                value: DEFAULT_GEMINI_MODEL.to_string(),
+                label: "Gemini 3.5 Flash-Lite (medium)".to_string(),
                 recommended: Some(true),
             },
             ProviderModelOption {
-                value: "gemini-2.5-flash".to_string(),
-                label: "Gemini 2.5 Flash".to_string(),
+                value: "default".to_string(),
+                label: "Default (Gemini CLI)".to_string(),
                 recommended: None,
             },
             ProviderModelOption {
-                value: "gemini-2.5-pro".to_string(),
-                label: "Gemini 2.5 Pro".to_string(),
+                value: "gemini-3.8-flash".to_string(),
+                label: "Gemini 3.8 Flash".to_string(),
+                recommended: None,
+            },
+            ProviderModelOption {
+                value: "gemini-3.1-pro-preview".to_string(),
+                label: "Gemini 3.1 Pro Preview".to_string(),
                 recommended: None,
             },
         ],

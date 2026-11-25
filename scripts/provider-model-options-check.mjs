@@ -40,24 +40,24 @@ assertIncludes(
 );
 assertIncludes(
   providers,
-  'codex: "gpt-5.3-codex-spark"',
+  'codex: "gpt-6-luna"',
   "src/shared/providers.ts"
 );
 assertIncludes(providers, 'claude: "haiku"', "src/shared/providers.ts");
-assertIncludes(providers, 'opencode: ""', "src/shared/providers.ts");
+assertIncludes(providers, 'opencode: "default"', "src/shared/providers.ts");
 assertIncludes(providers, 'antigravity: "Antigravity CLI"', "src/shared/providers.ts");
 assertIncludes(providers, 'provider: "antigravity"', "src/shared/providers.ts");
 assertIncludes(providers, 'label: "Default (Antigravity CLI)"', "src/shared/providers.ts");
 assertIncludes(providers, "supportsCustomModel: false", "src/shared/providers.ts");
-assertIncludes(providers, 'value: "gpt-5.5"', "src/shared/providers.ts");
+assertIncludes(providers, 'value: "gpt-6.2-sol"', "src/shared/providers.ts");
 assertIncludes(
   providers,
-  'value: "gpt-5.3-codex-spark"',
+  'value: "gpt-6-luna"',
   "src/shared/providers.ts"
 );
 assertIncludes(
   providers,
-  'label: "GPT-5.3 Codex Spark"',
+  'label: "GPT-6 Luna (medium)"',
   "src/shared/providers.ts"
 );
 assertIncludes(
@@ -65,14 +65,14 @@ assertIncludes(
   "recommended: true",
   "src/shared/providers.ts"
 );
-assertIncludes(providers, 'value: "gpt-5.4-mini"', "src/shared/providers.ts");
+assertIncludes(providers, 'value: "gpt-6.1-terra"', "src/shared/providers.ts");
 assertNotIncludes(providers, 'value: "gpt-5.4-nano"', "src/shared/providers.ts");
 assertIncludes(providers, 'value: "haiku"', "src/shared/providers.ts");
 assertIncludes(providers, 'value: "sonnet"', "src/shared/providers.ts");
 assertIncludes(providers, 'value: "opus"', "src/shared/providers.ts");
 assertIncludes(providers, 'value: "default"', "src/shared/providers.ts");
-assertIncludes(providers, 'value: "gemini-2.5-flash"', "src/shared/providers.ts");
-assertIncludes(providers, 'value: "gemini-2.5-pro"', "src/shared/providers.ts");
+assertIncludes(providers, 'value: "gemini-3.8-flash"', "src/shared/providers.ts");
+assertIncludes(providers, 'value: "gemini-3.1-pro-preview"', "src/shared/providers.ts");
 assertIncludes(providers, 'label: "Default (OpenCode CLI)"', "src/shared/providers.ts");
 assertIncludes(nativeProtocol, '"PROVIDER_MODELS"', "src/shared/nativeProtocol.ts");
 assertIncludes(

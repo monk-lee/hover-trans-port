@@ -14,7 +14,13 @@ use crate::providers::{
     ProviderPromptResult,
 };
 
-const DEFAULT_CODEX_MODEL: &str = "gpt-5.3-codex-spark";
+const DEFAULT_CODEX_MODEL: &str = "gpt-6-luna";
+const PREFERRED_CODEX_MODELS: &[&str] = &[
+    DEFAULT_CODEX_MODEL,
+    "gpt-5.6-luna",
+    "gpt-5.3-codex-spark",
+    "gpt-5.4-mini",
+];
 const DEFAULT_STATUS_TIMEOUT_MS: u64 = 5_000;
 const UNSUPPORTED_CODEX_MODELS: &[&str] = &["gpt-5.4-nano"];
 
@@ -142,33 +148,23 @@ fn codex_fallback_model_catalog() -> ProviderModelCatalog {
         default_model: DEFAULT_CODEX_MODEL.to_string(),
         models: vec![
             ProviderModelOption {
-                value: "gpt-5.5".to_string(),
-                label: "GPT-5.5".to_string(),
-                recommended: None,
-            },
-            ProviderModelOption {
-                value: "gpt-5.4".to_string(),
-                label: "GPT-5.4".to_string(),
-                recommended: None,
-            },
-            ProviderModelOption {
-                value: "gpt-5.4-mini".to_string(),
-                label: "GPT-5.4 Mini".to_string(),
-                recommended: None,
-            },
-            ProviderModelOption {
-                value: "gpt-5.3-codex".to_string(),
-                label: "GPT-5.3 Codex".to_string(),
-                recommended: None,
-            },
-            ProviderModelOption {
-                value: "gpt-5.3-codex-spark".to_string(),
-                label: "GPT-5.3 Codex Spark".to_string(),
+                value: "gpt-6-luna".to_string(),
+                label: "GPT-6 Luna (medium)".to_string(),
                 recommended: Some(true),
             },
             ProviderModelOption {
-                value: "gpt-5.2".to_string(),
-                label: "GPT-5.2".to_string(),
+                value: "gpt-6.2-sol".to_string(),
+                label: "GPT-6.2 Sol".to_string(),
+                recommended: None,
+            },
+            ProviderModelOption {
+                value: "gpt-6.2-astra".to_string(),
+                label: "GPT-6.2 Astra".to_string(),
+                recommended: None,
+            },
+            ProviderModelOption {
+                value: "gpt-6.1-terra".to_string(),
+                label: "GPT-6.1 Terra".to_string(),
                 recommended: None,
             },
         ],
@@ -209,17 +205,20 @@ fn codex_model_catalog_from_value(value: &serde_json::Value) -> Option<ProviderM
         return None;
     };
 
-    let models = model_values
+    let mut models = model_values
         .iter()
         .filter(|model| model["visibility"].as_str() == Some("list"))
         .filter_map(|model| {
             let value = model["slug"].as_str()?.to_string();
-            let label = model["display_name"]
+            let mut label = model["display_name"]
                 .as_str()
                 .map(str::to_string)
                 .unwrap_or_else(|| value.clone());
+            if PREFERRED_CODEX_MODELS.contains(&value.as_str()) {
+                label.push_str(" (medium)");
+            }
             Some(ProviderModelOption {
-                recommended: (value == DEFAULT_CODEX_MODEL).then_some(true),
+                recommended: None,
                 value,
                 label,
             })
@@ -231,9 +230,14 @@ fn codex_model_catalog_from_value(value: &serde_json::Value) -> Option<ProviderM
         return None;
     }
 
+    let preferred = PREFERRED_CODEX_MODELS
+        .iter()
+        .find_map(|id| models.iter().position(|model| &model.value == id))
+        .unwrap_or(0);
+    models[preferred].recommended = Some(true);
     Some(ProviderModelCatalog {
         provider: ProviderId::Codex,
-        default_model: DEFAULT_CODEX_MODEL.to_string(),
+        default_model: models[preferred].value.clone(),
         models,
         supports_custom_model: true,
         source: "cli".to_string(),
@@ -274,10 +278,14 @@ fn extract_json_object_at(text: &str, start: usize) -> Option<&str> {
 }
 
 pub fn build_codex_exec_args(model: &str, temp_dir: &Path, output_file: &Path) -> Vec<String> {
-    vec![
-        "exec".to_string(),
-        "--model".to_string(),
-        model.to_string(),
+    let mut args = vec!["exec".to_string(), "--model".to_string(), model.to_string()];
+    if PREFERRED_CODEX_MODELS.contains(&model) {
+        args.extend([
+            "-c".to_string(),
+            r#"model_reasoning_effort="medium""#.to_string(),
+        ]);
+    }
+    args.extend([
         "--ephemeral".to_string(),
         "--sandbox".to_string(),
         "read-only".to_string(),
@@ -289,7 +297,8 @@ pub fn build_codex_exec_args(model: &str, temp_dir: &Path, output_file: &Path) -
         "--output-last-message".to_string(),
         output_file.display().to_string(),
         "-".to_string(),
-    ]
+    ]);
+    args
 }
 
 fn find_codex_binary(env: &BTreeMap<String, String>) -> Option<PathBuf> {

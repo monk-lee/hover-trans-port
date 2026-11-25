@@ -219,7 +219,7 @@ fn translate(value: Value, request_id: Option<String>, deps: BridgeDeps) -> Valu
     }
 }
 
-fn translate_valid(request: TranslateRequest, deps: BridgeDeps) -> Value {
+fn translate_valid(mut request: TranslateRequest, deps: BridgeDeps) -> Value {
     let registry = ProviderRegistry::new(deps.env.clone());
     let timeout_ms = request.timeout_ms.unwrap_or(30_000).max(1);
     let source_lang = request.source_lang.unwrap_or_else(|| "auto".to_string());
@@ -229,7 +229,8 @@ fn translate_valid(request: TranslateRequest, deps: BridgeDeps) -> Value {
     let cache_enabled = request.cache_enabled.unwrap_or(true);
     let request_id = request.request_id.clone();
     let target_lang = request.target_lang.clone();
-    let model = request.model.clone().unwrap_or_default();
+    let model = registry.resolve_model(effective_provider, request.model.as_deref());
+    request.model = Some(model.clone());
     let text_length = request.text.chars().count();
 
     log_debug_event(
@@ -254,7 +255,7 @@ fn translate_valid(request: TranslateRequest, deps: BridgeDeps) -> Value {
         );
         let key = create_translation_cache_key(
             effective_provider,
-            request.model.as_deref().unwrap_or("default"),
+            &model,
             &request.target_lang,
             &request.text,
         );
@@ -419,7 +420,7 @@ fn subtitle_cache_lookup(value: Value, request_id: Option<String>, deps: BridgeD
             );
             let key = subtitle_cache_key(
                 provider,
-                request.model.as_deref().unwrap_or("default"),
+                &ProviderRegistry::new(deps.env.clone()).resolve_model(provider, request.model.as_deref()),
                 &request.target_lang,
                 &request.video_id,
                 &request.source_track_identity,
@@ -477,7 +478,7 @@ fn subtitle_cache_write(value: Value, request_id: Option<String>, deps: BridgeDe
             );
             let key = subtitle_cache_key(
                 provider,
-                request.model.as_deref().unwrap_or("default"),
+                &ProviderRegistry::new(deps.env.clone()).resolve_model(provider, request.model.as_deref()),
                 &request.target_lang,
                 &request.video_id,
                 &request.source_track_identity,
@@ -548,17 +549,18 @@ fn translate_subtitles(value: Value, request_id: Option<String>, deps: BridgeDep
     }
 }
 
-fn translate_subtitles_valid(request: TranslateSubtitlesRequest, deps: BridgeDeps) -> Value {
+fn translate_subtitles_valid(mut request: TranslateSubtitlesRequest, deps: BridgeDeps) -> Value {
     let registry = ProviderRegistry::new(deps.env.clone());
     let timeout_ms = request.timeout_ms.unwrap_or(30_000).max(1);
     let provider_selection = request.provider.clone();
     let effective_provider = resolve_provider_id(provider_selection.as_deref());
     let debug_logging = request.debug_logging.unwrap_or(false);
     let cache_enabled = request.cache_enabled.unwrap_or(true);
-    let model = request.model.clone().unwrap_or_default();
+    let model = registry.resolve_model(effective_provider, request.model.as_deref());
+    request.model = Some(model.clone());
     let key = subtitle_cache_key(
         effective_provider,
-        request.model.as_deref().unwrap_or("default"),
+        &model,
         &request.target_lang,
         &request.video_id,
         &request.source_track_identity,

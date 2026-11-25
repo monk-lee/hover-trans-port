@@ -59,6 +59,28 @@ pub struct ProviderModelCatalog {
     pub source: String,
 }
 
+impl ProviderModelCatalog {
+    fn with_cli_default(provider: ProviderId, label: &str, supports_custom_model: bool) -> Self {
+        Self {
+            provider,
+            default_model: "default".to_string(),
+            models: vec![ProviderModelOption {
+                value: "default".to_string(),
+                label: format!("Default ({label})"),
+                recommended: Some(true),
+            }],
+            supports_custom_model,
+            source: "fallback".to_string(),
+        }
+    }
+
+    fn recommend(&mut self, index: usize) {
+        self.models[0].recommended = None;
+        self.models[index].recommended = Some(true);
+        self.default_model = self.models[index].value.clone();
+    }
+}
+
 pub trait Provider {
     fn id(&self) -> ProviderId;
     fn label(&self) -> &'static str;
@@ -149,6 +171,21 @@ impl ProviderRegistry {
             ProviderId::Antigravity => {
                 antigravity::AntigravityProvider::new(self.env.clone()).model_catalog()
             }
+        }
+    }
+
+    pub fn resolve_model(&self, provider: ProviderId, requested: Option<&str>) -> String {
+        match requested.map(str::trim) {
+            Some("")
+                if matches!(
+                    provider,
+                    ProviderId::Gemini | ProviderId::Opencode | ProviderId::Antigravity
+                ) =>
+            {
+                "default".to_string()
+            }
+            Some(model) if !model.is_empty() => model.to_string(),
+            _ => self.model_catalog(provider).default_model,
         }
     }
 

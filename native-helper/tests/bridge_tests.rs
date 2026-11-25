@@ -147,12 +147,12 @@ fn provider_models_returns_catalog_for_selected_provider() {
     assert_eq!(response["requestId"], "req-models");
     assert_eq!(response["ok"], true);
     assert_eq!(response["catalog"]["provider"], "codex");
-    assert_eq!(response["catalog"]["defaultModel"], "gpt-5.3-codex-spark");
+    assert_eq!(response["catalog"]["defaultModel"], "gpt-6-luna");
     assert!(response["catalog"]["models"]
         .as_array()
         .unwrap()
         .iter()
-        .any(|model| model["value"] == "gpt-5.3-codex-spark" && model["recommended"] == true));
+        .any(|model| model["value"] == "gpt-6-luna" && model["recommended"] == true));
 }
 
 #[test]
@@ -1501,10 +1501,10 @@ fn native_host_update_status_reports_available_release() {
     write_release_fixture(
         &releases_path,
         r#"[{
-          "tag_name": "v0.2.23",
+          "tag_name": "v0.2.24",
           "prerelease": false,
           "draft": false,
-          "html_url": "https://github.com/monk-lee/hover-trans-port/releases/tag/v0.2.23",
+          "html_url": "https://github.com/monk-lee/hover-trans-port/releases/tag/v0.2.24",
           "assets": [
             {"name": "install-macos-native-host.sh"},
             {"name": "checksums.txt"},
@@ -1532,9 +1532,9 @@ fn native_host_update_status_reports_available_release() {
     assert_eq!(response["type"], "NATIVE_HOST_UPDATE_STATUS_RESULT");
     assert_eq!(response["requestId"], "req-update-status");
     assert_eq!(response["ok"], true);
-    assert_eq!(response["installedVersion"], "0.2.22");
-    assert_eq!(response["latestVersion"], "0.2.23");
-    assert_eq!(response["latestTag"], "v0.2.23");
+    assert_eq!(response["installedVersion"], "0.2.23");
+    assert_eq!(response["latestVersion"], "0.2.24");
+    assert_eq!(response["latestTag"], "v0.2.24");
     assert_eq!(response["updateAvailable"], true);
 }
 

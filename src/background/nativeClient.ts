@@ -48,7 +48,7 @@ import {
   DEFAULT_DEBUG_LOGGING,
   DEFAULT_TIMEOUT_MS,
   getBrowserTargetLang,
-  getModelForProvider,
+  createTranslationModelResolver,
   normalizeCacheEnabled,
   normalizeDebugLogging,
   normalizeProvider,
@@ -1125,10 +1125,31 @@ export async function getProviderModels(
       response.requestId === requestId &&
       response.catalog.provider === providerId
     ) {
-      return {
-        ok: true,
-        catalog: response.catalog
-      };
+      const catalog = response.catalog;
+      // Protocol v3 helpers shipped before Luna still recommend Spark.
+      if (providerId === "codex" && catalog.defaultModel === "gpt-5.3-codex-spark") {
+        if (catalog.source === "fallback") {
+          return { ok: true, catalog: fallbackCatalog };
+        }
+        const luna = fallbackCatalog.defaultModel;
+        if (catalog.models.some((model) => model.value === luna)) {
+          return {
+            ok: true,
+            catalog: {
+              ...catalog,
+              defaultModel: luna,
+              models: catalog.models.map((model) => ({
+                ...model, recommended: model.value === luna
+              }))
+            }
+          };
+        }
+      }
+      // Older helpers represent the explicit CLI-default option with an empty value.
+      if (catalog.source === "fallback" && catalog.models.some((model) => model.value === "")) {
+        return { ok: true, catalog: fallbackCatalog };
+      }
+      return { ok: true, catalog };
     }
 
     if (!response) {
@@ -1166,6 +1187,11 @@ export async function getProviderModels(
   }
 }
 
+const resolveTranslationModel = createTranslationModelResolver(async (provider) => {
+  const status = await getProviderModels(crypto.randomUUID(), provider);
+  return (status.ok ? status.catalog : status.fallbackCatalog).defaultModel || "default";
+});
+
 export async function translateWithNativeHost(
   requestId: string,
   target: TranslationTarget
@@ -1176,7 +1202,7 @@ export async function translateWithNativeHost(
     "hoverTransPort"
   )) as StoredOptions;
   const selectedProvider = normalizeProvider(options.hoverTransPort?.provider);
-  const selectedModel = getModelForProvider(
+  const selectedModel = await resolveTranslationModel(
     options.hoverTransPort,
     selectedProvider
   );
@@ -1734,7 +1760,7 @@ export async function translateSubtitleTrack(
     input.provider ?? options.hoverTransPort?.provider
   );
   const selectedModel =
-    input.model?.trim() || getModelForProvider(options.hoverTransPort, selectedProvider);
+    input.model?.trim() || await resolveTranslationModel(options.hoverTransPort, selectedProvider);
   const selectedTargetLang = normalizeTargetLang(
     input.targetLang,
     getBrowserTargetLang(getBrowserLocaleCandidates())
@@ -1888,7 +1914,7 @@ export async function translateSubtitleTrack(
     if (cacheEnabledValue && failedChunks.length === 0) {
       void writeSubtitleTranslationCache(
         `${requestId}:full-cache-write`,
-        input,
+        { ...input, model: selectedModel },
         orderedTranslatedCues,
         debugLoggingValue
       );

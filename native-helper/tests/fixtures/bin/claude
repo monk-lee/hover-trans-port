@@ -9,9 +9,11 @@ if [ "$1" = "-p" ]; then
   no_session_persistence=0
   tools=""
   tools_seen=0
+  model=""
   previous=""
 
   for arg in "$@"; do
+    if [ "$previous" = "--model" ]; then model="$arg"; fi
     if [ "$previous" = "--output-format" ]; then
       output_format="$arg"
     fi
@@ -25,6 +27,10 @@ if [ "$1" = "-p" ]; then
     previous="$arg"
   done
 
+  if [ "$model" = "haiku" ] && [ "$CLAUDE_CODE_EFFORT_LEVEL" != "medium" ]; then
+    printf 'expected medium effort for Haiku\n' >&2
+    exit 2
+  fi
   if [ "$output_format" != "json" ]; then
     printf 'expected --output-format json, got: %s\n' "$output_format" >&2
     exit 2

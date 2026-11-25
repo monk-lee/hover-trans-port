@@ -10,6 +10,7 @@ import type {
   SubtitleTranslationResultResponse
 } from "../shared/messages";
 import type { ProviderId, ProviderSelection } from "../shared/providers";
+import { createTranslationModelResolver } from "../shared/options";
 import {
   createSubtitleSourceTimelineHash,
   createSubtitleTrackIdentity,
@@ -74,13 +75,17 @@ const PROVIDER_SELECTIONS = new Set<ProviderSelection>([
   "antigravity",
   "auto"
 ]);
-const PROVIDER_DEFAULT_MODELS: Record<ProviderId, string> = {
-  codex: "gpt-5.3-codex-spark",
-  claude: "haiku",
-  gemini: "",
-  opencode: "",
-  antigravity: ""
-};
+const resolveTranslationModel = createTranslationModelResolver(async (provider) => {
+  const response = await chrome.runtime.sendMessage<ExtensionRequest, ExtensionResponse>({
+    type: "GET_PROVIDER_MODELS",
+    requestId: createRequestId(),
+    provider
+  });
+  if (response?.type !== "PROVIDER_MODELS_RESULT") {
+    throw new Error("Missing model catalog");
+  }
+  return (response.ok ? response.catalog : response.fallbackCatalog).defaultModel || "default";
+});
 const LOCALE_TARGET_LANG_BY_PREFIX: Record<string, string> = {
   ko: "Korean",
   en: "English",
@@ -200,7 +205,6 @@ export class YouTubeSubtitleSession {
         storedOptions?.targetLang,
         getBrowserTargetLang([navigator.language])
       );
-      const model = getModelForProvider(storedOptions, provider);
       const cacheEnabled = normalizeCacheEnabled(storedOptions?.cacheEnabled);
       const timeoutMs = normalizeYouTubeSubtitleTimeoutMs(
         storedOptions?.youtubeSubtitleTimeoutMs
@@ -254,6 +258,10 @@ export class YouTubeSubtitleSession {
         return;
       }
 
+      const model = await resolveTranslationModel(storedOptions, provider);
+      if (sequence !== this.refreshSequence || this.stopped) {
+        return;
+      }
       const pendingSource: PendingSubtitleSource = {
         videoId,
         trackCandidates,
@@ -1113,31 +1121,6 @@ function createTranscriptPanelTrack(
     kind: fallbackTrack?.kind ?? "manual",
     baseUrl: `youtubei:get_transcript:${videoId}`
   };
-}
-
-function resolveProviderForModel(provider: ProviderSelection): ProviderId {
-  return provider === "auto" ? "codex" : provider;
-}
-
-function normalizeProviderModel(
-  provider: ProviderId,
-  model: string | undefined
-): string {
-  const trimmed = model?.trim();
-
-  return trimmed || PROVIDER_DEFAULT_MODELS[provider];
-}
-
-function getModelForProvider(
-  options: StoredOptions["hoverTransPort"],
-  provider: ProviderSelection
-): string {
-  const providerId = resolveProviderForModel(provider);
-  const configured =
-    options?.modelsByProvider?.[providerId] ??
-    (providerId === "codex" ? options?.codexModel : undefined);
-
-  return normalizeProviderModel(providerId, configured);
 }
 
 function normalizeTargetLang(targetLang: string | undefined, fallback: string): string {

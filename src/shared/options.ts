@@ -80,10 +80,14 @@ export function normalizeCodexModel(model: string | undefined): string {
 
 export function normalizeProviderModel(
   provider: ProviderId,
-  model: string | undefined
+  model: string | undefined,
+  fallback = PROVIDER_DEFAULT_MODELS[provider]
 ): string {
   const trimmed = model?.trim();
-  const fallback = PROVIDER_DEFAULT_MODELS[provider];
+  // An empty saved value was the explicit CLI-default option for these providers.
+  if (trimmed === "" && ["gemini", "opencode", "antigravity"].includes(provider)) {
+    return "default";
+  }
   const unsupportedModels = UNSUPPORTED_PROVIDER_MODELS[provider] ?? [];
 
   if (!trimmed || unsupportedModels.includes(trimmed)) {
@@ -91,19 +95,6 @@ export function normalizeProviderModel(
   }
 
   return trimmed;
-}
-
-export function normalizeModelsByProvider(
-  modelsByProvider: ProviderModelMap | undefined,
-  codexModel: string | undefined
-): ProviderModelMap {
-  return {
-    ...modelsByProvider,
-    codex: normalizeProviderModel(
-      "codex",
-      modelsByProvider?.codex ?? codexModel
-    )
-  };
 }
 
 export function normalizeTargetLang(
@@ -146,16 +137,37 @@ export function getBrowserTargetLang(
   return DEFAULT_TARGET_LANG;
 }
 
+type ModelOptions = Pick<HoverTransPortOptions, "modelsByProvider" | "codexModel">;
+
 export function getModelForProvider(
-  options: HoverTransPortOptions | undefined,
-  provider: ProviderSelection
+  options: ModelOptions | undefined,
+  provider: ProviderSelection,
+  fallback = PROVIDER_DEFAULT_MODELS[resolveProviderForModel(provider)]
 ): string {
-  const providerId = resolveProviderForModel(provider);
-  const models = normalizeModelsByProvider(
-    options?.modelsByProvider,
-    options?.codexModel
-  );
-  return normalizeProviderModel(providerId, models[providerId]);
+  const id = resolveProviderForModel(provider);
+  const stored = options?.modelsByProvider?.[id]
+    ?? (id === "codex" ? options?.codexModel : undefined);
+  return normalizeProviderModel(id, stored, fallback);
+}
+
+export function createTranslationModelResolver(
+  loadDefault: (provider: ProviderId) => Promise<string>
+) {
+  const defaults = new Map<ProviderId, { expires: number; model: Promise<string> }>();
+  return async (options: ModelOptions | undefined, provider: ProviderSelection) => {
+    const id = resolveProviderForModel(provider);
+    const saved = getModelForProvider(options, id, "");
+    if (saved || id === "gemini" || id === "claude") {
+      return saved || PROVIDER_DEFAULT_MODELS[id];
+    }
+    const cached = defaults.get(id);
+    if (cached && Date.now() < cached.expires) {
+      return cached.model;
+    }
+    const model = loadDefault(id).catch(() => PROVIDER_DEFAULT_MODELS[id]);
+    defaults.set(id, { expires: Date.now() + 60_000, model });
+    return model;
+  };
 }
 
 export function normalizeEnabled(enabled: boolean | undefined): boolean {

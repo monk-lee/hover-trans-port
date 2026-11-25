@@ -6,7 +6,6 @@ import type {
 } from "../shared/messages";
 import { formatNativeHostUpdateStatusForUser } from "../shared/nativeHostUpdate";
 import {
-  getDefaultModelForProvider,
   getFallbackModelCatalog,
   formatProviderUnavailableMessage,
   getProviderLabel,
@@ -267,7 +266,8 @@ function setProviderModelInput(
   provider: ProviderSelection,
   options: HoverTransPortOptions | undefined
 ) {
-  setProviderModelInputForProvider(provider, getModelForProvider(options, provider));
+  const catalog = getProviderModelCatalog(provider);
+  setProviderModelInputForProvider(provider, getModelForProvider(options, provider, catalog.defaultModel));
 }
 
 function setCacheStatus(message: string) {
@@ -480,9 +480,6 @@ async function loadProviderModelCatalog(
   statusCheckSequence?: number
 ): Promise<ProviderModelCatalog | undefined> {
   const providerId = resolveProviderForModel(provider);
-  const stored = (await chrome.storage.local.get(
-    "hoverTransPort"
-  )) as StoredOptions;
   let catalog =
     providerModelCatalogCache.get(providerId) ?? getFallbackModelCatalog(providerId);
 
@@ -515,6 +512,9 @@ async function loadProviderModelCatalog(
     providerModelCatalogCache.set(providerId, catalog);
   }
 
+  const stored = (await chrome.storage.local.get(
+    "hoverTransPort"
+  )) as StoredOptions;
   if (
     statusCheckSequence !== undefined &&
     !isCurrentProviderStatusCheck(statusCheckSequence, provider)
@@ -525,7 +525,7 @@ async function loadProviderModelCatalog(
   currentModelCatalog = catalog;
   populateProviderModelOptions(
     provider,
-    getModelForProvider(stored.hoverTransPort, provider),
+    getModelForProvider(stored.hoverTransPort, provider, catalog.defaultModel),
     catalog
   );
   return catalog;
@@ -840,9 +840,7 @@ async function loadDebugLogContent() {
   setDebugLogContent(`${prefix}${formatDebugLogContent(response.content)}`);
 }
 
-async function saveOptions(
-  { persistProviderModel = true }: { persistProviderModel?: boolean } = {}
-) {
+async function saveOptions(modelAction?: "select" | "reset") {
   const current = (await chrome.storage.local.get(
     "hoverTransPort"
   )) as StoredOptions;
@@ -868,7 +866,13 @@ async function saveOptions(
     )
   };
 
-  if (persistProviderModel) {
+  if (modelAction === "reset") {
+    nextOptions.modelsByProvider = { ...nextOptions.modelsByProvider };
+    delete nextOptions.modelsByProvider[modelProvider];
+    if (modelProvider === "codex") {
+      delete nextOptions.codexModel;
+    }
+  } else if (modelAction === "select") {
     const selectedModel = normalizeProviderModel(
       modelProvider,
       providerModelInput?.value
@@ -892,14 +896,12 @@ async function saveOptions(
 
 async function resetProviderModel() {
   const selectedProvider = getSelectedProvider();
-  const modelProvider = resolveProviderForModel(selectedProvider);
-
   setProviderModelInputForProvider(
     selectedProvider,
-    getDefaultModelForProvider(modelProvider)
+    getProviderModelCatalog(selectedProvider).defaultModel
   );
 
-  await saveOptions();
+  await saveOptions("reset");
 }
 
 function formatNativeHostReadyStatus(
@@ -1323,7 +1325,7 @@ providerInput?.addEventListener("change", () => {
     .then((current) => {
       const storedOptions = current as StoredOptions;
       setProviderModelInput(getSelectedProvider(), storedOptions.hoverTransPort);
-      return saveOptions({ persistProviderModel: false });
+      return saveOptions();
     })
     .then(checkProviderStatus)
     .catch((error: unknown) => {
@@ -1334,7 +1336,7 @@ providerInput?.addEventListener("change", () => {
 });
 
 providerModelInput?.addEventListener("change", () => {
-  saveOptions().catch((error: unknown) => {
+  saveOptions("select").catch((error: unknown) => {
     const message = error instanceof Error ? error.message : "Unknown error";
     setSaveState(message);
   });

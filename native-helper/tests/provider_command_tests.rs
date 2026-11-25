@@ -36,6 +36,8 @@ fn codex_command_builder_matches_node_provider_shape() {
             "exec",
             "--model",
             "gpt-5.4-mini",
+            "-c",
+            r#"model_reasoning_effort="medium""#,
             "--ephemeral",
             "--sandbox",
             "read-only",
@@ -520,16 +522,48 @@ fn codex_model_catalog_filters_visible_debug_models() {
     let catalog = provider.model_catalog();
 
     assert_eq!(catalog.provider, ProviderId::Codex);
-    assert_eq!(catalog.default_model, "gpt-5.3-codex-spark");
+    assert_eq!(catalog.default_model, "gpt-6-luna");
     assert_eq!(catalog.source, "cli");
     assert!(catalog
         .models
         .iter()
-        .any(|model| model.value == "gpt-5.3-codex-spark" && model.recommended == Some(true)));
+        .any(|model| model.value == "gpt-6-luna" && model.recommended == Some(true)));
     assert!(!catalog
         .models
         .iter()
         .any(|model| model.value == "gpt-5.4-nano"));
+}
+
+#[test]
+fn lightweight_models_reach_cli_arguments() {
+    let dir = Path::new("/tmp/htp");
+    let args = build_codex_exec_args("gpt-6-luna", dir, &dir.join("out"));
+    assert!(args
+        .windows(2)
+        .any(|pair| pair == ["-c", r#"model_reasoning_effort="medium""#]));
+
+    let env = BTreeMap::from([
+        (
+            "HOVER_TRANS_PORT_OPENCODE_PATH".into(),
+            fixture_path("opencode").display().to_string(),
+        ),
+        ("PATH".into(), "/usr/bin:/bin".into()),
+    ]);
+    let catalog = OpencodeProvider::new(env).model_catalog();
+    assert_eq!(catalog.source, "cli");
+    assert_eq!(catalog.default_model, "test/light#medium");
+    let args = build_opencode_args(Some(&catalog.default_model), dir);
+    assert!(args
+        .windows(4)
+        .any(|args| args == ["--model", "test/light", "--variant", "medium"]));
+
+    let env = BTreeMap::from([(
+        "HOVER_TRANS_PORT_ANTIGRAVITY_PATH".into(),
+        fixture_path("agy").display().to_string(),
+    )]);
+    let catalog = AntigravityProvider::new(env).model_catalog();
+    assert_eq!(catalog.source, "cli");
+    assert_eq!(catalog.default_model, "gemini-3.8-flash-medium");
 }
 
 #[test]
@@ -538,6 +572,7 @@ fn antigravity_command_builder_uses_print_mode_shape() {
         30_000,
         Path::new("/tmp/htp-agy.log"),
         "Translate 'Hello' to Korean.",
+        "gemini-3.8-flash-medium",
     );
 
     assert_eq!(
@@ -548,6 +583,8 @@ fn antigravity_command_builder_uses_print_mode_shape() {
             "--print-timeout",
             "30s",
             "--sandbox",
+            "--model",
+            "gemini-3.8-flash-medium",
             "--print",
             "Translate 'Hello' to Korean.",
         ]
@@ -556,7 +593,7 @@ fn antigravity_command_builder_uses_print_mode_shape() {
 
 #[test]
 fn antigravity_command_builder_rounds_timeout_up_to_seconds() {
-    let args = build_antigravity_args(5_500, Path::new("/tmp/htp-agy.log"), "prompt");
+    let args = build_antigravity_args(5_500, Path::new("/tmp/htp-agy.log"), "prompt", "default");
 
     assert_eq!(
         args,
@@ -581,14 +618,17 @@ fn antigravity_process_timeout_allows_print_timeout_grace() {
 
 #[test]
 fn antigravity_model_catalog_uses_default_only_shape() {
-    let provider = AntigravityProvider::new(BTreeMap::new());
+    let provider = AntigravityProvider::new(BTreeMap::from([(
+        "HOVER_TRANS_PORT_ANTIGRAVITY_PATH".into(),
+        "/no/agy".into(),
+    )]));
     let catalog = provider.model_catalog();
 
     assert_eq!(catalog.provider, ProviderId::Antigravity);
-    assert_eq!(catalog.default_model, "");
+    assert_eq!(catalog.default_model, "default");
     assert!(!catalog.supports_custom_model);
     assert_eq!(catalog.models.len(), 1);
-    assert_eq!(catalog.models[0].value, "");
+    assert_eq!(catalog.models[0].value, "default");
     assert_eq!(catalog.models[0].label, "Default (Antigravity CLI)");
 }
 
@@ -631,7 +671,7 @@ fn antigravity_fake_cli_translation_returns_success_result() {
             "type": "TRANSLATE",
             "requestId": "req-antigravity",
             "provider": "antigravity",
-            "model": "ignored-by-provider",
+            "model": "default",
             "targetLang": "Korean",
             "text": "Hello",
             "cacheEnabled": false,
@@ -995,13 +1035,13 @@ fn gemini_model_catalog_uses_unified_fallback_shape() {
     let catalog = provider.model_catalog();
 
     assert_eq!(catalog.provider, ProviderId::Gemini);
-    assert_eq!(catalog.default_model, "");
+    assert_eq!(catalog.default_model, "gemini-3.5-flash-lite");
     assert!(catalog.supports_custom_model);
-    assert!(catalog.models.iter().any(|model| model.value == ""));
+    assert!(catalog.models.iter().any(|model| model.value == "default"));
     assert!(catalog
         .models
         .iter()
-        .any(|model| model.value == "gemini-2.5-flash"));
+        .any(|model| model.value == "gemini-3.5-flash-lite" && model.recommended == Some(true)));
 }
 
 #[test]
@@ -1023,7 +1063,6 @@ fn gemini_fake_cli_translation_returns_success_result() {
             "type": "TRANSLATE",
             "requestId": "req-gemini",
             "provider": "gemini",
-            "model": "",
             "targetLang": "Korean",
             "text": "Hello",
             "cacheEnabled": false,
@@ -1157,14 +1196,17 @@ fn opencode_command_builder_passes_explicit_model() {
 
 #[test]
 fn opencode_model_catalog_uses_default_cli_model() {
-    let provider = OpencodeProvider::new(BTreeMap::new());
+    let provider = OpencodeProvider::new(BTreeMap::from([(
+        "HOVER_TRANS_PORT_OPENCODE_PATH".into(),
+        "/no/opencode".into(),
+    )]));
     let catalog = provider.model_catalog();
 
     assert_eq!(catalog.provider, ProviderId::Opencode);
-    assert_eq!(catalog.default_model, "");
+    assert_eq!(catalog.default_model, "default");
     assert!(catalog.supports_custom_model);
     assert_eq!(catalog.models.len(), 1);
-    assert_eq!(catalog.models[0].value, "");
+    assert_eq!(catalog.models[0].value, "default");
     assert_eq!(catalog.models[0].label, "Default (OpenCode CLI)");
     assert_eq!(catalog.models[0].recommended, Some(true));
 }

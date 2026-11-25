@@ -4,6 +4,15 @@ if [ "$1" = "--version" ]; then
   exit 0
 fi
 
+if [ "$1" = "--help" ]; then
+  printf 'Available subcommands:\n  models   List model slugs\n'
+  exit 0
+fi
+if [ "$1" = "models" ]; then
+  printf '%s\n' 'gemini-4-neon-high   Gemini 4 Neon (High)' 'gemini-3.8-flash-medium   Gemini 3.8 Flash (Medium)'
+  exit 0
+fi
+
 log_file=""
 print_timeout=""
 sandbox_seen="0"

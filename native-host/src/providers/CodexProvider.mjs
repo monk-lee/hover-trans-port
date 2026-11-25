@@ -4,11 +4,15 @@ import { join } from "node:path";
 import { buildTranslatePrompt } from "./buildTranslatePrompt.mjs";
 import { findCodexBinary } from "./findCodexBinary.mjs";
 import { parseCodexOutput } from "./parseCodexOutput.mjs";
+import { createFallbackModelCatalog } from "./providerRegistry.mjs";
 import { spawnWithTimeout } from "./spawnWithTimeout.mjs";
 
 const DEFAULT_TRANSLATE_TIMEOUT_MS = 30_000;
 const DEFAULT_STATUS_TIMEOUT_MS = 5_000;
-export const DEFAULT_CODEX_MODEL = "gpt-5.3-codex-spark";
+export const DEFAULT_CODEX_MODEL = createFallbackModelCatalog("codex").defaultModel;
+const PREFERRED_CODEX_MODELS = [
+  DEFAULT_CODEX_MODEL, "gpt-5.6-luna", "gpt-5.3-codex-spark", "gpt-5.4-mini"
+];
 const UNSUPPORTED_CODEX_MODELS = new Set(["gpt-5.4-nano"]);
 
 function createProviderEnv(codexPath) {
@@ -39,27 +43,6 @@ function normalizeProviderFailure(result) {
   return {
     available: false,
     error: result.error ?? "PROVIDER_UNAVAILABLE"
-  };
-}
-
-function createCodexFallbackModelCatalog() {
-  return {
-    provider: "codex",
-    defaultModel: DEFAULT_CODEX_MODEL,
-    models: [
-      { value: "gpt-5.5", label: "GPT-5.5" },
-      { value: "gpt-5.4", label: "GPT-5.4" },
-      { value: "gpt-5.4-mini", label: "GPT-5.4 Mini" },
-      { value: "gpt-5.3-codex", label: "GPT-5.3 Codex" },
-      {
-        value: "gpt-5.3-codex-spark",
-        label: "GPT-5.3 Codex Spark",
-        recommended: true
-      },
-      { value: "gpt-5.2", label: "GPT-5.2" }
-    ],
-    supportsCustomModel: true,
-    source: "fallback"
   };
 }
 
@@ -109,8 +92,7 @@ function createCodexModelCatalog(parsed) {
               : value;
           return {
             value,
-            label,
-            recommended: value === DEFAULT_CODEX_MODEL || undefined
+            label: PREFERRED_CODEX_MODELS.includes(value) ? `${label} (medium)` : label
           };
         })
         .filter(
@@ -122,9 +104,13 @@ function createCodexModelCatalog(parsed) {
     return null;
   }
 
+  const preferred = PREFERRED_CODEX_MODELS
+    .map((value) => models.find((model) => model.value === value))
+    .find(Boolean) ?? models[0];
+  preferred.recommended = true;
   return {
     provider: "codex",
-    defaultModel: DEFAULT_CODEX_MODEL,
+    defaultModel: preferred.value,
     models,
     supportsCustomModel: true,
     source: "cli"
@@ -234,7 +220,7 @@ export class CodexProvider {
   }
 
   async modelCatalog() {
-    const fallbackCatalog = createCodexFallbackModelCatalog();
+    const fallbackCatalog = createFallbackModelCatalog("codex");
     const binaryPath = this.findBinary();
 
     if (!binaryPath) {
@@ -286,6 +272,7 @@ export class CodexProvider {
           "exec",
           "--model",
           codexModel,
+          ...(PREFERRED_CODEX_MODELS.includes(codexModel) ? ["-c", 'model_reasoning_effort="medium"'] : []),
           "--ephemeral",
           "--sandbox",
           "read-only",

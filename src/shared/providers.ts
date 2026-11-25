@@ -35,11 +35,11 @@ export const PROVIDER_LABELS: Record<ProviderId, string> = {
 };
 
 export const PROVIDER_DEFAULT_MODELS: Record<ProviderId, string> = {
-  codex: "gpt-5.3-codex-spark",
+  codex: "gpt-6-luna",
   claude: "haiku",
-  gemini: "",
-  opencode: "",
-  antigravity: ""
+  gemini: "gemini-3.5-flash-lite",
+  opencode: "default",
+  antigravity: "default"
 };
 
 export const CODEX_NOT_FOUND_GUIDANCE =
@@ -51,27 +51,21 @@ export const PROVIDER_FALLBACK_MODEL_CATALOGS: Record<
 > = {
   codex: {
     provider: "codex",
-    defaultModel: "gpt-5.3-codex-spark",
+    defaultModel: PROVIDER_DEFAULT_MODELS.codex,
     models: [
-      { value: "gpt-5.5", label: "GPT-5.5" },
-      { value: "gpt-5.4", label: "GPT-5.4" },
-      { value: "gpt-5.4-mini", label: "GPT-5.4 Mini" },
-      { value: "gpt-5.3-codex", label: "GPT-5.3 Codex" },
-      {
-        value: "gpt-5.3-codex-spark",
-        label: "GPT-5.3 Codex Spark",
-        recommended: true
-      },
-      { value: "gpt-5.2", label: "GPT-5.2" }
+      { value: "gpt-6-luna", label: "GPT-6 Luna (medium)", recommended: true },
+      { value: "gpt-6.2-sol", label: "GPT-6.2 Sol" },
+      { value: "gpt-6.2-astra", label: "GPT-6.2 Astra" },
+      { value: "gpt-6.1-terra", label: "GPT-6.1 Terra" }
     ],
     supportsCustomModel: true,
     source: "fallback"
   },
   claude: {
     provider: "claude",
-    defaultModel: "haiku",
+    defaultModel: PROVIDER_DEFAULT_MODELS.claude,
     models: [
-      { value: "haiku", label: "Haiku", recommended: true },
+      { value: "haiku", label: "Haiku (medium)", recommended: true },
       { value: "sonnet", label: "Sonnet" },
       { value: "opus", label: "Opus" },
       { value: "default", label: "Default (Claude CLI)" }
@@ -81,29 +75,30 @@ export const PROVIDER_FALLBACK_MODEL_CATALOGS: Record<
   },
   gemini: {
     provider: "gemini",
-    defaultModel: "",
+    defaultModel: PROVIDER_DEFAULT_MODELS.gemini,
     models: [
-      { value: "", label: "Default (Gemini CLI)", recommended: true },
-      { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
-      { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro" }
+      { value: "gemini-3.5-flash-lite", label: "Gemini 3.5 Flash-Lite (medium)", recommended: true },
+      { value: "default", label: "Default (Gemini CLI)" },
+      { value: "gemini-3.8-flash", label: "Gemini 3.8 Flash" },
+      { value: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro Preview" }
     ],
     supportsCustomModel: true,
     source: "fallback"
   },
   opencode: {
     provider: "opencode",
-    defaultModel: "",
+    defaultModel: PROVIDER_DEFAULT_MODELS.opencode,
     models: [
-      { value: "", label: "Default (OpenCode CLI)", recommended: true }
+      { value: "default", label: "Default (OpenCode CLI)", recommended: true }
     ],
     supportsCustomModel: true,
     source: "fallback"
   },
   antigravity: {
     provider: "antigravity",
-    defaultModel: "",
+    defaultModel: PROVIDER_DEFAULT_MODELS.antigravity,
     models: [
-      { value: "", label: "Default (Antigravity CLI)", recommended: true }
+      { value: "default", label: "Default (Antigravity CLI)", recommended: true }
     ],
     supportsCustomModel: false,
     source: "fallback"
@@ -155,10 +150,6 @@ export function formatProviderUnavailableMessage(
   }
 
   return error ?? `${getProviderLabel(providerId)} was not found.`;
-}
-
-export function getDefaultModelForProvider(provider: ProviderId): string {
-  return PROVIDER_DEFAULT_MODELS[provider];
 }
 
 export function getFallbackModelCatalog(
