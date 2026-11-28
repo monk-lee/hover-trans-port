@@ -13,7 +13,7 @@ path = "src/main.rs"
 
 [dependencies]
 dirs = "6"
-rusqlite = { version = "0.39", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.11"
